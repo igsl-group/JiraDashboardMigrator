@@ -10,18 +10,16 @@
 		"configType": "<CONFIG or SEPARATE. If CONFIG, the whole Data Center configuration is added to cloud as JSON under 'config' attribute. If SEPARATE, each configuration is added as a separate map entry>",
 		"config": [
 			{
-				"attributeNameRegex": "<Regular expression of attribute name, always matches whole string>",
+				"attributeNameRegex": "<Regular expression of attribute name, always matches whole string. Note the order of items defines priority>",
 				"newAttributeNameRegex": "<Regular expression replacement of attribute name, e.g. $0. Null to not change attribute name>",
-				"mappingType": "<PROJECT|ROLE|USER|GROUP|CUSTOM_FIELD|FILTER|DASHBOARD to indicate what is being mapped. Null to not map value>",
+				"mappingType": "<PROJECT|ROLE|USER|GROUP|CUSTOM_FIELD|FILTER|DASHBOARD to indicate what is being mapped. Null to not map value. Target group is the index of capture group to map>",
 				"pattern": "<Regular expression to capture one value to be mapped. Use ^ and $ to match the whole string>",
-				"targetGroup": <Numeric index of capturing group in pattern to perform mapping on>,
+				"targetGroup": 0,
 				"replacement": "<Regular expression replacement>",
 				"delimiter": "<Delimiter to use if multiple values are found. Replacement must exclude delimiters>",
 				"prefix": "Prefix to add to the whole value",
 				"suffix": "Suffix to add to the whole value"
 			}
-			// Note that order of config defines priority. 
-			// Matching stops with the first attributeNameRegex match.
 		]
 	}
 ]
