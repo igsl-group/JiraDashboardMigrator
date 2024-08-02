@@ -1,0 +1,14 @@
+[
+	{
+		"description": "Wallboard Spacer Gadget",
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": null,
+		"uri": "rest/gadgets/1.0/g/com.atlassian.jirawallboard.atlassian-wallboard-plugin:spacer-gadget/gadgets/spacerGadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": "",
+		"configType": "CONFIG",
+		"config": [
+		]
+	}
+]

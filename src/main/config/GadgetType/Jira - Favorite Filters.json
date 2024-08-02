@@ -1,0 +1,14 @@
+[
+	{
+		"description": "Favorite Filters",
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": null,
+		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:favourite-filters-gadget/gadgets/favourite-filters-gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": "",
+		"configType": "CONFIG",
+		"config": [
+		]
+	}
+]

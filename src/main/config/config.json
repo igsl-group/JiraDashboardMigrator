@@ -1,0 +1,12 @@
+{
+	"sourceDatabaseURL": "jdbc:mysql://[IP]:5432/[Database]",
+	"sourceDatabaseUser": "[User]",
+	"sourceDatabasePassword": "[Password]",
+	"sourceRESTBaseURL": "http://[IP]:8080/jira/",
+	"sourceUser": "[User]",
+	"sourcePassword": "[Password]",
+	"targetRESTBaseURL": "https://[Cloud Domain]/",
+	"targetUser": "[User]",
+	"targetAPIToken": "[API Token]",
+	"jerseyLog": false
+}

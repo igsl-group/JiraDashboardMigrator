@@ -1,0 +1,14 @@
+[
+	{
+		"description": "Resolution Time",
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": null,
+		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:resolution-time-gadget/gadgets/resolution-time-gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": "",
+		"configType": "CONFIG",
+		"config": [
+		]
+	}
+]

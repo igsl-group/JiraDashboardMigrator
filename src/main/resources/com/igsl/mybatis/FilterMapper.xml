@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.igsl.mybatis.FilterMapper">
+
+	<resultMap id="PortalPage" type="com.igsl.model.DataCenterPortalPage">
+		<id column="id" property="id"/>
+		<result column="pagename" property="pageName"/>
+		<result column="description" property="description"/>
+		<result column="sequence" property="sequence"/>
+		<result column="fav_count" property="favCount"/>
+		<result column="layout" property="layout"/>
+		<result column="ppversion" property="ppVersion"/>
+		<result column="user_name" property="username"/>
+		<result column="display_name" property="userDisplayName"/>
+		<collection property="permissions" ofType="com.igsl.model.DataCenterPortalPermission">
+			<id column="spid" property="id"/>
+			<result column="sharetype" property="shareType"/>
+			<result column="param1" property="param1"/>
+			<result column="param2" property="param2"/>
+			<result column="rights" property="rights"/>
+		</collection>
+		<collection property="portlets" ofType="com.igsl.model.DataCenterPortletConfiguration">
+			<id column="pcid" property="id"/>
+			<result column="column_number" property="columnNumber"/>
+			<result column="positionseq" property="positionSeq"/>
+			<result column="gadget_xml" property="gadgetXml"/>
+			<result column="color" property="color"/>
+			<result column="dashboard_module_complete_key" property="dashboardCompleteKey"/>
+			<collection property="gadgetConfigurations" ofType="com.igsl.model.DataCenterGadgetConfiguration">
+				<id column="gpid" property="id"/>
+				<result column="userprefkey" property="userPrefKey"/>
+				<result column="userprefvalue" property="userPrefValue"/>
+			</collection>
+		</collection>
+	</resultMap>
+
+	<select id="getFilters" resultType="java.lang.Integer">
+		<![CDATA[
+		SELECT
+			sr.id
+		FROM
+			searchrequest sr
+		]]>
+	</select>
+
+	<select id="getDashboards" resultMap="PortalPage">
+		<![CDATA[
+		SELECT
+			pp.id,
+			pp.pagename,
+			pp.description,
+			pp.sequence,
+			pp.fav_count,
+			pp.layout,
+			pp.ppversion,
+			u.user_name,
+			u.display_name,
+			sp.id as spid,
+			sp.sharetype,
+			sp.param1,
+			sp.param2,
+			sp.rights,
+			pc.id as pcid,
+			pc.column_number,
+			pc.positionseq,
+			pc.gadget_xml,
+			pc.color,
+			pc.dashboard_module_complete_key,
+			gp.id as gpid,
+			gp.userprefkey,
+			gp.userprefvalue
+		FROM
+			portalpage pp
+			LEFT JOIN sharepermissions sp ON sp.entityid = pp.id AND sp.entitytype = 'PortalPage'
+			LEFT JOIN cwd_user u ON u.user_name = pp.username
+			LEFT JOIN portletconfiguration pc 
+				LEFT JOIN gadgetuserpreference gp
+				ON gp.portletconfiguration = pc.id		
+			ON pc.portalpage = pp.id
+		WHERE
+			pp.username IS NOT NULL
+			AND gp.id IS NOT NULL
+		UNION
+		SELECT
+			pp1.id,
+			pp1.pagename,
+			pp1.description,
+			pp1.sequence,
+			pp1.fav_count,
+			pp1.layout,
+			pp1.ppversion,
+			u1.user_name,
+			u1.display_name,
+			sp1.id as spid,
+			sp1.sharetype,
+			sp1.param1,
+			sp1.param2,
+			sp1.rights,
+			pc1.id as pcid,
+			pc1.column_number,
+			pc1.positionseq,
+			pc1.gadget_xml,
+			pc1.color,
+			pc1.dashboard_module_complete_key,
+			gp1.id as gpid,
+			gp1.property_key,
+			gp1.json_value
+		FROM
+			portalpage pp1
+			LEFT JOIN sharepermissions sp1 ON sp1.entityid = pp1.id AND sp1.entitytype = 'PortalPage'
+			LEFT JOIN cwd_user u1 ON u1.user_name = pp1.username
+			LEFT JOIN portletconfiguration pc1 
+				LEFT JOIN entity_property gp1
+				ON gp1.entity_id = pc1.id AND gp1.entity_name = 'DashboardItemProperty'
+			ON pc1.portalpage = pp1.id
+		WHERE
+			pp1.username IS NOT NULL
+		ORDER BY 
+			id, pcid, gpid;	
+		]]>	
+	</select>
+
+</mapper>

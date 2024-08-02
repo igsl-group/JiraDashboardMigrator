@@ -1,0 +1,25 @@
+[
+	{
+		"description": "Test Execution", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.thed.zephyr.je__test-execution-gadget",
+		"uri": "rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-testcase-execution/gadgets/testcase-execution.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": "CONFIG",
+		"config": [
+			{
+				"attributeNameRegex": "projectId",
+				"newAttributeNameRegex": "project",
+				"mappingType": "PROJECT",
+				"pattern": "([0-9]+)",
+				"targetGroup": 1,
+				"replacement": "$1",
+				"delimiter": null,
+				"prefix": null,
+				"suffix": null
+			}
+		]
+	}
+]

@@ -1,0 +1,14 @@
+[
+	{
+		"description": "Labels",
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": null,
+		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:labels-gadget/gadgets/labels-gadget.xml",
+		"uriCompareType": "MATCHES",
+		"newUri": "",
+		"configType": "CONFIG",
+		"config": [
+		]
+	}
+]

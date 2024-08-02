@@ -1,0 +1,14 @@
+[
+	{
+		"description": "Test Execution Details", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.thed.zephyr.je__test-execution-details-gadget-projectCentric",
+		"uri": "rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-zql-filter/gadgets/zql-gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": "CONFIG",
+		"config": [
+		]
+	}
+]

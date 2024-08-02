@@ -1,0 +1,25 @@
+[
+	{
+		"description": "Pivot Report Slices", 
+		"moduleKey": "biz.epicreport.epicreports:dashboard-slices",
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:biz.epicreport.epicreports__dashboard-item-slices",
+		"uri": null,
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": "CONFIG",
+		"config": [
+			{
+				"attributeNameRegex": ".+",
+				"newAttributeNameRegex": null,
+				"mappingType": null,
+				"pattern": "\\\"(.+)\\\"",
+				"targetGroup": 1,
+				"replacement": "$1",
+				"delimiter": null,
+				"prefix": null,
+				"suffix": null
+			}
+		]
+	}
+]

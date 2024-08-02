@@ -1,0 +1,14 @@
+[
+	{
+		"description": "Average Time in Status",
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": null,
+		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.ext.charting:timeinstatus-gadget/com/atlassian/jira/ext/charting/gadget/timeinstatus-gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": "",
+		"configType": "CONFIG",
+		"config": [
+		]
+	}
+]

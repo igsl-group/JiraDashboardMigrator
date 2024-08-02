@@ -1,0 +1,14 @@
+[
+	{
+		"description": "Workload Pie Chart",
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": null,
+		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.ext.charting:workloadpie-gadget/com/atlassian/jira/ext/charting/gadget/workloadpie-gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": "",
+		"configType": "CONFIG",
+		"config": [
+		]
+	}
+]

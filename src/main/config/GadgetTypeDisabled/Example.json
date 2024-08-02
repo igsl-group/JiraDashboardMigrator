@@ -1,0 +1,27 @@
+[
+	{
+		"description": "<Description of this gadget configuration, used for readability only>", 
+		"moduleKey": "<Module key of the gadget, can be null>",
+		"moduleKeyCompare": "<MATCHES | CONTAINS | BEGINS | ENDS to control how module key is compared>",
+		"newModuleKey": "<New value of moduleKey. Null to set to null, blank to not change value>",
+		"uri": "<URI of the gadget, can be null>",
+		"uriCompare": "<MATCHES | CONTAINS | BEGINS | ENDS to control how uri is compared>",
+		"newUri": "<New value of uri. Null to set to null, blank to not change value>",
+		"configType": "<CONFIG or SEPARATE. If CONFIG, the whole Data Center configuration is added to cloud as JSON under 'config' attribute. If SEPARATE, each configuration is added as a separate map entry>",
+		"config": [
+			{
+				"attributeNameRegex": "<Regular expression of attribute name, always matches whole string>",
+				"newAttributeNameRegex": "<Regular expression replacement of attribute name, e.g. $0. Null to not change attribute name>",
+				"mappingType": "<PROJECT|ROLE|USER|GROUP|CUSTOM_FIELD|FILTER|DASHBOARD to indicate what is being mapped. Null to not map value>",
+				"pattern": "<Regular expression to capture one value to be mapped. Use ^ and $ to match the whole string>",
+				"targetGroup": <Numeric index of capturing group in pattern to perform mapping on>,
+				"replacement": "<Regular expression replacement>",
+				"delimiter": "<Delimiter to use if multiple values are found. Replacement must exclude delimiters>",
+				"prefix": "Prefix to add to the whole value",
+				"suffix": "Suffix to add to the whole value"
+			}
+			// Note that order of config defines priority. 
+			// Matching stops with the first attributeNameRegex match.
+		]
+	}
+]

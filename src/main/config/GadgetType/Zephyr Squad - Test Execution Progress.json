@@ -1,0 +1,14 @@
+[
+	{
+		"description": "Test Execution Progress", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": null,
+		"uri": "rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-cycle-execution-status/gadgets/cycle-execution-status.xml",
+		"uriCompare": "MATCHES",
+		"newUri": "",
+		"configType": "CONFIG",
+		"config": [
+		]
+	}
+]

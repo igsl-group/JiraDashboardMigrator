@@ -1,0 +1,36 @@
+[
+	{
+		"description": "Test Distribution", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.thed.zephyr.je__test-distribution-gadget",
+		"uri": "rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-testcase-creation/gadgets/testcase-creation.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": "CONFIG",
+		"config": [
+			{
+				"attributeNameRegex": "groupId",
+				"newAttributeNameRegex": "groupField",
+				"mappingType": "GROUP",
+				"pattern": "([0-9]+)",
+				"targetGroup": 1,
+				"replacement": "$1",
+				"delimiter": null,
+				"prefix": null,
+				"suffix": null
+			},
+			{
+				"attributeNameRegex": "projectId",
+				"newAttributeNameRegex": "project",
+				"mappingType": "PROJECT",
+				"pattern": "([0-9]+)",
+				"targetGroup": 1,
+				"replacement": "$1",
+				"delimiter": null,
+				"prefix": null,
+				"suffix": null
+			}
+		]
+	}
+]

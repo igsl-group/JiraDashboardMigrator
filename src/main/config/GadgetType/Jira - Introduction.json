@@ -1,0 +1,14 @@
+[
+	{
+		"description": "Introduction",
+		"moduleKey": "com.atlassian.jira.gadgets:introduction-dashboard-item",
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "",
+		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:introduction-gadget/gadgets/introduction-gadget.xml",
+		"uriCompareType": "MATCHES",
+		"newUri": "",
+		"configType": "CONFIG",
+		"config": [
+		]
+	}
+]
