@@ -67,11 +67,14 @@ import com.atlassian.query.order.SearchSort;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.JsonNodeType;
 import com.igsl.config.Config;
 import com.igsl.config.DataFile;
 import com.igsl.config.GadgetConfigType;
@@ -99,6 +102,7 @@ import com.igsl.model.mapping.MappingType;
 import com.igsl.model.mapping.Project;
 import com.igsl.model.mapping.Role;
 import com.igsl.model.mapping.SearchResult;
+import com.igsl.model.mapping.Status;
 import com.igsl.model.mapping.User;
 import com.igsl.mybatis.FilterMapper;
 
@@ -118,7 +122,8 @@ public class DashboardMigrator {
 	private static final Logger LOGGER = LogManager.getLogger(DashboardMigrator.class);
 
 	private static final ObjectMapper OM = new ObjectMapper()
-			.configure(Feature.ALLOW_COMMENTS, true)
+			.configure(Feature.ALLOW_COMMENTS, true)	// Allow comments
+			.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) // Allow attributes missing in POJO
 			.enable(SerializationFeature.INDENT_OUTPUT);
 	
 	private static SqlSessionFactory setupMyBatis(Config conf) throws Exception {
@@ -143,6 +148,142 @@ public class DashboardMigrator {
 		configuration.addMapper(FilterMapper.class);
 		configuration.setLogImpl(Log4j2Impl.class);
 		return new SqlSessionFactoryBuilder().build(configuration);
+	}
+	
+	/**
+	 * Overloaded version with default parameter values.
+	 */
+	private static <T> List<T> restCallWithPaging(
+			Client client, 
+			URI path, 
+			String method, 
+			MultivaluedMap<String, Object> headers,
+			Map<String, Object> queryParameters, 
+			Object data,
+			Class<T> objectClass) throws Exception {
+		return restCallWithPaging(
+				client, path, method, 
+				headers, queryParameters, data, 
+				null, 0, 
+				"startAt", 0,
+				null, 
+				"values",
+				objectClass);
+	}
+	
+	/** Invoke REST API with paging 
+	 * 
+	 * @param client Client object with authentication already setup.
+	 * @param URI REST API full path.
+	 * @param method HTTP method.
+	 * @param headers MultivaluedMap<String, Object> containing request headers, can be null.
+	 * @param queryParameters Map<String, Object> containing query parameters, can be null.
+	 * @param data Object containing POST data, can be null.
+	 * @param pageSizeParameterName Name of page size parameter. Usually "maxResults". If null, page size is not set.
+	 * @param pageSize Page size.
+	 * @param pagingParameterName Name of starting index. Usually "startAt". 
+	 * @param startingPage Int of first starting index. Usually 0.
+	 * @param lastPageAttributeName Name of boolean attribute indicating last page.
+	 * 								If null, calls will continue until returned size is 0.
+	 * @param valuesAttributeName Name of attribute containing array of values. Usually "values". 
+	 * @param objectClass Class<T> indicating which POJO to use to contain the values.
+	 */
+	private static <T> List<T> restCallWithPaging(
+				Client client, URI path, String method, 
+				MultivaluedMap<String, Object> headers,
+				Map<String, Object> queryParameters, 
+				Object data,
+				String pageSizeParameterName,
+				int pageSize,
+				String pagingParameterName,	
+				int startingPage,
+				String lastPageAttributeName,
+				String valuesAttributeName,
+				Class<T> objectClass
+			) throws Exception {
+		List<T> result = new ArrayList<>();
+		ObjectReader reader = OM.readerFor(objectClass);
+		int pageIndex = startingPage;
+		boolean done = false;
+		while (!done) {
+			WebTarget target = client.target(path);
+			if (queryParameters != null) {
+				for (Map.Entry<String, Object> entry : queryParameters.entrySet()) {
+					if (entry.getValue() instanceof Collection) {
+						Collection<?> list = (Collection<?>) entry.getValue();
+						target = target.queryParam(entry.getKey(), list.toArray());
+					} else if (entry.getValue().getClass().isArray()) {
+						Object[] list = (Object[]) entry.getValue();
+						target = target.queryParam(entry.getKey(), list);
+					} else {
+						target = target.queryParam(entry.getKey(), entry.getValue());
+					}
+				}
+			}
+			if (pageSizeParameterName != null) {
+				target = target.queryParam(pageSizeParameterName, pageSize);
+			}
+			target = target.queryParam(pagingParameterName, pageIndex);
+			Builder builder = target.request(MediaType.APPLICATION_JSON);
+			if (headers != null) {
+				builder = builder.headers(headers);
+			}
+			Response resp = null;
+			if (HttpMethod.DELETE.equals(method)) {
+				resp = builder.delete();
+			} else if (HttpMethod.GET.equals(method)) {
+				resp = builder.get();
+			} else if (HttpMethod.HEAD.equals(method)) {
+				resp = builder.head();
+			} else if (HttpMethod.OPTIONS.equals(method)) {
+				resp = builder.options();
+			} else if (HttpMethod.POST.equals(method)) {
+				resp = builder.post(Entity.entity(data, MediaType.APPLICATION_JSON));
+			} else if (HttpMethod.PUT.equals(method)) {
+				resp = builder.put(Entity.entity(data, MediaType.APPLICATION_JSON));
+			} else {
+				resp = builder.method(method, Entity.entity(data, MediaType.APPLICATION_JSON));
+			}
+			if (!checkStatusCode(resp, Response.Status.OK)) {
+				throw new Exception(resp.readEntity(String.class));
+			}
+			String s = resp.readEntity(String.class);
+			JsonNode root = OM.reader().readTree(s);
+			JsonNode values = root.get(valuesAttributeName);
+			if (values == null) {
+				throw new Exception("Unable to read " + valuesAttributeName + " attribute");
+			}
+			if (values.getNodeType() != JsonNodeType.ARRAY) {
+				throw new Exception("Attribute " + valuesAttributeName + " is not an array");
+			}
+			// Check if it is last page
+			if (lastPageAttributeName != null) {
+				JsonNode lastPageNode = root.get(lastPageAttributeName);
+				if (lastPageNode == null) {
+					throw new Exception("Unable to read " + lastPageAttributeName + " attribute");
+				}
+				if (lastPageNode.getNodeType() != JsonNodeType.BOOLEAN) {
+					throw new Exception("Attribute " + lastPageAttributeName + " is not a boolean");
+				}
+				done = lastPageNode.asBoolean();
+			} else {
+				// Check result size
+				done = (values.size() == 0);
+			}
+			List<T> list = new ArrayList<>();
+			values.forEach(t -> {
+				try {
+					T obj = reader.readValue(t);
+					list.add(obj);
+				} catch (IOException e) {
+					throw new RuntimeException(
+							"Unable to parse JSON into " + objectClass.getCanonicalName() + ": " + t, e);
+				}
+			});
+			pageIndex += list.size();
+			result.addAll(list);
+		}
+		return result;
 	}
 
 	/**
@@ -316,6 +457,28 @@ public class DashboardMigrator {
 		return result;
 	}
 
+	private static List<Status> getCloudStatuses(Client client, String baseURL) throws Exception {
+		List<Status> result = restCallWithPaging(
+				client, new URI(baseURL).resolve("/rest/api/3/statuses/search"), HttpMethod.GET, 
+				null, null, null, 
+				Status.class);
+		return result;
+	}
+
+	private static List<Status> getStatuses(Client client, String baseURL) throws Exception {
+		List<Status> result = new ArrayList<>();
+		Response resp = restCall(client, new URI(baseURL).resolve("rest/api/latest/status"), HttpMethod.GET, null, null,
+				null);
+		if (checkStatusCode(resp, Response.Status.OK)) {
+			List<Status> searchResult = resp.readEntity(new GenericType<List<Status>>() {
+			});
+			result.addAll(searchResult);
+		} else {
+			throw new Exception(resp.readEntity(String.class));
+		}
+		return result;
+	}
+	
 	private static List<Role> getRoles(Client client, String baseURL) throws Exception {
 		List<Role> result = new ArrayList<>();
 		Response resp = restCall(client, new URI(baseURL).resolve("rest/api/latest/role"), HttpMethod.GET, null, null,
@@ -446,6 +609,11 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "Roles found: " + serverRoles.size());
 		saveFile(DataFile.ROLE_DATACENTER, serverRoles);
 		
+		Log.info(LOGGER, "Processing Statuses...");
+		List<Status> serverStatus = getStatuses(dataCenterClient, conf.getSourceRESTBaseURL());
+		Log.info(LOGGER, "Statuses found: " + serverStatus.size());
+		saveFile(DataFile.STATUS_DATACENTER, serverStatus);
+		
 		Log.info(LOGGER, "Processing Groups...");
 		List<Group> serverGroups = getGroups(dataCenterClient, conf.getSourceRESTBaseURL());
 		Log.info(LOGGER, "Groups found: " + serverGroups.size());
@@ -475,6 +643,11 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "Roles found: " + cloudRoles.size());
 		saveFile(DataFile.ROLE_CLOUD, cloudRoles);
 		
+		Log.info(LOGGER, "Processing Statuses...");
+		List<Status> cloudStatus = getCloudStatuses(cloudClient, conf.getTargetRESTBaseURL());
+		Log.info(LOGGER, "Statuses found: " + cloudStatus.size());
+		saveFile(DataFile.STATUS_CLOUD, cloudStatus);
+		
 		Log.info(LOGGER, "Processing Groups...");
 		List<Group> cloudGroups = getGroups(cloudClient, conf.getTargetRESTBaseURL());
 		Log.info(LOGGER, "Groups found: " + cloudGroups.size());
@@ -487,6 +660,7 @@ public class DashboardMigrator {
 		mapUsers();
 		mapCustomFields();
 		mapRoles();
+		mapStatuses();
 		mapGroups();
 	}
 	
@@ -936,6 +1110,40 @@ public class DashboardMigrator {
 		}
 		Log.printCount(LOGGER, "Custom Fields mapped: ", mappedFieldCount, serverFields.size());
 		saveFile(DataFile.FIELD_MAP, fieldMapping);
+	}
+	
+	private static void mapStatuses() throws Exception {
+		Log.info(LOGGER, "Processing Statuses...");
+		int mappedStatusCount = 0;
+		List<Role> serverStatuses = readValuesFromFile(DataFile.STATUS_DATACENTER, Role.class);
+		List<Role> cloudStatuses = readValuesFromFile(DataFile.STATUS_CLOUD, Role.class);
+		Mapping statusMapping = new Mapping(MappingType.ROLE);
+		Comparator<String> comparator = Comparator.nullsFirst(Comparator.naturalOrder());
+		for (Role src : serverStatuses) {
+			List<String> targets = new ArrayList<>();
+			for (Role target : cloudStatuses) {
+				// Don't compare description, only name
+				if (comparator.compare(target.getName(), src.getName()) == 0) {
+					targets.add(Integer.toString(target.getId()));
+				}
+			}
+			switch (targets.size()) {
+			case 0:
+				statusMapping.getUnmapped().add(src);
+				Log.warn(LOGGER, "Status [" + src.getName() + "] is not mapped");
+				break;
+			case 1:
+				statusMapping.getMapped().put(Integer.toString(src.getId()), targets.get(0));
+				mappedStatusCount++;
+				break;
+			default:
+				statusMapping.getConflict().put(Integer.toString(src.getId()), targets);
+				Log.warn(LOGGER, "Status [" + src.getName() + "] is mapped to multiple Cloud statuses");
+				break;
+			}
+		}
+		Log.printCount(LOGGER, "Statuses mapped: ", mappedStatusCount, serverStatuses.size());
+		saveFile(DataFile.STATUS_MAP, statusMapping);
 	}
 	
 	private static void mapRoles() throws Exception {

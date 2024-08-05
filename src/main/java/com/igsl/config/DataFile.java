@@ -4,7 +4,11 @@ public enum DataFile {
 	USER_MAP("User", "Map"), 
 	USER_CLOUD("User", "Cloud"), 
 	USER_DATACENTER("User", "DataCenter"),
-
+	
+	STATUS_MAP("Status", "Map"),
+	STATUS_CLOUD("Status", "Cloud"),
+	STATUS_DATACENTER("Status", "DataCenter"),
+	
 	FIELD_MAP("Field", "Map"), 
 	FIELD_CLOUD("Field", "Cloud"), 
 	FIELD_DATACENTER("Field", "DataCenter"),

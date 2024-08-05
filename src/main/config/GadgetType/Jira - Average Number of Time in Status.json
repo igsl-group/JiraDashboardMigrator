@@ -1,14 +1,25 @@
 [
-	{
-		"description": "Average Number of Time in Status",
-		"moduleKey": null,
-		"moduleKeyCompare": "MATCHES",
-		"newModuleKey": null,
-		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.ext.charting:numberoftimesinstatus-gadget/com/atlassian/jira/ext/charting/gadget/numberoftimesinstatus-gadget.xml",
-		"uriCompare": "MATCHES",
-		"newUri": "",
-		"configType": "CONFIG",
-		"config": [
-		]
-	}
+    {
+        "description": "Average Number of Time in Status",
+        "moduleKey": null,
+        "moduleKeyCompare": "MATCHES",
+        "newModuleKey": null,
+        "uri": "rest/gadgets/1.0/g/com.atlassian.jira.ext.charting:numberoftimesinstatus-gadget/com/atlassian/jira/ext/charting/gadget/numberoftimesinstatus-gadget.xml",
+        "uriCompare": "MATCHES",
+        "newUri": "",
+        "configType": "CONFIG",
+        "config": [
+            {
+                "attributeNameRegex": "statuses",
+                "newAttributeNameRegex": null,
+                "mappingType": "STATUS",
+                "pattern": "<Regular expression to capture one value to be mapped. Use ^ and $ to match the whole string>",
+                "targetGroup": 0,
+                "replacement": "<Regular expression replacement>",
+                "delimiter": "<Delimiter to use if multiple values are found. Replacement must exclude delimiters>",
+                "prefix": "Prefix to add to the whole value",
+                "suffix": "Suffix to add to the whole value"
+            }
+        ]
+    }
 ]
