@@ -1,6 +1,6 @@
 package com.igsl.model.mapping;
 
-public class Status {
+public class ProjectCategory {
 	private String id;
 	private String name;
 	private String description;

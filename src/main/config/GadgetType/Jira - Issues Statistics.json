@@ -1,14 +1,47 @@
 [
-	{
-		"description": "Issues Statistics",
-		"moduleKey": null,
-		"moduleKeyCompare": "MATCHES",
-		"newModuleKey": null,
-		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:stats-gadget/gadgets/stats-gadget.xml",
-		"uriCompare": "MATCHES",
-		"newUri": "",
-		"configType": "CONFIG",
-		"config": [
-		]
-	}
+    {
+        "description": "Issues Statistics",
+        "moduleKey": null,
+        "moduleKeyCompare": "MATCHES",
+        "newModuleKey": null,
+        "uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:stats-gadget/gadgets/stats-gadget.xml",
+        "uriCompare": "MATCHES",
+        "newUri": "",
+        "configType": "CONFIG",
+        "config": [
+            {
+                "attributeNameRegex": "statType",
+                "newAttributeNameRegex": null,
+                "mappingType": "CUSTOM_FIELD",
+                "pattern": "(customfield_[0-9]+)",
+                "targetGroup": 1,
+                "replacement": "$1",
+                "delimiter": null,
+                "prefix": null,
+                "suffix": null
+            },
+            {
+                "attributeNameRegex": "projectOrFilterId",
+                "newAttributeNameRegex": null,
+                "mappingType": "PROJECT",
+                "pattern": "(projectId-)([0-9]+)",
+                "targetGroup": 2,
+                "replacement": "$1$2",
+                "delimiter": null,
+                "prefix": null,
+                "suffix": null
+            },
+            {
+                "attributeNameRegex": "projectOrFilterId",
+                "newAttributeNameRegex": null,
+                "mappingType": "FILTER",
+                "pattern": "(filterId-)([0-9]+)",
+                "targetGroup": 2,
+                "replacement": "$1$2",
+                "delimiter": null,
+                "prefix": null,
+                "suffix": null
+            }
+        ]
+    }
 ]

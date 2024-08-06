@@ -91,6 +91,7 @@ import com.igsl.model.DataCenterPortalPermission;
 import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.PermissionTarget;
 import com.igsl.model.PermissionType;
+import com.igsl.model.mapping.AgileBoard;
 import com.igsl.model.mapping.CustomField;
 import com.igsl.model.mapping.Dashboard;
 import com.igsl.model.mapping.DashboardSearchResult;
@@ -100,6 +101,7 @@ import com.igsl.model.mapping.GroupPickerResult;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
 import com.igsl.model.mapping.Project;
+import com.igsl.model.mapping.ProjectCategory;
 import com.igsl.model.mapping.Role;
 import com.igsl.model.mapping.SearchResult;
 import com.igsl.model.mapping.Status;
@@ -171,7 +173,7 @@ public class DashboardMigrator {
 				objectClass);
 	}
 	
-	/** Invoke REST API with paging 
+	/** Invoke REST API with paging
 	 * 
 	 * @param client Client object with authentication already setup.
 	 * @param URI REST API full path.
@@ -185,7 +187,8 @@ public class DashboardMigrator {
 	 * @param startingPage Int of first starting index. Usually 0.
 	 * @param lastPageAttributeName Name of boolean attribute indicating last page.
 	 * 								If null, calls will continue until returned size is 0.
-	 * @param valuesAttributeName Name of attribute containing array of values. Usually "values". 
+	 * @param valuesAttributeName 	Name of attribute containing array of values. Usually "values". 
+	 * 								If null, the root is an array of values. lastPageAttributeName should be null.
 	 * @param objectClass Class<T> indicating which POJO to use to contain the values.
 	 */
 	private static <T> List<T> restCallWithPaging(
@@ -249,7 +252,12 @@ public class DashboardMigrator {
 			}
 			String s = resp.readEntity(String.class);
 			JsonNode root = OM.reader().readTree(s);
-			JsonNode values = root.get(valuesAttributeName);
+			JsonNode values;
+			if (valuesAttributeName != null) {
+				values = root.get(valuesAttributeName);
+			} else {
+				values = root;
+			}
 			if (values == null) {
 				throw new Exception("Unable to read " + valuesAttributeName + " attribute");
 			}
@@ -369,6 +377,35 @@ public class DashboardMigrator {
 		return result;
 	}
 
+	private static List<ProjectCategory> getServerProjectCategories(Client client, String baseURL) throws Exception {
+		List<ProjectCategory> result = new ArrayList<>();
+		Response resp = restCall(
+				client, new URI(baseURL).resolve("/rest/api/latest/projectCategory"), HttpMethod.GET, 
+				null, null, null);
+		if (checkStatusCode(resp, Response.Status.OK)) {
+			List<ProjectCategory> searchResult = resp.readEntity(new GenericType<List<ProjectCategory>>(){});
+			result.addAll(searchResult);
+		} else {
+			throw new Exception(resp.readEntity(String.class));
+		}
+		return result;
+	}
+	
+	private static List<ProjectCategory> getCloudProjectCategories(Client client, String baseURL) throws Exception {
+		List<ProjectCategory> result = new ArrayList<>();
+		Response resp = restCall(
+				client, new URI(baseURL).resolve("..").resolve("/rest/api/latest/projectCategory"), HttpMethod.GET, 
+				null, null, null);
+		if (checkStatusCode(resp, Response.Status.OK)) {
+			List<ProjectCategory> searchResult = resp.readEntity(new GenericType<List<ProjectCategory>>() {
+			});
+			result.addAll(searchResult);
+		} else {
+			throw new Exception(resp.readEntity(String.class));
+		}
+		return result;
+	}
+	
 	private static List<Project> getServerProjects(Client client, Config conf) throws Exception {
 		List<Project> result = new ArrayList<>();
 		Response resp = restCall(client, new URI(conf.getSourceRESTBaseURL()).resolve("rest/api/latest/project"),
@@ -505,6 +542,23 @@ public class DashboardMigrator {
 		}
 		return result;
 	}
+	
+	private static List<AgileBoard> getCloudAgileBoards(Client client, String baseURL) throws Exception {
+		Log.info(LOGGER, "URL: " + new URI(baseURL).resolve("..").resolve("rest/agile/1.0/board"));
+		List<AgileBoard> result = restCallWithPaging(
+				client, new URI(baseURL).resolve("..").resolve("rest/agile/1.0/board"), HttpMethod.GET,
+				null, null, null,
+				AgileBoard.class);
+		return result;
+	}
+	
+	private static List<AgileBoard> getAgileBoards(Client client, String baseURL) throws Exception {
+		List<AgileBoard> result = restCallWithPaging(
+				client, new URI(baseURL).resolve("rest/agile/1.0/board"), HttpMethod.GET,
+				null, null, null,
+				AgileBoard.class);
+		return result;
+	}
 
 	private static Config parseConfig(String[] args) {
 		Config result = null;
@@ -594,6 +648,12 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "Projects found: " + serverProjects.size());
 		saveFile(DataFile.PROJECT_DATACENTER, serverProjects);
 		
+		Log.info(LOGGER, "Processing Project Categories...");
+		List<ProjectCategory> serverProjectCategories = getServerProjectCategories(
+				dataCenterClient, conf.getSourceRESTBaseURL());
+		Log.info(LOGGER, "Project categories found: " + serverProjectCategories.size());
+		saveFile(DataFile.PROJECT_CATEGORY_DATACENTER, serverProjectCategories);
+		
 		Log.info(LOGGER, "Processing Users...");
 		List<User> serverUsers = getServerUsers(dataCenterClient, conf);
 		Log.info(LOGGER, "Users found: " + serverUsers.size());
@@ -618,6 +678,11 @@ public class DashboardMigrator {
 		List<Group> serverGroups = getGroups(dataCenterClient, conf.getSourceRESTBaseURL());
 		Log.info(LOGGER, "Groups found: " + serverGroups.size());
 		saveFile(DataFile.GROUP_DATACENTER, serverGroups);
+		
+		Log.info(LOGGER, "Processing Agile Boards...");
+		List<AgileBoard> serverAgile = getAgileBoards(dataCenterClient, conf.getSourceRESTBaseURL());
+		Log.info(LOGGER, "Agile boards found: " + serverAgile.size());
+		saveFile(DataFile.AGILEBOARD_DATACENTER, serverAgile);
 	}
 	
 	private static void dumpCloud(Client cloudClient, Config conf) throws Exception {
@@ -627,6 +692,12 @@ public class DashboardMigrator {
 		List<Project> cloudProjects = getCloudProjects(cloudClient, conf);
 		Log.info(LOGGER, "Projects found: " + cloudProjects.size());
 		saveFile(DataFile.PROJECT_CLOUD, cloudProjects);
+		
+		Log.info(LOGGER, "Processing Project Categories...");
+		List<ProjectCategory> cloudProjectCategories = getCloudProjectCategories(
+				cloudClient, conf.getTargetRESTBaseURL());
+		Log.info(LOGGER, "Project categories found: " + cloudProjectCategories.size());
+		saveFile(DataFile.PROJECT_CATEGORY_CLOUD, cloudProjectCategories);
 		
 		Log.info(LOGGER, "Processing Users...");
 		List<User> cloudUsers = getCloudUsers(cloudClient, conf);
@@ -652,16 +723,23 @@ public class DashboardMigrator {
 		List<Group> cloudGroups = getGroups(cloudClient, conf.getTargetRESTBaseURL());
 		Log.info(LOGGER, "Groups found: " + cloudGroups.size());
 		saveFile(DataFile.GROUP_CLOUD, cloudGroups);
+		
+		Log.info(LOGGER, "Processing Agile Boards...");
+		List<AgileBoard> cloudAgile = getCloudAgileBoards(cloudClient, conf.getTargetRESTBaseURL());
+		Log.info(LOGGER, "Agile boards found: " + cloudAgile.size());
+		saveFile(DataFile.AGILEBOARD_CLOUD, cloudAgile);
 	}
 	
 	private static void mapObjects() throws Exception {
 		Log.info(LOGGER, "Mapping objects between Data Center and Cloud...");
 		mapProjects();
+		mapProjectCategories();
 		mapUsers();
 		mapCustomFields();
 		mapRoles();
 		mapStatuses();
 		mapGroups();
+		mapAgileBoards();
 	}
 	
 	private static void createDashboards(Client cloudClient, Config conf) throws Exception {
@@ -905,6 +983,7 @@ public class DashboardMigrator {
 		Mapping fieldMapping = readFile(DataFile.FIELD_MAP, Mapping.class);
 		Mapping filterMapping = readFile(DataFile.FILTER_MIGRATED, Mapping.class);
 		Mapping statusMapping = readFile(DataFile.STATUS_MAP, Mapping.class);
+		Mapping agileBoardMapping = readFile(DataFile.AGILEBOARD_MAP, Mapping.class);
 		// Dashboards uses user KEY instead of name.
 		List<User> userDC = readValuesFromFile(DataFile.USER_DATACENTER, User.class);
 		int errorCount = 0;
@@ -975,13 +1054,49 @@ public class DashboardMigrator {
 			// Fix configuration values
 			for (DataCenterPortletConfiguration gadget : dashboard.getPortlets()) {
 				CloudGadgetConfigurationMapper.mapConfiguration(gadget, projectMapping, roleMapping, fieldMapping,
-						groupMapping, userMapping, filterMapping, statusMapping);
+						groupMapping, userMapping, filterMapping, statusMapping, agileBoardMapping);
 			}
 			dashboard.getPortlets().sort(new GadgetOrderComparator(false));
 		}
 		saveFile(DataFile.DASHBOARD_REMAPPED, dashboards);
 		Log.printCount(LOGGER, "Dashboards mapped: ", dashboards.size() - errorCount, dashboards.size());
 		Log.info(LOGGER, "Please manually translate references");
+	}
+	
+	private static void mapProjectCategories() throws Exception {
+		Log.info(LOGGER, "Processing Project Categories...");
+		int mappedProjectCategoryCount = 0;
+		List<ProjectCategory> serverProjectCategories = readValuesFromFile(
+				DataFile.PROJECT_CATEGORY_DATACENTER, ProjectCategory.class);
+		List<ProjectCategory> cloudProjectCategories = readValuesFromFile(
+				DataFile.PROJECT_CATEGORY_CLOUD, ProjectCategory.class);
+		Mapping projectCategoriesMapping = new Mapping(MappingType.PROJECT_CATEGORY);
+		for (ProjectCategory src : serverProjectCategories) {
+			List<String> targets = new ArrayList<>();
+			for (ProjectCategory target : cloudProjectCategories) {
+				if (target.getName().equals(src.getName())) {
+					targets.add(target.getId());
+				}
+			}
+			switch (targets.size()) {
+			case 0:
+				projectCategoriesMapping.getUnmapped().add(src);
+				Log.warn(LOGGER, "Project Category [" + src.getName() + "] is not mapped");
+				break;
+			case 1:
+				projectCategoriesMapping.getMapped().put(src.getId(), targets.get(0));
+				mappedProjectCategoryCount++;
+				break;
+			default:
+				projectCategoriesMapping.getConflict().put(src.getId(), targets);
+				Log.warn(LOGGER, 
+						"Project Category [" + src.getName() + "] is mapped to multiple Cloud projects categories");
+				break;
+			}
+		}
+		Log.printCount(LOGGER, "Projects categories mapped: ", 
+				mappedProjectCategoryCount, serverProjectCategories.size());
+		saveFile(DataFile.PROJECT_CATEGORY_MAP, projectCategoriesMapping);
 	}
 	
 	private static void mapProjects() throws Exception {
@@ -995,7 +1110,7 @@ public class DashboardMigrator {
 			for (Project target : cloudProjects) {
 				if (target.getKey().equals(src.getKey()) && target.getProjectTypeKey().equals(src.getProjectTypeKey())
 						&& target.getName().equals(src.getName())) {
-					targets.add(Integer.toString(target.getId()));
+					targets.add(target.getId());
 				}
 			}
 			switch (targets.size()) {
@@ -1004,11 +1119,11 @@ public class DashboardMigrator {
 				Log.warn(LOGGER, "Project [" + src.getName() + "] is not mapped");
 				break;
 			case 1:
-				projectMapping.getMapped().put(Integer.toString(src.getId()), targets.get(0));
+				projectMapping.getMapped().put(src.getId(), targets.get(0));
 				mappedProjectCount++;
 				break;
 			default:
-				projectMapping.getConflict().put(Integer.toString(src.getId()), targets);
+				projectMapping.getConflict().put(src.getId(), targets);
 				Log.warn(LOGGER, "Project [" + src.getName() + "] is mapped to multiple Cloud projects");
 				break;
 			}
@@ -1125,7 +1240,7 @@ public class DashboardMigrator {
 			for (Role target : cloudStatuses) {
 				// Don't compare description, only name
 				if (comparator.compare(target.getName(), src.getName()) == 0) {
-					targets.add(Integer.toString(target.getId()));
+					targets.add(target.getId());
 				}
 			}
 			switch (targets.size()) {
@@ -1134,11 +1249,11 @@ public class DashboardMigrator {
 				Log.warn(LOGGER, "Status [" + src.getName() + "] is not mapped");
 				break;
 			case 1:
-				statusMapping.getMapped().put(Integer.toString(src.getId()), targets.get(0));
+				statusMapping.getMapped().put(src.getId(), targets.get(0));
 				mappedStatusCount++;
 				break;
 			default:
-				statusMapping.getConflict().put(Integer.toString(src.getId()), targets);
+				statusMapping.getConflict().put(src.getId(), targets);
 				Log.warn(LOGGER, "Status [" + src.getName() + "] is mapped to multiple Cloud statuses");
 				break;
 			}
@@ -1159,7 +1274,7 @@ public class DashboardMigrator {
 			for (Role target : cloudRoles) {
 				// Don't compare description, only name
 				if (comparator.compare(target.getName(), src.getName()) == 0) {
-					targets.add(Integer.toString(target.getId()));
+					targets.add(target.getId());
 				}
 			}
 			switch (targets.size()) {
@@ -1168,11 +1283,11 @@ public class DashboardMigrator {
 				Log.warn(LOGGER, "Role [" + src.getName() + "] is not mapped");
 				break;
 			case 1:
-				roleMapping.getMapped().put(Integer.toString(src.getId()), targets.get(0));
+				roleMapping.getMapped().put(src.getId(), targets.get(0));
 				mappedRoleCount++;
 				break;
 			default:
-				roleMapping.getConflict().put(Integer.toString(src.getId()), targets);
+				roleMapping.getConflict().put(src.getId(), targets);
 				Log.warn(LOGGER, "Role [" + src.getName() + "] is mapped to multiple Cloud roles");
 				break;
 			}
@@ -1180,7 +1295,6 @@ public class DashboardMigrator {
 		Log.printCount(LOGGER, "Roles mapped: ", mappedRoleCount, serverRoles.size());
 		saveFile(DataFile.ROLE_MAP, roleMapping);
 	}
-	
 	
 	private static void mapGroups() throws Exception {
 		Log.info(LOGGER, "Processing Groups...");
@@ -1212,6 +1326,38 @@ public class DashboardMigrator {
 		}
 		Log.printCount(LOGGER, "Groups mapped: ", mappedGroupCount, serverGroups.size());
 		saveFile(DataFile.GROUP_MAP, groupMapping);
+	}
+	
+	private static void mapAgileBoards() throws Exception {
+		Log.info(LOGGER, "Processing Agile Boards...");
+		int mappedCount = 0;
+		List<AgileBoard> serverAgileBoards = readValuesFromFile(DataFile.AGILEBOARD_DATACENTER, AgileBoard.class);
+		List<AgileBoard> cloudAgileBoards = readValuesFromFile(DataFile.AGILEBOARD_CLOUD, AgileBoard.class);
+		Mapping groupMapping = new Mapping(MappingType.GROUP);
+		for (AgileBoard src : serverAgileBoards) {
+			List<String> targets = new ArrayList<>();
+			for (AgileBoard target : cloudAgileBoards) {
+				if (target.getName().equals(src.getName())) {
+					targets.add(target.getId());
+				}
+			}
+			switch (targets.size()) {
+			case 0:
+				groupMapping.getUnmapped().add(src);
+				Log.warn(LOGGER, "Agile Board [" + src.getName() + "] is not mapped");
+				break;
+			case 1:
+				groupMapping.getMapped().put(src.getName(), targets.get(0));
+				mappedCount++;
+				break;
+			default:
+				groupMapping.getConflict().put(src.getName(), targets);
+				Log.warn(LOGGER, "Agile Board [" + src.getName() + "] is mapped to multiple Cloud Agile Boards");
+				break;
+			}
+		}
+		Log.printCount(LOGGER, "Agile Boards mapped: ", mappedCount, serverAgileBoards.size());
+		saveFile(DataFile.AGILEBOARD_MAP, groupMapping);
 	}
 	
 	private static DataCenterFilter getFilter(Client client, String baseURL, int id) throws Exception {

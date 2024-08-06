@@ -23,7 +23,7 @@ public class CloudGadgetConfigurationMapper {
 	private static final Comparator<String> stringComparator = Comparator.nullsFirst(Comparator.naturalOrder());
 
 	public static void mapConfiguration(DataCenterPortletConfiguration gadget, Mapping project, Mapping role,
-			Mapping field, Mapping group, Mapping user, Mapping filter, Mapping status) {
+			Mapping field, Mapping group, Mapping user, Mapping filter, Mapping status, Mapping agileBoard) {
 		GadgetType type = GadgetType.parse(gadget.getDashboardCompleteKey(), gadget.getGadgetXml());
 		if (type != null) {
 			// Replace moduleKey and Uri if configured
@@ -134,6 +134,9 @@ public class CloudGadgetConfigurationMapper {
 								break;
 							case STATUS:
 								map = status;
+								break;
+							case AGILE_BOARD:
+								map = agileBoard;
 								break;
 							default:
 								break;

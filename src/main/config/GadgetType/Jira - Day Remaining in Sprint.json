@@ -1,14 +1,27 @@
 [
-	{
-		"description": "Day Remaining in Sprint",
-		"moduleKey": null,
-		"moduleKeyCompare": "MATCHES",
-		"newModuleKey": null,
-		"uri": "rest/gadgets/1.0/g/com.pyxis.greenhopper.jira:greenhopper-gadget-sprint-days-remaining/gadgets/greenhopper-sprint-days-remaining.xml",
-		"uriCompare": "MATCHES",
-		"newUri": "",
-		"configType": "CONFIG",
-		"config": [
-		]
-	}
+    {
+        "description": "Day Remaining in Sprint",
+        "moduleKey": null,
+        "moduleKeyCompare": "MATCHES",
+        "newModuleKey": null,
+        "uri": "rest/gadgets/1.0/g/com.pyxis.greenhopper.jira:greenhopper-gadget-sprint-days-remaining/gadgets/greenhopper-sprint-days-remaining.xml",
+        "uriCompare": "MATCHES",
+        "newUri": "",
+        "configType": "CONFIG",
+        "config": [
+            {
+                "attributeNameRegex": "rapidViewId",
+                "newAttributeNameRegex": null,
+                "conditions": [                    
+                ],
+                "mappingType": "AGILE_BOARD",
+                "pattern": "([0-9]+)",
+                "targetGroup": 1,
+                "replacement": "$1",
+                "delimiter": null,
+                "prefix": null,
+                "suffix": null
+            }
+        ]
+    }
 ]

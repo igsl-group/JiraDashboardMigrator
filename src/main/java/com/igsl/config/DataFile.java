@@ -17,6 +17,10 @@ public enum DataFile {
 	PROJECT_CLOUD("Project", "Cloud"), 
 	PROJECT_DATACENTER("Project", "DataCenter"),
 
+	PROJECT_CATEGORY_MAP("ProjectCategory", "Map"),
+	PROJECT_CATEGORY_CLOUD("ProjectCategory", "Cloud"),
+	PROJECT_CATEGORY_DATACENTER("ProjectCategory", "DataCenter"),
+	
 	GROUP_MAP("Group", "Map"), 
 	GROUP_CLOUD("Group", "Cloud"), 
 	GROUP_DATACENTER("Group", "DataCenter"),
@@ -25,6 +29,10 @@ public enum DataFile {
 	ROLE_CLOUD("Role", "Cloud"), 
 	ROLE_DATACENTER("Role", "DataCenter"),
 
+	AGILEBOARD_MAP("AgileBoard", "Map"),
+	AGILEBOARD_CLOUD("AgileBoard", "Cloud"),
+	AGILEBOARD_DATACENTER("AgileBoard", "DataCenter"),
+	
 	FILTER_DATA("Filter", "Data"),
 	FILTER_REMAPPED("Filter", "Remapped"), 
 	FILTER_DATACENTER("Filter", "DataCenter"),
