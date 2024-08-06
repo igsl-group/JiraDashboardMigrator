@@ -9,7 +9,6 @@
 		"newUri": "",
 		"configType": "CONFIG",
 		"config": [
-		      "rules is URL encoded JSON data, format might have changed in Cloud"
 		]
 	}
 ]

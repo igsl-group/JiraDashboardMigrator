@@ -63,7 +63,9 @@ public class GadgetType {
 									LIST.add(list.next());
 								}
 							} catch (IOException ioex) {
-								Log.error(LOGGER, "Error loading Gadget mapping configuration", ioex);
+								Log.error(LOGGER, 
+										"Error loading Gadget mapping configuration: " + t.toAbsolutePath()
+										, ioex);
 							}
 						}
 					}
@@ -84,16 +86,17 @@ public class GadgetType {
 	}
 
 	// Get GadgetConfigMapping based on configuration key
-	public GadgetConfigMapping getConfig(String key) {
+	public List<GadgetConfigMapping> getConfigs(String key) {
+		List<GadgetConfigMapping> result = new ArrayList<>();
 		for (GadgetConfigMapping conf : this.getConfig()) {
 			if (conf.getAttributeNamePattern() != null) {
 				Matcher m = conf.getAttributeNamePattern().matcher(key);
 				if (m.matches()) {
-					return conf;
+					result.add(conf);
 				}
 			}
 		}
-		return null;
+		return result;
 	}
 
 	// Generated

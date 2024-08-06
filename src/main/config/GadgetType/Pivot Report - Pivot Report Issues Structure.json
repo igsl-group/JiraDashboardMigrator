@@ -2,10 +2,10 @@
 	{
 		"description": "Pivot Report Issues Structure",
 		"moduleKey": "biz.epicreport.epicreports:dashboard-hierarchy",
-		"moduleKeyCompareType": "MATCHES",
+		"moduleKeyCompare": "MATCHES",
 		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:biz.epicreport.epicreports__dashboard-item-hierarchy",
 		"uri": null,
-		"uriCompareType": "MATCHES",
+		"uriCompare": "MATCHES",
 		"newUri": null,
 		"configType": "CONFIG",
 		"config": [

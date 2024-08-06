@@ -322,8 +322,8 @@
 					<excludes>
 						<exclude>*.json</exclude>
 						<exclude>log4j2.xml</exclude>
-						<exclude>GadgetType/*</exclude>
-						<exclude>GadgetTypeDisabled/*</exclude>
+						<exclude>GadgetType/**</exclude>
+						<exclude>GadgetTypeDisabled/**</exclude>
 					</excludes>
 					<archive>
 						<manifest>

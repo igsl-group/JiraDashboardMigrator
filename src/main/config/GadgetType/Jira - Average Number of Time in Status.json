@@ -13,12 +13,34 @@
                 "attributeNameRegex": "statuses",
                 "newAttributeNameRegex": null,
                 "mappingType": "STATUS",
-                "pattern": "<Regular expression to capture one value to be mapped. Use ^ and $ to match the whole string>",
-                "targetGroup": 0,
-                "replacement": "<Regular expression replacement>",
-                "delimiter": "<Delimiter to use if multiple values are found. Replacement must exclude delimiters>",
-                "prefix": "Prefix to add to the whole value",
-                "suffix": "Suffix to add to the whole value"
+                "pattern": "([0-9]+)",
+                "targetGroup": 1,
+                "replacement": "$1",
+                "delimiter": null,
+                "prefix": null,
+                "suffix": null
+            },
+            {
+                "attributeNameRegex": "projectOrFilterId",
+                "newAttributeNameRegex": null,
+                "mappingType": "PROJECT",
+                "pattern": "(projectId-)([0-9]+)",
+                "targetGroup": 2,
+                "replacement": "$1$2",
+                "delimiter": null,
+                "prefix": null,
+                "suffix": null
+            },
+            {
+                "attributeNameRegex": "projectOrFilterId",
+                "newAttributeNameRegex": null,
+                "mappingType": "FILTER",
+                "pattern": "(filterId-)([0-9]+)",
+                "targetGroup": 2,
+                "replacement": "$1$2",
+                "delimiter": null,
+                "prefix": null,
+                "suffix": null
             }
         ]
     }

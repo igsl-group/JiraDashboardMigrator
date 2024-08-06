@@ -5,7 +5,7 @@
 		"moduleKeyCompare": "MATCHES",
 		"newModuleKey": null,
 		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:two-dimensional-stats-gadget/gadgets/two-dimensional-stats-gadget.xml",
-		"uriCompareType": "MATCHES",
+		"uriCompare": "MATCHES",
 		"newUri": "",
 		"configType": "CONFIG",
 		"config": [

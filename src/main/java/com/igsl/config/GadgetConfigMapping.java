@@ -1,5 +1,6 @@
 package com.igsl.config;
 
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -14,6 +15,7 @@ public class GadgetConfigMapping {
 	private static final Logger LOGGER = LogManager.getLogger();
 	private String attributeNameRegex;
 	private String newAttributeNameRegex;
+	private List<GadgetConfigCondition> conditions;
 	private String pattern;
 	private MappingType mappingType;
 	private int targetGroup;
@@ -25,6 +27,7 @@ public class GadgetConfigMapping {
 	public GadgetConfigMapping() {}
 	public GadgetConfigMapping(String attributeNameRegex, 
 			String newAttributeNameRegex,
+			List<GadgetConfigCondition> conditions,
 			MappingType type, 
 			String pattern, int targetGroup,
 			String replacement,
@@ -33,6 +36,7 @@ public class GadgetConfigMapping {
 			String suffix) {
 		this.attributeNameRegex = attributeNameRegex;
 		this.newAttributeNameRegex = newAttributeNameRegex;
+		this.conditions = conditions;
 		this.mappingType = type;
 		this.pattern = pattern;
 		this.targetGroup = targetGroup;
@@ -117,5 +121,11 @@ public class GadgetConfigMapping {
 	}
 	public String getReplacement() {
 		return replacement;
+	}
+	public List<GadgetConfigCondition> getConditions() {
+		return conditions;
+	}
+	public void setConditions(List<GadgetConfigCondition> conditions) {
+		this.conditions = conditions;
 	}
 }

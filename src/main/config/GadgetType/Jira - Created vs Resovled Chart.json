@@ -9,6 +9,42 @@
 		"newUri": "",
 		"configType": "CONFIG",
 		"config": [
+		      {
+                "attributeNameRegex": "id",
+                "newAttributeNameRegex": null,
+                "conditions": [
+                    {
+                        "attributeName": "type",
+                        "condition": "EQU",
+                        "attributeValue": ["filter"]
+                    }
+                ],
+                "mappingType": "FILTER",
+                "pattern": "([0-9]+)",
+                "targetGroup": 1,
+                "replacement": "$1",
+                "delimiter": null,
+                "prefix": null,
+                "suffix": null
+            },
+            {
+                "attributeNameRegex": "id",
+                "newAttributeNameRegex": null,
+                "conditions": [
+                    {
+                        "attributeName": "type",
+                        "condition": "EQU",
+                        "attributeValue": ["project"]
+                    }
+                ],
+                "mappingType": "PROJECT",
+                "pattern": "([0-9]+)",
+                "targetGroup": 1,
+                "replacement": "$1",
+                "delimiter": null,
+                "prefix": null,
+                "suffix": null
+            }
 		]
 	}
 ]

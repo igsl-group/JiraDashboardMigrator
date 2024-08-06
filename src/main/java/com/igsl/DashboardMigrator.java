@@ -904,6 +904,7 @@ public class DashboardMigrator {
 		Mapping groupMapping = readFile(DataFile.GROUP_MAP, Mapping.class);
 		Mapping fieldMapping = readFile(DataFile.FIELD_MAP, Mapping.class);
 		Mapping filterMapping = readFile(DataFile.FILTER_MIGRATED, Mapping.class);
+		Mapping statusMapping = readFile(DataFile.STATUS_MAP, Mapping.class);
 		// Dashboards uses user KEY instead of name.
 		List<User> userDC = readValuesFromFile(DataFile.USER_DATACENTER, User.class);
 		int errorCount = 0;
@@ -974,7 +975,7 @@ public class DashboardMigrator {
 			// Fix configuration values
 			for (DataCenterPortletConfiguration gadget : dashboard.getPortlets()) {
 				CloudGadgetConfigurationMapper.mapConfiguration(gadget, projectMapping, roleMapping, fieldMapping,
-						groupMapping, userMapping, filterMapping);
+						groupMapping, userMapping, filterMapping, statusMapping);
 			}
 			dashboard.getPortlets().sort(new GadgetOrderComparator(false));
 		}

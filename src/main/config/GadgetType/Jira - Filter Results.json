@@ -5,7 +5,7 @@
 		"moduleKeyCompare": "MATCHES",
 		"newModuleKey": null,
 		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:filter-results-gadget/gadgets/filter-results-gadget.xml",
-		"uriCompareType": "MATCHES",
+		"uriCompare": "MATCHES",
 		"newUri": "",
 		"configType": "CONFIG",
 		"config": [
