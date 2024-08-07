@@ -12,6 +12,13 @@
 			{
 				"attributeNameRegex": "<Regular expression of attribute name, always matches whole string. Note the order of items defines priority>",
 				"newAttributeNameRegex": "<Regular expression replacement of attribute name, e.g. $0. Null to not change attribute name>",
+				"conditions": [
+				    {
+				        "attributeName": "<Attribute name to check. Not regular expression. Used to check other attributes>",
+                        "condition": "<EQU|NEQ|GTE|GTR|LTE|LTR|IN Compare operator>",
+                        "attributeValue": ["<Attribute value(s)>"]
+				    }
+				],
 				"mappingType": "<PROJECT|ROLE|USER|GROUP|CUSTOM_FIELD|FILTER|DASHBOARD to indicate what is being mapped. Null to not map value. Target group is the index of capture group to map>",
 				"pattern": "<Regular expression to capture one value to be mapped. Use ^ and $ to match the whole string>",
 				"targetGroup": 0,
