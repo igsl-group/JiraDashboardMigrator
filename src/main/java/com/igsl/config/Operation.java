@@ -2,7 +2,6 @@ package com.igsl.config;
 
 public enum Operation {
 	DUMP_DATACENTER("dumpDC"),
-	DUMP_DATACENTER_FILTER_DASHBOARD("dumpDCFilterDashboard"),
 	DUMP_CLOUD("dumpCloud"),
 	MAP_OBJECT("mapObject"),
 	

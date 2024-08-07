@@ -1745,23 +1745,17 @@ public class DashboardMigrator {
 				return;
 			}
 			switch (conf.getOperation()) {
-			case DUMP_DATACENTER: 
-				try (ClientWrapper wrapper = new ClientWrapper(false, conf)) {
+			case DUMP_DATACENTER: {
+				SqlSessionFactory sqlSessionFactory = setupMyBatis(conf);
+				try (	SqlSession session = sqlSessionFactory.openSession();
+						ClientWrapper wrapper = new ClientWrapper(false, conf)) {
 					// Get filter info from source
 					dumpDC(wrapper.getClient(), conf);
+					FilterMapper filterMapper = session.getMapper(FilterMapper.class);
+					dumpDCFilterDashboard(filterMapper, wrapper.getClient(), conf);
 				}
 				break;
-			case DUMP_DATACENTER_FILTER_DASHBOARD: 
-				{
-					SqlSessionFactory sqlSessionFactory = setupMyBatis(conf);
-					try (	SqlSession session = sqlSessionFactory.openSession();
-							ClientWrapper wrapper = new ClientWrapper(false, conf)) {
-						// Get filter info from source
-						FilterMapper filterMapper = session.getMapper(FilterMapper.class);
-						dumpDCFilterDashboard(filterMapper, wrapper.getClient(), conf);
-					}
-				}
-				break;
+			}
 			case DUMP_CLOUD:
 				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
 					dumpCloud(wrapper.getClient(), conf);
