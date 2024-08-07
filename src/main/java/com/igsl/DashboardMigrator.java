@@ -104,6 +104,7 @@ import com.igsl.model.mapping.Project;
 import com.igsl.model.mapping.ProjectCategory;
 import com.igsl.model.mapping.Role;
 import com.igsl.model.mapping.SearchResult;
+import com.igsl.model.mapping.Sprint;
 import com.igsl.model.mapping.Status;
 import com.igsl.model.mapping.User;
 import com.igsl.mybatis.FilterMapper;
@@ -120,6 +121,8 @@ import com.igsl.mybatis.FilterMapper;
  */
 public class DashboardMigrator {
 
+	private static final String SCRUM = "scrum";	// AgileBoard type that allows Sprint
+	
 	private static final String NEWLINE = System.getProperty("line.separator");
 	private static final Logger LOGGER = LogManager.getLogger(DashboardMigrator.class);
 
@@ -391,6 +394,8 @@ public class DashboardMigrator {
 		return result;
 	}
 	
+	// TODO Get Sprints of each AgileBoard
+	
 	private static List<ProjectCategory> getCloudProjectCategories(Client client, String baseURL) throws Exception {
 		List<ProjectCategory> result = new ArrayList<>();
 		Response resp = restCall(
@@ -544,7 +549,6 @@ public class DashboardMigrator {
 	}
 	
 	private static List<AgileBoard> getCloudAgileBoards(Client client, String baseURL) throws Exception {
-		Log.info(LOGGER, "URL: " + new URI(baseURL).resolve("..").resolve("rest/agile/1.0/board"));
 		List<AgileBoard> result = restCallWithPaging(
 				client, new URI(baseURL).resolve("..").resolve("rest/agile/1.0/board"), HttpMethod.GET,
 				null, null, null,
@@ -559,7 +563,44 @@ public class DashboardMigrator {
 				AgileBoard.class);
 		return result;
 	}
+	
+	private static List<Sprint> getCloudSprints(
+			Client client, String baseURL, List<AgileBoard> boards) throws Exception {
+		List<Sprint> result = new ArrayList<>();
+		for (AgileBoard board : boards) {
+			if (SCRUM.equals(board.getType())) {
+				List<Sprint> list =	restCallWithPaging(
+					client, 
+					new URI(baseURL)
+						.resolve("../rest/agile/1.0/board/")
+						.resolve(board.getId() + "/")
+						.resolve("sprint"), 
+					HttpMethod.GET,
+					null, null, null,
+					Sprint.class);
+				result.addAll(list);
+			}
+		}
+		return result;
+	}
 
+	private static List<Sprint> getSprints(
+			Client client, String baseURL, List<AgileBoard> boards) throws Exception {
+		List<Sprint> result = new ArrayList<>();
+		for (AgileBoard board : boards) {
+			if (SCRUM.equals(board.getType())) {
+				List<Sprint> list =	restCallWithPaging(
+					client, 
+					new URI(baseURL).resolve("rest/agile/1.0/board/").resolve(board.getId() + "/").resolve("sprint"), 
+					HttpMethod.GET,
+					null, null, null,
+					Sprint.class);
+				result.addAll(list);
+			}
+		}
+		return result;
+	}
+	
 	private static Config parseConfig(String[] args) {
 		Config result = null;
 		ObjectReader reader = OM.readerFor(Config.class);
@@ -683,6 +724,11 @@ public class DashboardMigrator {
 		List<AgileBoard> serverAgile = getAgileBoards(dataCenterClient, conf.getSourceRESTBaseURL());
 		Log.info(LOGGER, "Agile boards found: " + serverAgile.size());
 		saveFile(DataFile.AGILEBOARD_DATACENTER, serverAgile);
+		
+		Log.info(LOGGER, "Processing Sprints...");
+		List<Sprint> serverSprints = getSprints(dataCenterClient, conf.getSourceRESTBaseURL(), serverAgile);
+		Log.info(LOGGER, "Sprints found: " + serverSprints.size());
+		saveFile(DataFile.SPRINT_DATACENTER, serverSprints);
 	}
 	
 	private static void dumpCloud(Client cloudClient, Config conf) throws Exception {
@@ -728,6 +774,11 @@ public class DashboardMigrator {
 		List<AgileBoard> cloudAgile = getCloudAgileBoards(cloudClient, conf.getTargetRESTBaseURL());
 		Log.info(LOGGER, "Agile boards found: " + cloudAgile.size());
 		saveFile(DataFile.AGILEBOARD_CLOUD, cloudAgile);
+		
+		Log.info(LOGGER, "Processing Sprints...");
+		List<Sprint> cloudSprints = getCloudSprints(cloudClient, conf.getTargetRESTBaseURL(), cloudAgile);
+		Log.info(LOGGER, "Sprints found: " + cloudSprints.size());
+		saveFile(DataFile.SPRINT_CLOUD, cloudSprints);
 	}
 	
 	private static void mapObjects() throws Exception {
@@ -740,6 +791,7 @@ public class DashboardMigrator {
 		mapStatuses();
 		mapGroups();
 		mapAgileBoards();
+		mapSprints();
 	}
 	
 	private static void createDashboards(Client cloudClient, Config conf) throws Exception {
@@ -972,18 +1024,47 @@ public class DashboardMigrator {
 		Log.printCount(LOGGER, "Filters mapped: ", successCount, filters.size());
 	}
 	
+	private static Map<MappingType, Mapping> loadMappings() throws Exception {
+		Map<MappingType, Mapping> result = new HashMap<>();
+		
+		Mapping projectMapping = readFile(DataFile.PROJECT_MAP, Mapping.class);
+		result.put(MappingType.PROJECT, projectMapping);
+		
+		Mapping roleMapping = readFile(DataFile.ROLE_MAP, Mapping.class);
+		result.put(MappingType.ROLE, roleMapping);
+		
+		Mapping userMapping = readFile(DataFile.USER_MAP, Mapping.class);
+		result.put(MappingType.USER, userMapping);
+		
+		Mapping groupMapping = readFile(DataFile.GROUP_MAP, Mapping.class);
+		result.put(MappingType.GROUP, groupMapping);
+		
+		Mapping fieldMapping = readFile(DataFile.FIELD_MAP, Mapping.class);
+		result.put(MappingType.CUSTOM_FIELD, fieldMapping);
+		
+		Mapping filterMapping = readFile(DataFile.FILTER_MIGRATED, Mapping.class);
+		result.put(MappingType.FILTER, filterMapping);
+		
+		Mapping statusMapping = readFile(DataFile.STATUS_MAP, Mapping.class);
+		result.put(MappingType.STATUS, statusMapping);
+		
+		Mapping agileBoardMapping = readFile(DataFile.AGILEBOARD_MAP, Mapping.class);
+		result.put(MappingType.AGILE_BOARD, agileBoardMapping);
+		
+		Mapping sprintMapping = readFile(DataFile.SPRINT_MAP, Mapping.class);
+		result.put(MappingType.SPRINT, sprintMapping);
+		
+		return result;
+	}
+	
 	private static void mapDashboards() throws Exception {
 		Log.info(LOGGER, "Processing Dashboards...");
 		List<DataCenterPortalPage> dashboards = readValuesFromFile(DataFile.DASHBOARD_DATACENTER, 
 				DataCenterPortalPage.class);
-		Mapping projectMapping = readFile(DataFile.PROJECT_MAP, Mapping.class);
-		Mapping roleMapping = readFile(DataFile.ROLE_MAP, Mapping.class);
-		Mapping userMapping = readFile(DataFile.USER_MAP, Mapping.class);
-		Mapping groupMapping = readFile(DataFile.GROUP_MAP, Mapping.class);
-		Mapping fieldMapping = readFile(DataFile.FIELD_MAP, Mapping.class);
-		Mapping filterMapping = readFile(DataFile.FILTER_MIGRATED, Mapping.class);
-		Mapping statusMapping = readFile(DataFile.STATUS_MAP, Mapping.class);
-		Mapping agileBoardMapping = readFile(DataFile.AGILEBOARD_MAP, Mapping.class);
+		Map<MappingType, Mapping> mappings = loadMappings();
+		Mapping userMapping = mappings.get(MappingType.USER);
+		Mapping projectMapping = mappings.get(MappingType.PROJECT);
+		Mapping roleMapping = mappings.get(MappingType.ROLE);
 		// Dashboards uses user KEY instead of name.
 		List<User> userDC = readValuesFromFile(DataFile.USER_DATACENTER, User.class);
 		int errorCount = 0;
@@ -1053,8 +1134,7 @@ public class DashboardMigrator {
 			}
 			// Fix configuration values
 			for (DataCenterPortletConfiguration gadget : dashboard.getPortlets()) {
-				CloudGadgetConfigurationMapper.mapConfiguration(gadget, projectMapping, roleMapping, fieldMapping,
-						groupMapping, userMapping, filterMapping, statusMapping, agileBoardMapping);
+				CloudGadgetConfigurationMapper.mapConfiguration(gadget, mappings);
 			}
 			dashboard.getPortlets().sort(new GadgetOrderComparator(false));
 		}
@@ -1333,7 +1413,7 @@ public class DashboardMigrator {
 		int mappedCount = 0;
 		List<AgileBoard> serverAgileBoards = readValuesFromFile(DataFile.AGILEBOARD_DATACENTER, AgileBoard.class);
 		List<AgileBoard> cloudAgileBoards = readValuesFromFile(DataFile.AGILEBOARD_CLOUD, AgileBoard.class);
-		Mapping groupMapping = new Mapping(MappingType.GROUP);
+		Mapping agileMapping = new Mapping(MappingType.AGILE_BOARD);
 		for (AgileBoard src : serverAgileBoards) {
 			List<String> targets = new ArrayList<>();
 			for (AgileBoard target : cloudAgileBoards) {
@@ -1343,21 +1423,53 @@ public class DashboardMigrator {
 			}
 			switch (targets.size()) {
 			case 0:
-				groupMapping.getUnmapped().add(src);
+				agileMapping.getUnmapped().add(src);
 				Log.warn(LOGGER, "Agile Board [" + src.getName() + "] is not mapped");
 				break;
 			case 1:
-				groupMapping.getMapped().put(src.getName(), targets.get(0));
+				agileMapping.getMapped().put(src.getName(), targets.get(0));
 				mappedCount++;
 				break;
 			default:
-				groupMapping.getConflict().put(src.getName(), targets);
+				agileMapping.getConflict().put(src.getName(), targets);
 				Log.warn(LOGGER, "Agile Board [" + src.getName() + "] is mapped to multiple Cloud Agile Boards");
 				break;
 			}
 		}
 		Log.printCount(LOGGER, "Agile Boards mapped: ", mappedCount, serverAgileBoards.size());
-		saveFile(DataFile.AGILEBOARD_MAP, groupMapping);
+		saveFile(DataFile.AGILEBOARD_MAP, agileMapping);
+	}
+	
+	private static void mapSprints() throws Exception {
+		Log.info(LOGGER, "Processing Sprints...");
+		int mappedCount = 0;
+		List<Sprint> serverSprints = readValuesFromFile(DataFile.SPRINT_DATACENTER, Sprint.class);
+		List<Sprint> cloudSprints = readValuesFromFile(DataFile.SPRINT_CLOUD, Sprint.class);
+		Mapping sprintMapping = new Mapping(MappingType.SPRINT);
+		for (Sprint src : serverSprints) {
+			List<String> targets = new ArrayList<>();
+			for (Sprint target : cloudSprints) {
+				if (target.getName().equals(src.getName())) {
+					targets.add(target.getId());
+				}
+			}
+			switch (targets.size()) {
+			case 0:
+				sprintMapping.getUnmapped().add(src);
+				Log.warn(LOGGER, "Sprint [" + src.getName() + "] is not mapped");
+				break;
+			case 1:
+				sprintMapping.getMapped().put(src.getName(), targets.get(0));
+				mappedCount++;
+				break;
+			default:
+				sprintMapping.getConflict().put(src.getName(), targets);
+				Log.warn(LOGGER, "Sprint [" + src.getName() + "] is mapped to multiple Cloud sprints");
+				break;
+			}
+		}
+		Log.printCount(LOGGER, "Sprints mapped: ", mappedCount, serverSprints.size());
+		saveFile(DataFile.SPRINT_MAP, sprintMapping);
 	}
 	
 	private static DataCenterFilter getFilter(Client client, String baseURL, int id) throws Exception {

@@ -10,5 +10,6 @@ public enum MappingType {
 	FILTER, 
 	DASHBOARD, 
 	AGILE_BOARD, 
-	PROJECT_CATEGORY;
+	PROJECT_CATEGORY,
+	SPRINT;
 }

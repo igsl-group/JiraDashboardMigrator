@@ -1,9 +1,9 @@
 package com.igsl.model.mapping;
 
-public class AgileBoard {
+public class Sprint {
 	private String id;
 	private String name;
-	private String type;
+	private String originBoardId;
 	
 	public String getId() {
 		return id;
@@ -21,12 +21,12 @@ public class AgileBoard {
 		this.name = name;
 	}
 
-	public String getType() {
-		return type;
+	public String getOriginBoardId() {
+		return originBoardId;
 	}
 
-	public void setType(String type) {
-		this.type = type;
+	public void setOriginBoardId(String originBoardId) {
+		this.originBoardId = originBoardId;
 	}
 
 }

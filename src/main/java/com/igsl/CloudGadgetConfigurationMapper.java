@@ -1,6 +1,5 @@
 package com.igsl;
 
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,14 +15,13 @@ import com.igsl.config.GadgetType;
 import com.igsl.model.DataCenterGadgetConfiguration;
 import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.mapping.Mapping;
+import com.igsl.model.mapping.MappingType;
 
 public class CloudGadgetConfigurationMapper {
 
 	private static final Logger LOGGER = LogManager.getLogger(CloudGadgetConfigurationMapper.class);
-	private static final Comparator<String> stringComparator = Comparator.nullsFirst(Comparator.naturalOrder());
 
-	public static void mapConfiguration(DataCenterPortletConfiguration gadget, Mapping project, Mapping role,
-			Mapping field, Mapping group, Mapping user, Mapping filter, Mapping status, Mapping agileBoard) {
+	public static void mapConfiguration(DataCenterPortletConfiguration gadget, Map<MappingType, Mapping> mappings) {
 		GadgetType type = GadgetType.parse(gadget.getDashboardCompleteKey(), gadget.getGadgetXml());
 		if (type != null) {
 			// Replace moduleKey and Uri if configured
@@ -113,34 +111,7 @@ public class CloudGadgetConfigurationMapper {
 						// Get mapping type, if any
 						Mapping map = null;
 						if (conf.getMappingType() != null) {
-							switch (conf.getMappingType()) {
-							case CUSTOM_FIELD:
-								map = field;
-								break;
-							case FILTER:
-								map = filter;
-								break;
-							case GROUP:
-								map = group;
-								break;
-							case PROJECT:
-								map = project;
-								break;
-							case ROLE:
-								map = role;
-								break;
-							case USER:
-								map = user;
-								break;
-							case STATUS:
-								map = status;
-								break;
-							case AGILE_BOARD:
-								map = agileBoard;
-								break;
-							default:
-								break;
-							}
+							map = mappings.get(conf.getMappingType());
 						}
 						// Find value matches
 						String oldValue = item.getUserPrefValue();

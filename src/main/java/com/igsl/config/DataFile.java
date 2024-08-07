@@ -33,6 +33,10 @@ public enum DataFile {
 	AGILEBOARD_CLOUD("AgileBoard", "Cloud"),
 	AGILEBOARD_DATACENTER("AgileBoard", "DataCenter"),
 	
+	SPRINT_MAP("Sprint", "Map"),
+	SPRINT_CLOUD("Sprint", "Cloud"),
+	SPRINT_DATACENTER("Sprint", "DataCenter"),
+	
 	FILTER_DATA("Filter", "Data"),
 	FILTER_REMAPPED("Filter", "Remapped"), 
 	FILTER_DATACENTER("Filter", "DataCenter"),
