@@ -16,7 +16,6 @@
                 "pattern": "(projectId-)([0-9]+)",
                 "targetGroup": 2,
                 "replacement": "$1$2",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             },
@@ -27,7 +26,6 @@
                 "pattern": "(filterId-)([0-9]+)",
                 "targetGroup": 2,
                 "replacement": "$1$2",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             }

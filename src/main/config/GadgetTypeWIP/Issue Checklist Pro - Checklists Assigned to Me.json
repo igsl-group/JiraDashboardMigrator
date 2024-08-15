@@ -1,0 +1,20 @@
+[
+    {
+        "description": "Checklist Assigned to Me",
+        "moduleKey": "com.okapya.jira.checklist:checklist-dashboard-item-assigned-to-me",
+        "moduleKeyCompare": "CONTAINS",
+        "newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.gebsun.plugins.jira.issuechecklist__issue-checklist-assigned-items-dashboard-gadget",
+        "uri": null,
+        "uriCompare": "MATCHES",
+        "newUri": null,
+        "configType": "CONFIG",
+        "config": [
+            
+        ],
+        "notes": [
+            "checklistIds: \"#\" cannot be mapped, not sure what it is for, Plike license expired",
+            "Some has no configuration",
+            "Cloud does not offer configuration"
+        ]
+    }
+]

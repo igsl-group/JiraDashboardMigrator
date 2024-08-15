@@ -11,25 +11,63 @@
         "config": [
             {
                 "attributeNameRegex": "projectOrFilterId",
-                "newAttributeNameRegex": null,
+                "conditions": [
+                    {
+                        "attributeName": "projectOrFilterId",
+                        "condition": "CONTAIN",
+                        "attributeValue": ["project-"]
+                    }
+                ],
                 "mappingType": "PROJECT",
                 "pattern": "(project-)([0-9]+)",
                 "targetGroup": 2,
-                "replacement": "$1$2",
-                "delimiter": null,
+                "replacement": "project-$2", 
                 "prefix": null,
-                "suffix": null
+                "suffix": null,
+                "additions": [
+                    {
+                        "attributeName": "id",
+                        "mode": "REPLACE",
+                        "delimiter": null,
+                        "replacement": "$2"
+                    },
+                    {
+                        "attributeName": "type",
+                        "mode": "REPLACE",
+                        "delimiter": null,
+                        "replacement": "project"
+                    }
+                ]
             },
             {
                 "attributeNameRegex": "projectOrFilterId",
-                "newAttributeNameRegex": null,
+                "conditions": [
+                    {
+                        "attributeName": "projectOrFilterId",
+                        "condition": "CONTAIN",
+                        "attributeValue": ["filter-"]
+                    }
+                ],
                 "mappingType": "FILTER",
                 "pattern": "(filter-)([0-9]+)",
                 "targetGroup": 2,
-                "replacement": "$1$2",
-                "delimiter": null,
+                "replacement": "filter-$2",
                 "prefix": null,
-                "suffix": null
+                "suffix": null,
+                "additions": [
+                    {
+                        "attributeName": "id",
+                        "mode": "REPLACE",
+                        "delimiter": null,
+                        "replacement": "$2"
+                    },
+                    {
+                        "attributeName": "type",
+                        "mode": "REPLACE",
+                        "delimiter": null,
+                        "replacement": "filter"
+                    }
+                ]
             }
         ]
     }

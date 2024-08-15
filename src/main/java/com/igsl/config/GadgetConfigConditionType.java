@@ -7,5 +7,8 @@ public enum GadgetConfigConditionType {
 	GTE,
 	LTR,
 	LTE,
-	IN
+	IN,
+	CONTAIN,
+	START_WITH,
+	END_WITH
 }

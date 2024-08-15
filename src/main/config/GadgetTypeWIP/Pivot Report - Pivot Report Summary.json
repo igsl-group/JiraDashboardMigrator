@@ -1,9 +1,9 @@
 [
 	{
-		"description": "Pivot Report Slices", 
-		"moduleKey": "biz.epicreport.epicreports:dashboard-slices",
+		"description": "Pivot Report Summary", 
+		"moduleKey": "biz.epicreport.epicreports:dashboard-summary",
 		"moduleKeyCompare": "MATCHES",
-		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:biz.epicreport.epicreports__dashboard-item-slices",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:biz.epicreport.epicreports__dashboard-item-summary",
 		"uri": null,
 		"uriCompare": "MATCHES",
 		"newUri": null,
@@ -20,6 +20,9 @@
 				"prefix": null,
 				"suffix": null
 			}
+		],
+		"notes": [
+		      "report: [0-9]+ cannot be mapped"
 		]
 	}
 ]

@@ -76,7 +76,6 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.JsonNodeType;
 import com.igsl.config.Config;
-import com.igsl.config.DataFile;
 import com.igsl.config.GadgetConfigType;
 import com.igsl.config.GadgetType;
 import com.igsl.config.Operation;
@@ -102,6 +101,7 @@ import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
 import com.igsl.model.mapping.Project;
 import com.igsl.model.mapping.ProjectCategory;
+import com.igsl.model.mapping.ProjectComponent;
 import com.igsl.model.mapping.Role;
 import com.igsl.model.mapping.SearchResult;
 import com.igsl.model.mapping.Sprint;
@@ -356,27 +356,46 @@ public class DashboardMigrator {
 	}
 
 	private static List<Project> getCloudProjects(Client client, Config conf) throws Exception {
-		List<Project> result = new ArrayList<>();
-		int startAt = 0;
-		int maxResults = 50;
-		boolean isLast = false;
-		do {
-			Map<String, Object> queryParameters = new HashMap<>();
-			queryParameters.put("startAt", startAt);
-			queryParameters.put("maxResults", maxResults);
-			Response resp = restCall(client,
-					new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/project/search"), HttpMethod.GET,
-					null, queryParameters, null);
+		List<Project> result = restCallWithPaging(
+				client, 
+				new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/project/search"), 
+				HttpMethod.GET, 
+				null, null, null,
+				Project.class);	
+		return result;
+	}
+
+	private static List<ProjectComponent> getServerProjectComponents(
+			Client client, String baseURL, List<Project> projects) throws Exception {
+		List<ProjectComponent> result = new ArrayList<>();
+		for (Project p : projects) {
+			Response resp = restCall(
+					client, 
+					new URI(baseURL).resolve("/rest/api/latest/project/").resolve(p.getId() + "/").resolve("components"), 
+					HttpMethod.GET, 
+					null, null, null);
 			if (checkStatusCode(resp, Response.Status.OK)) {
-				SearchResult<Project> searchResult = resp.readEntity(new GenericType<SearchResult<Project>>() {
-				});
-				isLast = searchResult.getIsLast();
-				result.addAll(searchResult.getValues());
-				startAt += searchResult.getMaxResults();
+				List<ProjectComponent> searchResult = resp.readEntity(new GenericType<List<ProjectComponent>>(){});
+				result.addAll(searchResult);
 			} else {
 				throw new Exception(resp.readEntity(String.class));
 			}
-		} while (!isLast);
+		}
+		return result;
+	}
+
+	private static List<ProjectComponent> getCloudProjectComponents(
+			Client client, String baseURL, List<Project> projects) throws Exception {
+		List<ProjectComponent> result = new ArrayList<>();
+		for (Project p : projects) {
+			List<ProjectComponent> list = restCallWithPaging(
+					client, 
+					new URI(baseURL).resolve("/rest/api/latest/project/").resolve(p.getId() + "/").resolve("component"), 
+					HttpMethod.GET, 
+					null, null, null,
+					ProjectComponent.class);
+			result.addAll(list);
+		}
 		return result;
 	}
 
@@ -393,8 +412,6 @@ public class DashboardMigrator {
 		}
 		return result;
 	}
-	
-	// TODO Get Sprints of each AgileBoard
 	
 	private static List<ProjectCategory> getCloudProjectCategories(Client client, String baseURL) throws Exception {
 		List<ProjectCategory> result = new ArrayList<>();
@@ -631,20 +648,20 @@ public class DashboardMigrator {
 		}
 	}
 
-	private static <T> T readFile(DataFile file, Class<? extends T> cls) throws IOException, JsonParseException {
+	private static <T> T readFile(String fileName, Class<? extends T> cls) throws IOException, JsonParseException {
 		ObjectReader reader = OM.readerFor(cls);
 		StringBuilder sb = new StringBuilder();
-		for (String line : Files.readAllLines(Paths.get(file.toString()))) {
+		for (String line : Files.readAllLines(Paths.get(fileName))) {
 			sb.append(line).append(NEWLINE);
 		}
 		return reader.readValue(sb.toString());
 	}
 
-	private static <T> List<T> readValuesFromFile(DataFile file, Class<? extends T> cls) 
+	private static <T> List<T> readValuesFromFile(String fileName, Class<? extends T> cls) 
 			throws IOException, JsonParseException {
 		ObjectReader reader = OM.readerFor(cls);
 		StringBuilder sb = new StringBuilder();
-		for (String line : Files.readAllLines(Paths.get(file.toString()))) {
+		for (String line : Files.readAllLines(Paths.get(fileName))) {
 			sb.append(line).append(NEWLINE);
 		}
 		List<T> result = new ArrayList<>();
@@ -655,14 +672,14 @@ public class DashboardMigrator {
 		return result;
 	}
 
-	private static void saveFile(DataFile file, Object content) throws IOException {
-		try (FileWriter fw = new FileWriter(file.toString())) {
+	private static void saveFile(String fileName, Object content) throws IOException {
+		try (FileWriter fw = new FileWriter(fileName)) {
 			fw.write(OM.writeValueAsString(content));
 		}
-		Log.info(LOGGER, "File " + file.toString() + " saved");
+		Log.info(LOGGER, "File " + fileName + " saved");
 	}
 	
-	private static void dumpDCFilterDashboard(FilterMapper filterMapper, Client dataCenterClient, Config conf) 
+	private static void dumpDashboard(FilterMapper filterMapper, Client dataCenterClient, Config conf) 
 			throws Exception {
 		Log.info(LOGGER, "Dumping filters and dashboards from Data Center...");
 		Log.info(LOGGER, "Processing Filters...");
@@ -673,12 +690,18 @@ public class DashboardMigrator {
 			filterList.add(filter);
 		}
 		Log.info(LOGGER, "Filters found: " + filterList.size());
-		saveFile(DataFile.FILTER_DATACENTER, filterList);
+		saveFile(MappingType.FILTER.getDC(), filterList);
 		
 		Log.info(LOGGER, "Processing Dashboards...");
 		List<DataCenterPortalPage> dashboards = filterMapper.getDashboards();
 		Log.info(LOGGER, "Dashboards found: " + dashboards.size());
-		saveFile(DataFile.DASHBOARD_DATACENTER, dashboards);
+		// Sort gadget configuration
+		for (DataCenterPortalPage dashboard : dashboards) {
+			for (DataCenterPortletConfiguration config : dashboard.getPortlets()) {
+				config.getGadgetConfigurations().sort(new GadgetConfigurationComparator());
+			}
+		}
+		saveFile(MappingType.DASHBOARD.getDC(), dashboards);
 	}
 
 	private static void dumpDC(Client dataCenterClient, Config conf) throws Exception {
@@ -687,48 +710,54 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "Processing Projects...");
 		List<Project> serverProjects = getServerProjects(dataCenterClient, conf);
 		Log.info(LOGGER, "Projects found: " + serverProjects.size());
-		saveFile(DataFile.PROJECT_DATACENTER, serverProjects);
+		saveFile(MappingType.PROJECT.getDC(), serverProjects);
 		
 		Log.info(LOGGER, "Processing Project Categories...");
 		List<ProjectCategory> serverProjectCategories = getServerProjectCategories(
 				dataCenterClient, conf.getSourceRESTBaseURL());
 		Log.info(LOGGER, "Project categories found: " + serverProjectCategories.size());
-		saveFile(DataFile.PROJECT_CATEGORY_DATACENTER, serverProjectCategories);
+		saveFile(MappingType.PROJECT_CATEGORY.getDC(), serverProjectCategories);
+		
+		Log.info(LOGGER, "Processing Project Components...");
+		List<ProjectComponent> serverProjectComponents = getServerProjectComponents(
+				dataCenterClient, conf.getSourceRESTBaseURL(), serverProjects);
+		Log.info(LOGGER, "Project components found: " + serverProjectComponents.size());
+		saveFile(MappingType.PROJECT_COMPONENT.getDC(), serverProjectComponents);
 		
 		Log.info(LOGGER, "Processing Users...");
 		List<User> serverUsers = getServerUsers(dataCenterClient, conf);
 		Log.info(LOGGER, "Users found: " + serverUsers.size());
-		saveFile(DataFile.USER_DATACENTER, serverUsers);
+		saveFile(MappingType.USER.getDC(), serverUsers);
 		
 		Log.info(LOGGER, "Processing Custom Fields...");
 		List<CustomField> serverFields = getCustomFields(dataCenterClient, conf.getSourceRESTBaseURL());
 		Log.info(LOGGER, "Custom fields found: " + serverFields.size());
-		saveFile(DataFile.FIELD_DATACENTER, serverFields);
+		saveFile(MappingType.CUSTOM_FIELD.getDC(), serverFields);
 		
 		Log.info(LOGGER, "Processing Roles...");
 		List<Role> serverRoles = getRoles(dataCenterClient, conf.getSourceRESTBaseURL());
 		Log.info(LOGGER, "Roles found: " + serverRoles.size());
-		saveFile(DataFile.ROLE_DATACENTER, serverRoles);
+		saveFile(MappingType.ROLE.getDC(), serverRoles);
 		
 		Log.info(LOGGER, "Processing Statuses...");
 		List<Status> serverStatus = getStatuses(dataCenterClient, conf.getSourceRESTBaseURL());
 		Log.info(LOGGER, "Statuses found: " + serverStatus.size());
-		saveFile(DataFile.STATUS_DATACENTER, serverStatus);
+		saveFile(MappingType.STATUS.getDC(), serverStatus);
 		
 		Log.info(LOGGER, "Processing Groups...");
 		List<Group> serverGroups = getGroups(dataCenterClient, conf.getSourceRESTBaseURL());
 		Log.info(LOGGER, "Groups found: " + serverGroups.size());
-		saveFile(DataFile.GROUP_DATACENTER, serverGroups);
+		saveFile(MappingType.GROUP.getDC(), serverGroups);
 		
 		Log.info(LOGGER, "Processing Agile Boards...");
 		List<AgileBoard> serverAgile = getAgileBoards(dataCenterClient, conf.getSourceRESTBaseURL());
 		Log.info(LOGGER, "Agile boards found: " + serverAgile.size());
-		saveFile(DataFile.AGILEBOARD_DATACENTER, serverAgile);
+		saveFile(MappingType.AGILE_BOARD.getDC(), serverAgile);
 		
 		Log.info(LOGGER, "Processing Sprints...");
 		List<Sprint> serverSprints = getSprints(dataCenterClient, conf.getSourceRESTBaseURL(), serverAgile);
 		Log.info(LOGGER, "Sprints found: " + serverSprints.size());
-		saveFile(DataFile.SPRINT_DATACENTER, serverSprints);
+		saveFile(MappingType.SPRINT.getDC(), serverSprints);
 	}
 	
 	private static void dumpCloud(Client cloudClient, Config conf) throws Exception {
@@ -737,54 +766,61 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "Processing Projects...");
 		List<Project> cloudProjects = getCloudProjects(cloudClient, conf);
 		Log.info(LOGGER, "Projects found: " + cloudProjects.size());
-		saveFile(DataFile.PROJECT_CLOUD, cloudProjects);
+		saveFile(MappingType.PROJECT.getCloud(), cloudProjects);
 		
 		Log.info(LOGGER, "Processing Project Categories...");
 		List<ProjectCategory> cloudProjectCategories = getCloudProjectCategories(
 				cloudClient, conf.getTargetRESTBaseURL());
 		Log.info(LOGGER, "Project categories found: " + cloudProjectCategories.size());
-		saveFile(DataFile.PROJECT_CATEGORY_CLOUD, cloudProjectCategories);
+		saveFile(MappingType.PROJECT_CATEGORY.getCloud(), cloudProjectCategories);
+		
+		Log.info(LOGGER, "Processing Project Components...");
+		List<ProjectComponent> cloudProjectComponents = getCloudProjectComponents(
+				cloudClient, conf.getTargetRESTBaseURL(), cloudProjects);
+		Log.info(LOGGER, "Project components found: " + cloudProjectComponents.size());
+		saveFile(MappingType.PROJECT_COMPONENT.getCloud(), cloudProjectComponents);
 		
 		Log.info(LOGGER, "Processing Users...");
 		List<User> cloudUsers = getCloudUsers(cloudClient, conf);
 		Log.info(LOGGER, "Users found: " + cloudUsers.size());
-		saveFile(DataFile.USER_CLOUD, cloudUsers);
+		saveFile(MappingType.USER.getCloud(), cloudUsers);
 		
 		Log.info(LOGGER, "Processing Custom Fields...");
 		List<CustomField> cloudFields = getCustomFields(cloudClient, conf.getTargetRESTBaseURL());
 		Log.info(LOGGER, "Custom Fields found: " + cloudFields.size());
-		saveFile(DataFile.FIELD_CLOUD, cloudFields);
+		saveFile(MappingType.CUSTOM_FIELD.getCloud(), cloudFields);
 		
 		Log.info(LOGGER, "Processing Roles...");
 		List<Role> cloudRoles = getRoles(cloudClient, conf.getTargetRESTBaseURL());
 		Log.info(LOGGER, "Roles found: " + cloudRoles.size());
-		saveFile(DataFile.ROLE_CLOUD, cloudRoles);
+		saveFile(MappingType.ROLE.getCloud(), cloudRoles);
 		
 		Log.info(LOGGER, "Processing Statuses...");
 		List<Status> cloudStatus = getCloudStatuses(cloudClient, conf.getTargetRESTBaseURL());
 		Log.info(LOGGER, "Statuses found: " + cloudStatus.size());
-		saveFile(DataFile.STATUS_CLOUD, cloudStatus);
+		saveFile(MappingType.STATUS.getCloud(), cloudStatus);
 		
 		Log.info(LOGGER, "Processing Groups...");
 		List<Group> cloudGroups = getGroups(cloudClient, conf.getTargetRESTBaseURL());
 		Log.info(LOGGER, "Groups found: " + cloudGroups.size());
-		saveFile(DataFile.GROUP_CLOUD, cloudGroups);
+		saveFile(MappingType.GROUP.getCloud(), cloudGroups);
 		
 		Log.info(LOGGER, "Processing Agile Boards...");
 		List<AgileBoard> cloudAgile = getCloudAgileBoards(cloudClient, conf.getTargetRESTBaseURL());
 		Log.info(LOGGER, "Agile boards found: " + cloudAgile.size());
-		saveFile(DataFile.AGILEBOARD_CLOUD, cloudAgile);
+		saveFile(MappingType.AGILE_BOARD.getCloud(), cloudAgile);
 		
 		Log.info(LOGGER, "Processing Sprints...");
 		List<Sprint> cloudSprints = getCloudSprints(cloudClient, conf.getTargetRESTBaseURL(), cloudAgile);
 		Log.info(LOGGER, "Sprints found: " + cloudSprints.size());
-		saveFile(DataFile.SPRINT_CLOUD, cloudSprints);
+		saveFile(MappingType.SPRINT.getCloud(), cloudSprints);
 	}
 	
 	private static void mapObjects() throws Exception {
 		Log.info(LOGGER, "Mapping objects between Data Center and Cloud...");
 		mapProjects();
 		mapProjectCategories();
+		mapProjectComponents();
 		mapUsers();
 		mapCustomFields();
 		mapRoles();
@@ -796,7 +832,7 @@ public class DashboardMigrator {
 	
 	private static void createDashboards(Client cloudClient, Config conf) throws Exception {
 		Log.info(LOGGER, "Creating dashboards...");
-		List<DataCenterPortalPage> dashboards = readValuesFromFile(DataFile.DASHBOARD_REMAPPED,
+		List<DataCenterPortalPage> dashboards = readValuesFromFile(MappingType.DASHBOARD.getRemapped(),
 				DataCenterPortalPage.class);
 		// Create dashboard mapping along the way
 		Mapping migratedList = new Mapping(MappingType.DASHBOARD);
@@ -888,13 +924,14 @@ public class DashboardMigrator {
 				Log.error(LOGGER, "Failed to create dashboard [" + dashboard.getPageName() + "]: " + msg);
 			}
 		}
-		saveFile(DataFile.DASHBOARD_MIGRATED, migratedList);
+		saveFile(MappingType.DASHBOARD.getMap(), migratedList);
 		Log.printCount(LOGGER, "Dashboards migrated: ", migratedCount, dashboards.size());
 	}
 	
 	private static void createFilters(Client cloudClient, Config conf) throws Exception {
 		Log.info(LOGGER, "Creating filters...");
-		List<DataCenterFilter> filters = readValuesFromFile(DataFile.FILTER_REMAPPED, DataCenterFilter.class);
+		List<DataCenterFilter> filters = readValuesFromFile(MappingType.FILTER.getRemapped(), 
+				DataCenterFilter.class);
 		// Create filter mapping along the way
 		Mapping migratedList = new Mapping(MappingType.FILTER);
 		int migratedCount = 0;
@@ -925,18 +962,19 @@ public class DashboardMigrator {
 				Log.error(LOGGER, "Failed to create filter [" + filter.getName() + "]: " + msg);
 			}
 		}
-		saveFile(DataFile.FILTER_MIGRATED, migratedList);
+		saveFile(MappingType.FILTER.getMap(), migratedList);
 		Log.printCount(LOGGER, "Filters migrated: ", migratedCount, filters.size());
 	}
 	
 	private static void mapFilters() throws Exception {
 		Log.info(LOGGER, "Processing Filters...");
-		List<DataCenterFilter> filters = readValuesFromFile(DataFile.FILTER_DATACENTER, DataCenterFilter.class);
-		Mapping userMapping = readFile(DataFile.USER_MAP, Mapping.class);
-		Mapping projectMapping = readFile(DataFile.PROJECT_MAP, Mapping.class);
-		Mapping roleMapping = readFile(DataFile.ROLE_MAP, Mapping.class);
-		Mapping groupMapping = readFile(DataFile.GROUP_MAP, Mapping.class);
-		Mapping fieldMapping = readFile(DataFile.FIELD_MAP, Mapping.class);
+		List<DataCenterFilter> filters = readValuesFromFile(MappingType.FILTER.getDC(), 
+				DataCenterFilter.class);
+		Mapping userMapping = readFile(MappingType.USER.getMap(), Mapping.class);
+		Mapping projectMapping = readFile(MappingType.PROJECT.getMap(), Mapping.class);
+		Mapping roleMapping = readFile(MappingType.ROLE.getMap(), Mapping.class);
+		Mapping groupMapping = readFile(MappingType.GROUP.getMap(), Mapping.class);
+		Mapping fieldMapping = readFile(MappingType.CUSTOM_FIELD.getMap(), Mapping.class);
 		Map<String, Mapping> maps = new HashMap<>();
 		maps.put("project", projectMapping);
 		maps.put("field", fieldMapping);
@@ -1020,53 +1058,35 @@ public class DashboardMigrator {
 				successCount++;
 			}
 		}
-		saveFile(DataFile.FILTER_REMAPPED, filters);
+		saveFile(MappingType.FILTER.getRemapped(), filters);
 		Log.printCount(LOGGER, "Filters mapped: ", successCount, filters.size());
 	}
 	
-	private static Map<MappingType, Mapping> loadMappings() throws Exception {
+	private static Map<MappingType, Mapping> loadMappings(MappingType... excludes) throws Exception {
+		List<MappingType> excludeList = new ArrayList<>();
+		for (MappingType e : excludes) {
+			excludeList.add(e);
+		}
 		Map<MappingType, Mapping> result = new HashMap<>();
-		
-		Mapping projectMapping = readFile(DataFile.PROJECT_MAP, Mapping.class);
-		result.put(MappingType.PROJECT, projectMapping);
-		
-		Mapping roleMapping = readFile(DataFile.ROLE_MAP, Mapping.class);
-		result.put(MappingType.ROLE, roleMapping);
-		
-		Mapping userMapping = readFile(DataFile.USER_MAP, Mapping.class);
-		result.put(MappingType.USER, userMapping);
-		
-		Mapping groupMapping = readFile(DataFile.GROUP_MAP, Mapping.class);
-		result.put(MappingType.GROUP, groupMapping);
-		
-		Mapping fieldMapping = readFile(DataFile.FIELD_MAP, Mapping.class);
-		result.put(MappingType.CUSTOM_FIELD, fieldMapping);
-		
-		Mapping filterMapping = readFile(DataFile.FILTER_MIGRATED, Mapping.class);
-		result.put(MappingType.FILTER, filterMapping);
-		
-		Mapping statusMapping = readFile(DataFile.STATUS_MAP, Mapping.class);
-		result.put(MappingType.STATUS, statusMapping);
-		
-		Mapping agileBoardMapping = readFile(DataFile.AGILEBOARD_MAP, Mapping.class);
-		result.put(MappingType.AGILE_BOARD, agileBoardMapping);
-		
-		Mapping sprintMapping = readFile(DataFile.SPRINT_MAP, Mapping.class);
-		result.put(MappingType.SPRINT, sprintMapping);
-		
+		for (MappingType type : MappingType.values()) {
+			if (!excludeList.contains(type)) {
+				Mapping m = readFile(type.getMap(), Mapping.class);
+				result.put(type, m);
+			}
+		}
 		return result;
 	}
 	
 	private static void mapDashboards() throws Exception {
 		Log.info(LOGGER, "Processing Dashboards...");
-		List<DataCenterPortalPage> dashboards = readValuesFromFile(DataFile.DASHBOARD_DATACENTER, 
+		List<DataCenterPortalPage> dashboards = readValuesFromFile(MappingType.DASHBOARD.getDC(), 
 				DataCenterPortalPage.class);
-		Map<MappingType, Mapping> mappings = loadMappings();
+		Map<MappingType, Mapping> mappings = loadMappings(MappingType.DASHBOARD);
 		Mapping userMapping = mappings.get(MappingType.USER);
 		Mapping projectMapping = mappings.get(MappingType.PROJECT);
 		Mapping roleMapping = mappings.get(MappingType.ROLE);
 		// Dashboards uses user KEY instead of name.
-		List<User> userDC = readValuesFromFile(DataFile.USER_DATACENTER, User.class);
+		List<User> userDC = readValuesFromFile(MappingType.USER.getDC(), User.class);
 		int errorCount = 0;
 		for (DataCenterPortalPage dashboard : dashboards) {
 			// Translate owner, if any
@@ -1075,8 +1095,8 @@ public class DashboardMigrator {
 					dashboard.setAccountId(userMapping.getMapped().get(dashboard.getUsername()));
 				} else {
 					errorCount++;
-					Log.warn(LOGGER, "Unable to map owner for dashboard [" + dashboard.getPageName() + "] owner ["
-							+ dashboard.getUsername() + "]");
+					Log.warn(LOGGER, "Unable to map owner for dashboard [" + dashboard.getPageName() + "] " + 
+							"owner [" + dashboard.getUsername() + "]");
 				}
 			}
 			// Translate permissions
@@ -1138,18 +1158,58 @@ public class DashboardMigrator {
 			}
 			dashboard.getPortlets().sort(new GadgetOrderComparator(false));
 		}
-		saveFile(DataFile.DASHBOARD_REMAPPED, dashboards);
+		saveFile(MappingType.DASHBOARD.getRemapped(), dashboards);
 		Log.printCount(LOGGER, "Dashboards mapped: ", dashboards.size() - errorCount, dashboards.size());
 		Log.info(LOGGER, "Please manually translate references");
+	}
+	
+	private static void mapProjectComponents() throws Exception {
+		Log.info(LOGGER, "Processing Project Components...");
+		int mappedProjectComponentCount = 0;
+		List<ProjectComponent> serverProjectComponents = readValuesFromFile(
+				MappingType.PROJECT_COMPONENT.getDC(), ProjectComponent.class);
+		List<ProjectComponent> cloudProjectComponents = readValuesFromFile(
+				MappingType.PROJECT_COMPONENT.getCloud(), ProjectComponent.class);
+		Mapping projectCategoriesMapping = new Mapping(MappingType.PROJECT_CATEGORY);
+		for (ProjectComponent src : serverProjectComponents) {
+			List<String> targets = new ArrayList<>();
+			for (ProjectComponent target : cloudProjectComponents) {
+				if (target.getName().equals(src.getName()) && 
+					target.getProject().equals(src.getProject())) {
+					targets.add(target.getId());
+				}
+			}
+			switch (targets.size()) {
+			case 0:
+				projectCategoriesMapping.getUnmapped().add(src);
+				Log.warn(LOGGER, 
+						"Project Component [" + src.getName() + "] " + 
+						"for Project [" + src.getProject() + "] is not mapped");
+				break;
+			case 1:
+				projectCategoriesMapping.getMapped().put(src.getId(), targets.get(0));
+				mappedProjectComponentCount++;
+				break;
+			default:
+				projectCategoriesMapping.getConflict().put(src.getId(), targets);
+				Log.warn(LOGGER, 
+						"Project Component [" + src.getName() + "] " + 
+						"for Project [" + src.getProject() + "] is mapped to multiple Cloud projects components");
+				break;
+			}
+		}
+		Log.printCount(LOGGER, "Projects components mapped: ", 
+				mappedProjectComponentCount, serverProjectComponents.size());
+		saveFile(MappingType.PROJECT_COMPONENT.getMap(), projectCategoriesMapping);
 	}
 	
 	private static void mapProjectCategories() throws Exception {
 		Log.info(LOGGER, "Processing Project Categories...");
 		int mappedProjectCategoryCount = 0;
 		List<ProjectCategory> serverProjectCategories = readValuesFromFile(
-				DataFile.PROJECT_CATEGORY_DATACENTER, ProjectCategory.class);
+				MappingType.PROJECT_CATEGORY.getDC(), ProjectCategory.class);
 		List<ProjectCategory> cloudProjectCategories = readValuesFromFile(
-				DataFile.PROJECT_CATEGORY_CLOUD, ProjectCategory.class);
+				MappingType.PROJECT_CATEGORY.getCloud(), ProjectCategory.class);
 		Mapping projectCategoriesMapping = new Mapping(MappingType.PROJECT_CATEGORY);
 		for (ProjectCategory src : serverProjectCategories) {
 			List<String> targets = new ArrayList<>();
@@ -1176,20 +1236,21 @@ public class DashboardMigrator {
 		}
 		Log.printCount(LOGGER, "Projects categories mapped: ", 
 				mappedProjectCategoryCount, serverProjectCategories.size());
-		saveFile(DataFile.PROJECT_CATEGORY_MAP, projectCategoriesMapping);
+		saveFile(MappingType.PROJECT_CATEGORY.getMap(), projectCategoriesMapping);
 	}
 	
 	private static void mapProjects() throws Exception {
 		Log.info(LOGGER, "Processing Projects...");
 		int mappedProjectCount = 0;
-		List<Project> serverProjects = readValuesFromFile(DataFile.PROJECT_DATACENTER, Project.class);
-		List<Project> cloudProjects = readValuesFromFile(DataFile.PROJECT_CLOUD, Project.class);
+		List<Project> serverProjects = readValuesFromFile(MappingType.PROJECT.getDC(), Project.class);
+		List<Project> cloudProjects = readValuesFromFile(MappingType.PROJECT.getCloud(), Project.class);
 		Mapping projectMapping = new Mapping(MappingType.PROJECT);
 		for (Project src : serverProjects) {
 			List<String> targets = new ArrayList<>();
 			for (Project target : cloudProjects) {
-				if (target.getKey().equals(src.getKey()) && target.getProjectTypeKey().equals(src.getProjectTypeKey())
-						&& target.getName().equals(src.getName())) {
+				if (target.getKey().equals(src.getKey()) && 
+					target.getProjectTypeKey().equals(src.getProjectTypeKey()) && 
+					target.getName().equals(src.getName())) {
 					targets.add(target.getId());
 				}
 			}
@@ -1209,15 +1270,15 @@ public class DashboardMigrator {
 			}
 		}
 		Log.printCount(LOGGER, "Projects mapped: ", mappedProjectCount, serverProjects.size());
-		saveFile(DataFile.PROJECT_MAP, projectMapping);
+		saveFile(MappingType.PROJECT.getMap(), projectMapping);
 	}
 	
 	
 	private static void mapUsers() throws Exception {
 		Log.info(LOGGER, "Processing Users...");
 		int mappedUserCount = 0;
-		List<User> serverUsers = readValuesFromFile(DataFile.USER_DATACENTER, User.class);
-		List<User> cloudUsers = readValuesFromFile(DataFile.USER_CLOUD, User.class);
+		List<User> serverUsers = readValuesFromFile(MappingType.USER.getDC(), User.class);
+		List<User> cloudUsers = readValuesFromFile(MappingType.USER.getCloud(), User.class);
 		Mapping userMapping = new Mapping(MappingType.USER);
 		Comparator<String> nullFirstCompare = Comparator.nullsFirst(String::compareTo);
 		for (User src : serverUsers) {
@@ -1251,14 +1312,14 @@ public class DashboardMigrator {
 			}
 		}
 		Log.printCount(LOGGER, "Users mapped: ", mappedUserCount, serverUsers.size());
-		saveFile(DataFile.USER_MAP, userMapping);
+		saveFile(MappingType.USER.getMap(), userMapping);
 	}
 	
 	private static void mapCustomFields() throws Exception {
 		int mappedFieldCount = 0;
 		Log.info(LOGGER, "Processing Custom Fields...");
-		List<CustomField> serverFields = readValuesFromFile(DataFile.FIELD_DATACENTER, CustomField.class);
-		List<CustomField> cloudFields = readValuesFromFile(DataFile.FIELD_CLOUD, CustomField.class);
+		List<CustomField> serverFields = readValuesFromFile(MappingType.CUSTOM_FIELD.getDC(), CustomField.class);
+		List<CustomField> cloudFields = readValuesFromFile(MappingType.CUSTOM_FIELD.getCloud(), CustomField.class);
 		Mapping fieldMapping = new Mapping(MappingType.CUSTOM_FIELD);
 		for (CustomField src : serverFields) {
 			List<String> targets = new ArrayList<>();
@@ -1305,14 +1366,14 @@ public class DashboardMigrator {
 			}
 		}
 		Log.printCount(LOGGER, "Custom Fields mapped: ", mappedFieldCount, serverFields.size());
-		saveFile(DataFile.FIELD_MAP, fieldMapping);
+		saveFile(MappingType.CUSTOM_FIELD.getMap(), fieldMapping);
 	}
 	
 	private static void mapStatuses() throws Exception {
 		Log.info(LOGGER, "Processing Statuses...");
 		int mappedStatusCount = 0;
-		List<Role> serverStatuses = readValuesFromFile(DataFile.STATUS_DATACENTER, Role.class);
-		List<Role> cloudStatuses = readValuesFromFile(DataFile.STATUS_CLOUD, Role.class);
+		List<Role> serverStatuses = readValuesFromFile(MappingType.STATUS.getDC(), Role.class);
+		List<Role> cloudStatuses = readValuesFromFile(MappingType.STATUS.getCloud(), Role.class);
 		Mapping statusMapping = new Mapping(MappingType.ROLE);
 		Comparator<String> comparator = Comparator.nullsFirst(Comparator.naturalOrder());
 		for (Role src : serverStatuses) {
@@ -1339,14 +1400,14 @@ public class DashboardMigrator {
 			}
 		}
 		Log.printCount(LOGGER, "Statuses mapped: ", mappedStatusCount, serverStatuses.size());
-		saveFile(DataFile.STATUS_MAP, statusMapping);
+		saveFile(MappingType.STATUS.getMap(), statusMapping);
 	}
 	
 	private static void mapRoles() throws Exception {
 		Log.info(LOGGER, "Processing Roles...");
 		int mappedRoleCount = 0;
-		List<Role> serverRoles = readValuesFromFile(DataFile.ROLE_DATACENTER, Role.class);
-		List<Role> cloudRoles = readValuesFromFile(DataFile.ROLE_CLOUD, Role.class);
+		List<Role> serverRoles = readValuesFromFile(MappingType.ROLE.getDC(), Role.class);
+		List<Role> cloudRoles = readValuesFromFile(MappingType.ROLE.getCloud(), Role.class);
 		Mapping roleMapping = new Mapping(MappingType.ROLE);
 		Comparator<String> comparator = Comparator.nullsFirst(Comparator.naturalOrder());
 		for (Role src : serverRoles) {
@@ -1373,14 +1434,14 @@ public class DashboardMigrator {
 			}
 		}
 		Log.printCount(LOGGER, "Roles mapped: ", mappedRoleCount, serverRoles.size());
-		saveFile(DataFile.ROLE_MAP, roleMapping);
+		saveFile(MappingType.ROLE.getMap(), roleMapping);
 	}
 	
 	private static void mapGroups() throws Exception {
 		Log.info(LOGGER, "Processing Groups...");
 		int mappedGroupCount = 0;
-		List<Group> serverGroups = readValuesFromFile(DataFile.GROUP_DATACENTER, Group.class);
-		List<Group> cloudGroups = readValuesFromFile(DataFile.GROUP_CLOUD, Group.class);
+		List<Group> serverGroups = readValuesFromFile(MappingType.GROUP.getDC(), Group.class);
+		List<Group> cloudGroups = readValuesFromFile(MappingType.GROUP.getCloud(), Group.class);
 		Mapping groupMapping = new Mapping(MappingType.GROUP);
 		for (Group src : serverGroups) {
 			List<String> targets = new ArrayList<>();
@@ -1405,14 +1466,14 @@ public class DashboardMigrator {
 			}
 		}
 		Log.printCount(LOGGER, "Groups mapped: ", mappedGroupCount, serverGroups.size());
-		saveFile(DataFile.GROUP_MAP, groupMapping);
+		saveFile(MappingType.GROUP.getMap(), groupMapping);
 	}
 	
 	private static void mapAgileBoards() throws Exception {
 		Log.info(LOGGER, "Processing Agile Boards...");
 		int mappedCount = 0;
-		List<AgileBoard> serverAgileBoards = readValuesFromFile(DataFile.AGILEBOARD_DATACENTER, AgileBoard.class);
-		List<AgileBoard> cloudAgileBoards = readValuesFromFile(DataFile.AGILEBOARD_CLOUD, AgileBoard.class);
+		List<AgileBoard> serverAgileBoards = readValuesFromFile(MappingType.AGILE_BOARD.getDC(), AgileBoard.class);
+		List<AgileBoard> cloudAgileBoards = readValuesFromFile(MappingType.AGILE_BOARD.getCloud(), AgileBoard.class);
 		Mapping agileMapping = new Mapping(MappingType.AGILE_BOARD);
 		for (AgileBoard src : serverAgileBoards) {
 			List<String> targets = new ArrayList<>();
@@ -1437,14 +1498,14 @@ public class DashboardMigrator {
 			}
 		}
 		Log.printCount(LOGGER, "Agile Boards mapped: ", mappedCount, serverAgileBoards.size());
-		saveFile(DataFile.AGILEBOARD_MAP, agileMapping);
+		saveFile(MappingType.AGILE_BOARD.getMap(), agileMapping);
 	}
 	
 	private static void mapSprints() throws Exception {
 		Log.info(LOGGER, "Processing Sprints...");
 		int mappedCount = 0;
-		List<Sprint> serverSprints = readValuesFromFile(DataFile.SPRINT_DATACENTER, Sprint.class);
-		List<Sprint> cloudSprints = readValuesFromFile(DataFile.SPRINT_CLOUD, Sprint.class);
+		List<Sprint> serverSprints = readValuesFromFile(MappingType.SPRINT.getDC(), Sprint.class);
+		List<Sprint> cloudSprints = readValuesFromFile(MappingType.SPRINT.getCloud(), Sprint.class);
 		Mapping sprintMapping = new Mapping(MappingType.SPRINT);
 		for (Sprint src : serverSprints) {
 			List<String> targets = new ArrayList<>();
@@ -1469,7 +1530,7 @@ public class DashboardMigrator {
 			}
 		}
 		Log.printCount(LOGGER, "Sprints mapped: ", mappedCount, serverSprints.size());
-		saveFile(DataFile.SPRINT_MAP, sprintMapping);
+		saveFile(MappingType.SPRINT.getMap(), sprintMapping);
 	}
 	
 	private static DataCenterFilter getFilter(Client client, String baseURL, int id) throws Exception {
@@ -1509,7 +1570,7 @@ public class DashboardMigrator {
 				throw new Exception(resp.readEntity(String.class));
 			}
 		} while (!isLast);
-		saveFile(DataFile.FILTER_LIST, result);
+		saveFile(MappingType.FILTER.getList(), result);
 		Log.info(LOGGER, "Filters found: " + result.size());
 		Log.info(LOGGER, "Filter list completed");
 	}
@@ -1527,14 +1588,14 @@ public class DashboardMigrator {
 		} else {
 			throw new Exception(resp.readEntity(String.class));
 		}
-		saveFile(DataFile.DASHBOARD_LIST, result);
+		saveFile(MappingType.DASHBOARD.getList(), result);
 		Log.info(LOGGER, "Dashboards found: " + result.size());
 		Log.info(LOGGER, "Dashboard list completed");
 	}
 
 	private static void deleteFilter(Client cloudClient, Config conf) throws Exception {
 		Log.info(LOGGER, "Deleting migrated filters...");
-		Mapping filters = readFile(DataFile.FILTER_MIGRATED, Mapping.class);
+		Mapping filters = readFile(MappingType.FILTER.getMap(), Mapping.class);
 		int deletedCount = 0;
 		for (Map.Entry<String, String> filter : filters.getMapped().entrySet()) {
 			Response resp = restCall(cloudClient,
@@ -1553,7 +1614,7 @@ public class DashboardMigrator {
 
 	private static void deleteDashboard(Client cloudClient, Config conf) throws Exception {
 		Log.info(LOGGER, "Deleting migrated dashboards...");
-		Mapping dashboards = readFile(DataFile.DASHBOARD_MIGRATED, Mapping.class);
+		Mapping dashboards = readFile(MappingType.DASHBOARD.getMap(), Mapping.class);
 		int deletedCount = 0;
 		for (Map.Entry<String, String> dashboard : dashboards.getMapped().entrySet()) {
 			Response resp = restCall(cloudClient, new URI(conf.getTargetRESTBaseURL())
@@ -1752,7 +1813,7 @@ public class DashboardMigrator {
 					// Get filter info from source
 					dumpDC(wrapper.getClient(), conf);
 					FilterMapper filterMapper = session.getMapper(FilterMapper.class);
-					dumpDCFilterDashboard(filterMapper, wrapper.getClient(), conf);
+					dumpDashboard(filterMapper, wrapper.getClient(), conf);
 				}
 				break;
 			}

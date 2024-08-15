@@ -1,9 +1,9 @@
 [
 	{
-		"description": "Pivot Report Issues Structure",
-		"moduleKey": "biz.epicreport.epicreports:dashboard-hierarchy",
+		"description": "Pivot Report Progress", 
+		"moduleKey": "biz.epicreport.epicreports:dashboard-progress",
 		"moduleKeyCompare": "MATCHES",
-		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:biz.epicreport.epicreports__dashboard-item-hierarchy",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:biz.epicreport.epicreports__dashboard-item-progress",
 		"uri": null,
 		"uriCompare": "MATCHES",
 		"newUri": null,
@@ -20,6 +20,9 @@
 				"prefix": null,
 				"suffix": null
 			}
+		],
+		"notes": [
+		      "No config to map"
 		]
 	}
 ]

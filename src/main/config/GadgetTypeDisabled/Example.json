@@ -11,11 +11,10 @@
 		"config": [
 			{
 				"attributeNameRegex": "<Regular expression of attribute name, always matches whole string. Note the order of items defines priority>",
-				"newAttributeNameRegex": "<Regular expression replacement of attribute name, e.g. $0. Null to not change attribute name>",
 				"conditions": [
 				    {
-				        "attributeName": "<Attribute name to check. Not regular expression. Used to check other attributes>",
-                        "condition": "<EQU|NEQ|GTE|GTR|LTE|LTR|IN Compare operator>",
+				        "attributeName": "<Attribute name to check. Not regular expression. Used to check other attributes. Check against original values, not mapped ones>",
+                        "condition": "<EQU|NEQ|GTE|GTR|LTE|LTR|IN|CONTAIN|START_WITH|END_WITH Compare operator>",
                         "attributeValue": ["<Attribute value(s)>"]
 				    }
 				],
@@ -23,9 +22,18 @@
 				"pattern": "<Regular expression to capture one value to be mapped. Use ^ and $ to match the whole string>",
 				"targetGroup": 0,
 				"replacement": "<Regular expression replacement>",
-				"delimiter": "<Delimiter to use if multiple values are found. Replacement must exclude delimiters>",
-				"prefix": "Prefix to add to the whole value",
-				"suffix": "Suffix to add to the whole value"
+				"prefix": "<Prefix to add to the whole value>",
+				"suffix": "<Suffix to add to the whole value>",
+				"additions": [
+				    {
+				        "attributeName": "<Attribute name to add to",
+				        "mode": "<APPEND|REPLACE Append or replace attribute value. Append is useful when parent regex has multiple matches>",
+				        "delimiter": "<Delimiter for APPEND mode>",
+				        "replacement": "<Regular expression replacement. $# refers to parent capture groups>",
+				        "prefix": "<Prefix added to the whole value>",
+				        "suffix": "<Suffix added to the whole value>"
+				    }
+				]
 			}
 		]
 	}

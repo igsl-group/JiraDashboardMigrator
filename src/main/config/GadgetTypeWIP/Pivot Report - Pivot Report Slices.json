@@ -1,9 +1,9 @@
 [
 	{
-		"description": "Pivot Report Progress", 
-		"moduleKey": "biz.epicreport.epicreports:dashboard-progress",
+		"description": "Pivot Report Slices", 
+		"moduleKey": "biz.epicreport.epicreports:dashboard-slices",
 		"moduleKeyCompare": "MATCHES",
-		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:biz.epicreport.epicreports__dashboard-item-progress",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:biz.epicreport.epicreports__dashboard-item-slices",
 		"uri": null,
 		"uriCompare": "MATCHES",
 		"newUri": null,
@@ -20,6 +20,9 @@
 				"prefix": null,
 				"suffix": null
 			}
+		],
+		"notes": [
+		      "No config to map"
 		]
 	}
 ]
