@@ -11,23 +11,19 @@
         "config": [
             {
                 "attributeNameRegex": "projectsOrCategories",
-                "newAttributeNameRegex": null,
                 "mappingType": "PROJECT",
                 "pattern": "([0-9]+)",
                 "targetGroup": 1,
                 "replacement": "$1",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             },
             {
                 "attributeNameRegex": "projectsOrCategories",
-                "newAttributeNameRegex": null,
                 "mappingType": "PROJECT_CATEGORY",
                 "pattern": "(cat)([0-9]+)",
                 "targetGroup": 2,
                 "replacement": "$1$2",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             }

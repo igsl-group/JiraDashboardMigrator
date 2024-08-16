@@ -10,24 +10,20 @@
         "configType": "CONFIG",
         "config": [
             {
-                "attributeNameRegex": "projectId",
-                "newAttributeNameRegex": null,
+                "attributeNameRegex": "projectid",
                 "mappingType": "PROJECT",
                 "pattern": "(project-)([0-9]+)",
                 "targetGroup": 2,
                 "replacement": "$1$2",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             },
             {
                 "attributeNameRegex": "fieldId",
-                "newAttributeNameRegex": null,
                 "mappingType": "CUSTOM_FIELD",
                 "pattern": "(customfield_[0-9]+)",
                 "targetGroup": 1,
                 "replacement": "$1",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             }

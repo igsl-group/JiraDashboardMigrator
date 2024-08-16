@@ -1,0 +1,55 @@
+[
+	{
+		"description": "Pie Chart",
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": null,
+		"uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:pie-chart-gadget/gadgets/piechart-gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": "",
+		"configType": "CONFIG",
+		"config": [
+			{
+				"attributeNameRegex": "statType",
+				"mappingType": "CUSTOM_FIELD",
+				"pattern": "(customfield_[0-9]+)",
+				"targetGroup": 1,
+				"replacement": "$1",
+				"prefix": null,
+				"suffix": null
+			},
+			{
+                "attributeNameRegex": "id",
+                "conditions": [
+                    {
+                        "attributeName": "type",
+                        "condition": "EQU",
+                        "attributeValue": ["project"]
+                    }
+                ],
+                "mappingType": "PROJECT",
+                "pattern": "([0-9]+)",
+                "targetGroup": 1,
+                "replacement": "$1", 
+                "prefix": null,
+                "suffix": null
+            },
+            {
+                "attributeNameRegex": "id",
+                "conditions": [
+                    {
+                        "attributeName": "type",
+                        "condition": "EQU",
+                        "attributeValue": ["filter"]
+                    }
+                ],
+                "mappingType": "FILTER",
+                "pattern": "([0-9]+)",
+                "targetGroup": 1,
+                "replacement": "$1",
+                "prefix": null,
+                "suffix": null
+            }
+		]
+	}
+]
