@@ -621,20 +621,25 @@ public class DashboardMigrator {
 	private static Config parseConfig(String[] args) {
 		Config result = null;
 		ObjectReader reader = OM.readerFor(Config.class);
-		if (args.length == 2) {
+		if (args.length >= 2) {
 			try (FileReader fr = new FileReader(args[0])) {
 				result = reader.readValue(fr);
 			} catch (IOException ioex) {
 				ioex.printStackTrace();
 			}
-			Operation o = Operation.parse(args[1]);
-			result.setOperation(o);
+			List<Operation> operations = new ArrayList<>();
+			for (int i = 1; i < args.length; i++) {
+				Operation o = Operation.parse(args[i]);
+				operations.add(o);
+			}
+			result.setOperations(operations);
 		}
 		return result;
 	}
 
 	private static void printHelp() {
-		Log.info(LOGGER, "java -jar JiraDashboardMigrator.jar com.igsl.DashboardMigrator <Config File> <Operation>");
+		Log.info(LOGGER, 
+				"java -jar JiraDashboardMigrator.jar com.igsl.DashboardMigrator <Config File> <Operation...>");
 		Log.info(LOGGER, "Config file content: ");
 		ObjectWriter writer = OM.writerFor(Config.class);
 		try {
@@ -1801,66 +1806,68 @@ public class DashboardMigrator {
 		try {
 			// Parse config
 			Config conf = parseConfig(args);
-			if (conf == null || conf.getOperation() == null) {
+			if (conf == null || conf.getOperations() == null || conf.getOperations().size() == 0) {
 				printHelp();
 				return;
 			}
-			switch (conf.getOperation()) {
-			case DUMP_DATACENTER: {
-				SqlSessionFactory sqlSessionFactory = setupMyBatis(conf);
-				try (	SqlSession session = sqlSessionFactory.openSession();
-						ClientWrapper wrapper = new ClientWrapper(false, conf)) {
-					// Get filter info from source
-					dumpDC(wrapper.getClient(), conf);
-					FilterMapper filterMapper = session.getMapper(FilterMapper.class);
-					dumpDashboard(filterMapper, wrapper.getClient(), conf);
+			for (Operation op : conf.getOperations()) {
+				switch (op) {
+				case DUMP_DATACENTER: {
+					SqlSessionFactory sqlSessionFactory = setupMyBatis(conf);
+					try (	SqlSession session = sqlSessionFactory.openSession();
+							ClientWrapper wrapper = new ClientWrapper(false, conf)) {
+						// Get filter info from source
+						dumpDC(wrapper.getClient(), conf);
+						FilterMapper filterMapper = session.getMapper(FilterMapper.class);
+						dumpDashboard(filterMapper, wrapper.getClient(), conf);
+					}
+					break;
 				}
-				break;
-			}
-			case DUMP_CLOUD:
-				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-					dumpCloud(wrapper.getClient(), conf);
+				case DUMP_CLOUD:
+					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+						dumpCloud(wrapper.getClient(), conf);
+					}
+					break;
+				case MAP_OBJECT:
+					mapObjects();
+					break;
+				case MAP_FILTER: 
+					mapFilters();
+					break;
+				case CREATE_FILTER: 
+					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+						createFilters(wrapper.getClient(), conf);
+					}
+					break;
+				case MAP_DASHBOARD:
+					mapDashboards();
+					break;
+				case CREATE_DASHBOARD: 
+					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+						createDashboards(wrapper.getClient(), conf);
+					}
+					break;
+				case DELETE_FILTER:
+					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+						deleteFilter(wrapper.getClient(), conf);
+					}
+					break;
+				case LIST_FILTER:
+					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+						listFilter(wrapper.getClient(), conf);
+					}
+					break;
+				case DELETE_DASHBOARD:
+					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+						deleteDashboard(wrapper.getClient(), conf);
+					}
+					break;
+				case LIST_DASHBOARD:
+					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+						listDashboard(wrapper.getClient(), conf);
+					}
+					break;
 				}
-				break;
-			case MAP_OBJECT:
-				mapObjects();
-				break;
-			case MAP_FILTER: 
-				mapFilters();
-				break;
-			case CREATE_FILTER: 
-				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-					createFilters(wrapper.getClient(), conf);
-				}
-				break;
-			case MAP_DASHBOARD:
-				mapDashboards();
-				break;
-			case CREATE_DASHBOARD: 
-				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-					createDashboards(wrapper.getClient(), conf);
-				}
-				break;
-			case DELETE_FILTER:
-				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-					deleteFilter(wrapper.getClient(), conf);
-				}
-				break;
-			case LIST_FILTER:
-				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-					listFilter(wrapper.getClient(), conf);
-				}
-				break;
-			case DELETE_DASHBOARD:
-				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-					deleteDashboard(wrapper.getClient(), conf);
-				}
-				break;
-			case LIST_DASHBOARD:
-				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-					listDashboard(wrapper.getClient(), conf);
-				}
-				break;
 			}
 		} catch (Exception ex) {
 			LOGGER.fatal("Exception: " + ex.getMessage(), ex);
