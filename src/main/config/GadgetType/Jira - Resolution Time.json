@@ -1,0 +1,74 @@
+[
+    {
+        "description": "Resolution Time",
+        "moduleKey": null,
+        "moduleKeyCompare": "MATCHES",
+        "newModuleKey": null,
+        "uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:resolution-time-gadget/gadgets/resolution-time-gadget.xml",
+        "uriCompare": "MATCHES",
+        "newUri": "",
+        "configType": "CONFIG",
+        "config": [
+            {
+                "attributeNameRegex": "projectOrFilterId",
+                "conditions": [
+                    {
+                        "attributeName": "projectOrFilterId",
+                        "condition": "START_WITH",
+                        "attributeValue": ["project-"]
+                    }
+                ],
+                "mappingType": "PROJECT",
+                "pattern": "(project-)([0-9]+)",
+                "targetGroup": 2,
+                "replacement": "project-$2", 
+                "prefix": null,
+                "suffix": null,
+                "additions": [
+                    {
+                        "attributeName": "id",
+                        "mode": "REPLACE",
+                        "delimiter": null,
+                        "replacement": "$2"
+                    },
+                    {
+                        "attributeName": "type",
+                        "mode": "REPLACE",
+                        "delimiter": null,
+                        "replacement": "project"
+                    }
+                ]
+            },
+            {
+                "attributeNameRegex": "projectOrFilterId",
+                "conditions": [
+                    {
+                        "attributeName": "projectOrFilterId",
+                        "condition": "START_WITH",
+                        "attributeValue": ["filter-"]
+                    }
+                ],
+                "mappingType": "FILTER",
+                "pattern": "(filter-)([0-9]+)",
+                "targetGroup": 2,
+                "replacement": "filter-$2",
+                "prefix": null,
+                "suffix": null,
+                "additions": [
+                    {
+                        "attributeName": "id",
+                        "mode": "REPLACE",
+                        "delimiter": null,
+                        "replacement": "$2"
+                    },
+                    {
+                        "attributeName": "type",
+                        "mode": "REPLACE",
+                        "delimiter": null,
+                        "replacement": "filter"
+                    }
+                ]
+            }
+        ]
+    }
+]
