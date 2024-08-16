@@ -11,14 +11,20 @@
 		"config": [
 			{
 				"attributeNameRegex": "filterid",
-				"newAttributeNameRegex": "valueFilterId",
 				"mappingType": "FILTER",
 				"pattern": "([0-9]+)",
 				"targetGroup": 1,
 				"replacement": "$1",
-				"delimiter": null,
 				"prefix": null,
-				"suffix": null
+				"suffix": null,
+				"additions": [
+				    {
+                        "attributeName": "valueFilterId",
+                        "mode": "REPLACE",
+                        "delimiter": null,
+                        "replacement": "$1"
+                    }
+				]
 			}
 		]
 	}

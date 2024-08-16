@@ -11,67 +11,55 @@
 		"config": [
 			{
 				"attributeNameRegex": "id",
-				"newAttributeNameRegex": null,
 				"mappingType": "FILTER",
 				"pattern": "\"([0-9]+)\"",
 				"targetGroup": 1,
 				"replacement": "$1",
-				"delimiter": null,
 				"prefix": null,
 				"suffix": null
 			},
 			{
 				"attributeNameRegex": "recentCommentsPeriod",
-				"newAttributeNameRegex": null,
 				"mappingType": null,
 				"pattern": "\"([0-9]+)\"",
 				"targetGroup": 1,
 				"replacement": "$1",
-				"delimiter": null,
 				"prefix": null,
 				"suffix": null
 			},
 			{
 				"attributeNameRegex": "isConfigured",
-				"newAttributeNameRegex": null,
 				"mappingType": null,
 				"pattern": "\"(true|false)\"",
 				"targetGroup": 1,
 				"replacement": "$1",
-				"delimiter": null,
 				"prefix": null,
 				"suffix": null
 			},
 			{
 				"attributeNameRegex": "useRelativeColoring",
-				"newAttributeNameRegex": null,
 				"mappingType": null,
 				"pattern": "\"(true|false)\"",
 				"targetGroup": 1,
 				"replacement": "$1",
-				"delimiter": null,
 				"prefix": null,
 				"suffix": null
 			},
 			{
 				"attributeNameRegex": "refresh",
-				"newAttributeNameRegex": null,
 				"mappingType": null,
 				"pattern": "\"([0-9]+)\"",
 				"targetGroup": 1,
 				"replacement": "$1",
-				"delimiter": null,
 				"prefix": null,
 				"suffix": null
 			},
 			{
 				"attributeNameRegex": "useLogarithmicScale",
-				"newAttributeNameRegex": null,
 				"mappingType": null,
 				"pattern": "\"(true|false)\"",
 				"targetGroup": 1,
 				"replacement": "$1",
-				"delimiter": null,
 				"prefix": null,
 				"suffix": null
 			}

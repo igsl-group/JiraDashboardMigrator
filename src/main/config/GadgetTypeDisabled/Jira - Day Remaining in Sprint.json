@@ -11,14 +11,12 @@
         "config": [
             {
                 "attributeNameRegex": "rapidViewId",
-                "newAttributeNameRegex": null,
                 "conditions": [                    
                 ],
                 "mappingType": "AGILE_BOARD",
                 "pattern": "([0-9]+)",
                 "targetGroup": 1,
                 "replacement": "$1",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             }

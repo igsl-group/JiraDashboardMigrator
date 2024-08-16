@@ -11,7 +11,6 @@
 		"config": [
 		      {
                 "attributeNameRegex": "id",
-                "newAttributeNameRegex": null,
                 "conditions": [
                     {
                         "attributeName": "type",
@@ -23,13 +22,11 @@
                 "pattern": "([0-9]+)",
                 "targetGroup": 1,
                 "replacement": "$1",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             },
             {
                 "attributeNameRegex": "id",
-                "newAttributeNameRegex": null,
                 "conditions": [
                     {
                         "attributeName": "type",
@@ -41,7 +38,6 @@
                 "pattern": "([0-9]+)",
                 "targetGroup": 1,
                 "replacement": "$1",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             }
