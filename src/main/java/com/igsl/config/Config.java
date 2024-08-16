@@ -1,5 +1,7 @@
 package com.igsl.config;
 
+import java.util.List;
+
 public class Config {
 	private String sourceDatabaseURL = "[Connection string to source database, e.g. jdbc:postgresql://127.0.0.1:5432/jiradb]";
 	private String sourceDatabaseUser = "[Database user, e.g. postgres]";
@@ -10,7 +12,7 @@ public class Config {
 	private String targetRESTBaseURL = "[Base URL for Jira Cloud REST API, e.g. https://igsl-cms-uat.atlassian.net]";
 	private String targetUser = "[Cloud site user, e.g kc.wong@igsl-group.com]";
 	private String targetAPIToken = "[REST API token, generate one at https://id.atlassian.com/manage-profile/security/api-tokens]";
-	private Operation operation;
+	private List<Operation> operations;
 	private boolean jerseyLog = false;
 
 	// Generated
@@ -86,19 +88,19 @@ public class Config {
 		this.targetAPIToken = targetAPIToken;
 	}
 
-	public Operation getOperation() {
-		return operation;
-	}
-
-	public void setOperation(Operation operation) {
-		this.operation = operation;
-	}
-
 	public boolean isJerseyLog() {
 		return jerseyLog;
 	}
 
 	public void setJerseyLog(boolean jerseyLog) {
 		this.jerseyLog = jerseyLog;
+	}
+
+	public List<Operation> getOperations() {
+		return operations;
+	}
+
+	public void setOperations(List<Operation> operations) {
+		this.operations = operations;
 	}
 }
