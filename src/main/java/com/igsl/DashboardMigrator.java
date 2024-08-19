@@ -1493,11 +1493,11 @@ public class DashboardMigrator {
 				Log.warn(LOGGER, "Agile Board [" + src.getName() + "] is not mapped");
 				break;
 			case 1:
-				agileMapping.getMapped().put(src.getName(), targets.get(0));
+				agileMapping.getMapped().put(src.getId(), targets.get(0));
 				mappedCount++;
 				break;
 			default:
-				agileMapping.getConflict().put(src.getName(), targets);
+				agileMapping.getConflict().put(src.getId(), targets);
 				Log.warn(LOGGER, "Agile Board [" + src.getName() + "] is mapped to multiple Cloud Agile Boards");
 				break;
 			}
@@ -1525,11 +1525,11 @@ public class DashboardMigrator {
 				Log.warn(LOGGER, "Sprint [" + src.getName() + "] is not mapped");
 				break;
 			case 1:
-				sprintMapping.getMapped().put(src.getName(), targets.get(0));
+				sprintMapping.getMapped().put(src.getId(), targets.get(0));
 				mappedCount++;
 				break;
 			default:
-				sprintMapping.getConflict().put(src.getName(), targets);
+				sprintMapping.getConflict().put(src.getId(), targets);
 				Log.warn(LOGGER, "Sprint [" + src.getName() + "] is mapped to multiple Cloud sprints");
 				break;
 			}

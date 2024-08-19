@@ -1,18 +1,25 @@
 [
     {
-        "description": "Day Remaining in Sprint",
+        "description": "Sprint Burndown",
         "moduleKey": null,
         "moduleKeyCompare": "MATCHES",
         "newModuleKey": null,
-        "uri": "rest/gadgets/1.0/g/com.pyxis.greenhopper.jira:greenhopper-gadget-sprint-days-remaining/gadgets/greenhopper-sprint-days-remaining.xml",
+        "uri": "rest/gadgets/1.0/g/com.pyxis.greenhopper.jira:greenhopper-gadget-sprint-burndown/gadgets/greenhopper-sprint-burndown.xml",
         "uriCompare": "MATCHES",
         "newUri": "",
         "configType": "CONFIG",
         "config": [
             {
+                "attributeNameRegex": "sprintId",
+                "mappingType": "SPRINT",
+                "pattern": "([0-9]+)",
+                "targetGroup": 1,
+                "replacement": "$1",
+                "prefix": null,
+                "suffix": null
+            },
+            {
                 "attributeNameRegex": "rapidViewId",
-                "conditions": [                    
-                ],
                 "mappingType": "AGILE_BOARD",
                 "pattern": "([0-9]+)",
                 "targetGroup": 1,
