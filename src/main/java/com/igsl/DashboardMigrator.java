@@ -4,6 +4,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -28,6 +30,8 @@ import javax.ws.rs.core.Response;
 import org.antlr.runtime.ANTLRStringStream;
 import org.antlr.runtime.CharStream;
 import org.antlr.runtime.CommonTokenStream;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.Option;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.apache.ibatis.logging.log4j2.Log4j2Impl;
 import org.apache.ibatis.mapping.Environment;
@@ -66,7 +70,8 @@ import com.atlassian.query.order.OrderByImpl;
 import com.atlassian.query.order.SearchSort;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser.Feature;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.util.DefaultIndenter;
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
@@ -75,10 +80,10 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.JsonNodeType;
+import com.igsl.CLI.CLIOptions;
 import com.igsl.config.Config;
 import com.igsl.config.GadgetConfigType;
 import com.igsl.config.GadgetType;
-import com.igsl.config.Operation;
 import com.igsl.model.CloudDashboard;
 import com.igsl.model.CloudFilter;
 import com.igsl.model.CloudGadget;
@@ -91,6 +96,7 @@ import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.PermissionTarget;
 import com.igsl.model.PermissionType;
 import com.igsl.model.mapping.AgileBoard;
+import com.igsl.model.mapping.AgileBoardConfig;
 import com.igsl.model.mapping.CustomField;
 import com.igsl.model.mapping.Dashboard;
 import com.igsl.model.mapping.DashboardSearchResult;
@@ -107,6 +113,7 @@ import com.igsl.model.mapping.SearchResult;
 import com.igsl.model.mapping.Sprint;
 import com.igsl.model.mapping.Status;
 import com.igsl.model.mapping.User;
+import com.igsl.model.mapping.UserPicker;
 import com.igsl.mybatis.FilterMapper;
 
 /**
@@ -121,11 +128,13 @@ import com.igsl.mybatis.FilterMapper;
  */
 public class DashboardMigrator {
 
+	private static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
+	
 	private static final String SCRUM = "scrum";	// AgileBoard type that allows Sprint
 	
-	private static final String NEWLINE = System.getProperty("line.separator");
+	private static final String NEWLINE = "\r\n";
 	private static final Logger LOGGER = LogManager.getLogger(DashboardMigrator.class);
-
+	
 	private static final ObjectMapper OM = new ObjectMapper()
 			.configure(Feature.ALLOW_COMMENTS, true)	// Allow comments
 			.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) // Allow attributes missing in POJO
@@ -570,6 +579,43 @@ public class DashboardMigrator {
 				client, new URI(baseURL).resolve("..").resolve("rest/agile/1.0/board"), HttpMethod.GET,
 				null, null, null,
 				AgileBoard.class);
+		// Get associated filter name
+		for (AgileBoard board : result) {
+			Response resp = restCall(
+					client, 
+					new URI(baseURL)
+						.resolve("rest/agile/1.0/board/")
+						.resolve(board.getId() + "/")
+						.resolve("configuration"),
+					HttpMethod.GET,
+					null, null, null);
+			if (checkStatusCode(resp, Response.Status.OK)) {
+				AgileBoardConfig config = resp.readEntity(AgileBoardConfig.class);
+				Response resp2 = restCall(
+						client, 
+						new URI(baseURL)
+							.resolve("/rest/api/2/filter/")
+							.resolve(config.getFilter().getId()),
+						HttpMethod.GET, 
+						null, null, null);
+				if (checkStatusCode(resp, Response.Status.OK)) {
+					Filter f = resp2.readEntity(Filter.class);
+					board.setFilterName(f.getName());
+				} else {
+					Log.error(
+							LOGGER, 
+							"Unable to retrieve filter for AgileBoard " + 
+							board.getName() + " (" + board.getId() + "): " + 
+							resp2.readEntity(String.class));
+				}
+			} else {
+				Log.error(
+						LOGGER, 
+						"Unable to retrieve filter for AgileBoard " + 
+						board.getName() + " (" + board.getId() + "): " + 
+						resp.readEntity(String.class));
+			}
+		}
 		return result;
 	}
 	
@@ -578,6 +624,43 @@ public class DashboardMigrator {
 				client, new URI(baseURL).resolve("rest/agile/1.0/board"), HttpMethod.GET,
 				null, null, null,
 				AgileBoard.class);
+		// Get associated filter name
+		for (AgileBoard board : result) {
+			Response resp = restCall(
+					client, 
+					new URI(baseURL)
+						.resolve("rest/agile/1.0/board/")
+						.resolve(board.getId() + "/")
+						.resolve("configuration"),
+					HttpMethod.GET,
+					null, null, null);
+			if (checkStatusCode(resp, Response.Status.OK)) {
+				AgileBoardConfig config = resp.readEntity(AgileBoardConfig.class);
+				Response resp2 = restCall(
+						client, 
+						new URI(baseURL)
+							.resolve("/rest/api/latest/filter/")
+							.resolve(config.getFilter().getId()),
+						HttpMethod.GET, 
+						null, null, null);
+				if (checkStatusCode(resp, Response.Status.OK)) {
+					Filter f = resp2.readEntity(Filter.class);
+					board.setFilterName(f.getName());
+				} else {
+					Log.error(
+							LOGGER, 
+							"Unable to retrieve filter for AgileBoard " + 
+							board.getName() + " (" + board.getId() + "): " + 
+							resp2.readEntity(String.class));
+				}
+			} else {
+				Log.error(
+						LOGGER, 
+						"Unable to retrieve filter for AgileBoard " + 
+						board.getName() + " (" + board.getId() + "): " + 
+						resp.readEntity(String.class));
+			}
+		}
 		return result;
 	}
 	
@@ -618,45 +701,22 @@ public class DashboardMigrator {
 		return result;
 	}
 	
-	private static Config parseConfig(String[] args) {
+	private static Config parseConfig(CommandLine cli) {
 		Config result = null;
+		String configFile = cli.getOptionValue(CLI.CONFIG_OPTION);
 		ObjectReader reader = OM.readerFor(Config.class);
-		if (args.length >= 2) {
-			try (FileReader fr = new FileReader(args[0])) {
-				result = reader.readValue(fr);
-			} catch (IOException ioex) {
-				ioex.printStackTrace();
-			}
-			List<Operation> operations = new ArrayList<>();
-			for (int i = 1; i < args.length; i++) {
-				Operation o = Operation.parse(args[i]);
-				operations.add(o);
-			}
-			result.setOperations(operations);
+		try (FileReader fr = new FileReader(configFile)) {
+			result = reader.readValue(fr);
+		} catch (IOException ioex) {
+			Log.error(LOGGER, "Unable to read configuration file [" + configFile + "]", ioex);
 		}
 		return result;
-	}
-
-	private static void printHelp() {
-		Log.info(LOGGER, 
-				"java -jar JiraDashboardMigrator.jar com.igsl.DashboardMigrator <Config File> <Operation...>");
-		Log.info(LOGGER, "Config file content: ");
-		ObjectWriter writer = OM.writerFor(Config.class);
-		try {
-			Log.info(LOGGER, writer.writeValueAsString(new Config()));
-		} catch (JsonProcessingException ex) {
-			Log.error(LOGGER, "Error converting Config to JSON", ex);
-		}
-		Log.info(LOGGER, "Operation: ");
-		for (Operation o : Operation.values()) {
-			Log.info(LOGGER, o.toString());
-		}
 	}
 
 	private static <T> T readFile(String fileName, Class<? extends T> cls) throws IOException, JsonParseException {
 		ObjectReader reader = OM.readerFor(cls);
 		StringBuilder sb = new StringBuilder();
-		for (String line : Files.readAllLines(Paths.get(fileName))) {
+		for (String line : Files.readAllLines(Paths.get(fileName), DEFAULT_CHARSET)) {
 			sb.append(line).append(NEWLINE);
 		}
 		return reader.readValue(sb.toString());
@@ -666,7 +726,7 @@ public class DashboardMigrator {
 			throws IOException, JsonParseException {
 		ObjectReader reader = OM.readerFor(cls);
 		StringBuilder sb = new StringBuilder();
-		for (String line : Files.readAllLines(Paths.get(fileName))) {
+		for (String line : Files.readAllLines(Paths.get(fileName), DEFAULT_CHARSET)) {
 			sb.append(line).append(NEWLINE);
 		}
 		List<T> result = new ArrayList<>();
@@ -678,8 +738,11 @@ public class DashboardMigrator {
 	}
 
 	private static void saveFile(String fileName, Object content) throws IOException {
-		try (FileWriter fw = new FileWriter(fileName)) {
-			fw.write(OM.writeValueAsString(content));
+		try (FileWriter fw = new FileWriter(fileName, DEFAULT_CHARSET)) {
+			ObjectWriter writer = OM.writer(new DefaultPrettyPrinter()
+						.withObjectIndenter(
+								new DefaultIndenter().withLinefeed(NEWLINE)));
+			fw.write(writer.writeValueAsString(content));
 		}
 		Log.info(LOGGER, "File " + fileName + " saved");
 	}
@@ -1483,7 +1546,8 @@ public class DashboardMigrator {
 		for (AgileBoard src : serverAgileBoards) {
 			List<String> targets = new ArrayList<>();
 			for (AgileBoard target : cloudAgileBoards) {
-				if (target.getName().equals(src.getName())) {
+				if (target.getName().equals(src.getName()) && 
+					target.getFilterName().equals(src.getFilterName())) {
 					targets.add(target.getId());
 				}
 			}
@@ -1801,73 +1865,226 @@ public class DashboardMigrator {
 		return clone;
 	}
 	
+	private static void assignProjectRoles(
+			Client client, Config config, String accountId, String[] roleNames, boolean grant) 
+			throws Exception {
+		Pattern pattern = Pattern.compile("^.+/([0-9]+)$");
+		// Get account if null
+		if (accountId == null) {
+			Map<String, Object> query = new HashMap<>();
+			query.put("query", config.getTargetUser());
+			query.put("maxResults", 1);
+			Response resp = restCall(
+					client, 
+					new URI(config.getTargetRESTBaseURL())
+						.resolve("/rest/api/3/user/picker"), 
+					HttpMethod.GET, 
+					null, query, null);
+			UserPicker userPicker = resp.readEntity(UserPicker.class);
+			if (userPicker.getTotal() == 1) {
+				accountId = userPicker.getUsers().get(0).getAccountId();
+			} else {
+				Log.error(LOGGER, "Unable to retrieve account id for " + config.getTargetUser());
+				return;
+			}
+		}
+		// Get project list
+		List<Project> projectList = getCloudProjects(client, config);
+		for (Project project : projectList) {
+			// For each project, get role list
+			Response resp = restCall(	client, 
+										new URI(config.getTargetRESTBaseURL())
+											.resolve("/rest/api/3/project/")
+											.resolve(project.getId() + "/")
+											.resolve("role"),
+										HttpMethod.GET,
+										null, null, null);
+			if (checkStatusCode(resp, Response.Status.OK)) {
+				// Parse name and id
+				Map<String, String> roleMap = new HashMap<>();
+				Map<String, String> data = resp.readEntity(new GenericType<Map<String, String>>(){});
+				for (Map.Entry<String, String> entry : data.entrySet()) {
+					Matcher matcher = pattern.matcher(entry.getValue());
+					if (matcher.matches()) {
+						roleMap.put(entry.getKey(), matcher.group(1));
+					} else {
+						Log.error(LOGGER, 
+								"Unrecognized pattern for project role in project " + 
+								project.getName() + " (" + project.getKey() + "): " + 
+								"[" + entry.getValue() + "]");
+					}
+				}
+				// For each role requested
+				for (String roleName : roleNames) {
+					if (roleMap.containsKey(roleName)) {
+						String roleId = roleMap.get(roleName);
+						// Grant or revoke
+						Map<String, Object> query = new HashMap<>();	
+						Map<String, Object> payload = new HashMap<>();
+						if (grant) {
+							// Put user in post data
+							List<String> userList = new ArrayList<>();
+							userList.add(accountId);
+							payload.put("user", userList);
+						} else {
+							// Put user in query
+							query.put("user", accountId);
+						}
+						Response resp2 = restCall(
+								client,
+								new URI(config.getTargetRESTBaseURL())
+									.resolve("/rest/api/3/project/")
+									.resolve(project.getId() + "/")
+									.resolve("role/")
+									.resolve(roleId),
+								(grant? HttpMethod.POST : HttpMethod.DELETE),
+								null, 
+								(grant? null : query), 
+								(grant? payload : null));
+						if (grant) {
+							// Grant result
+							switch (resp2.getStatus()) {
+							case 200: 
+								Log.info(LOGGER, 
+										"Granted role " + roleName + " (" + roleId + ") to user " + accountId + 
+										" in project " + project.getName() + " (" + project.getKey() + ")");
+								break;
+							case 400:
+								Log.info(LOGGER, 
+										"Role " + roleName + " (" + roleId + ") " + 
+										"is already granted to user " + accountId + 
+										" in project " + project.getName() + " (" + project.getKey() + ")");
+								break;
+							default:
+								Log.error(LOGGER, 
+										"Unable to grant role " + roleName + " (" + roleId + ") to user " + accountId + 
+										" in project " + project.getName() + " (" + project.getKey() + "): " + 
+										resp2.readEntity(String.class));
+								break;
+							}
+						} else {
+							// Revoke result
+							switch (resp2.getStatus()) {
+							case 204: 
+								Log.info(LOGGER, 
+										"Revoked role " + roleName + " (" + roleId + ") from user " + accountId + 
+										" in project " + project.getName() + " (" + project.getKey() + ")");
+								break;
+							case 404:
+								Log.info(LOGGER, 
+										"Role " + roleName + " (" + roleId + ") " + 
+										"is not granted to user " + accountId + 
+										" in project " + project.getName() + " (" + project.getKey() + ")");
+								break;
+							default:
+								Log.error(LOGGER, 
+										"Unable to revoke role " + roleName + " (" + roleId + ") from user " + accountId + 
+										" in project " + project.getName() + " (" + project.getKey() + "): " + 
+										resp2.readEntity(String.class));
+								break;
+							}
+						}
+					} else {
+						Log.error(LOGGER, 
+								"Project role requested [" + roleName + "] " + 
+								"is not found in project " + project.getName() + " (" + project.getKey() + ")");
+					}
+				}
+			} else {
+				Log.error(LOGGER, 
+						"Unable to read project roles for project " + 
+						project.getName() + " (" + project.getKey() + "): " + 
+						resp.readEntity(String.class));
+			}
+		}
+	}
+	
+	@SuppressWarnings("incomplete-switch")
 	public static void main(String[] args) {
 		AnsiConsole.systemInstall();
 		try {
 			// Parse config
-			Config conf = parseConfig(args);
-			if (conf == null || conf.getOperations() == null || conf.getOperations().size() == 0) {
-				printHelp();
+			CommandLine cli = CLI.parseCommandLine(args);
+			if (cli == null) {
 				return;
 			}
-			for (Operation op : conf.getOperations()) {
-				switch (op) {
-				case DUMP_DATACENTER: {
-					SqlSessionFactory sqlSessionFactory = setupMyBatis(conf);
-					try (	SqlSession session = sqlSessionFactory.openSession();
-							ClientWrapper wrapper = new ClientWrapper(false, conf)) {
-						// Get filter info from source
-						dumpDC(wrapper.getClient(), conf);
-						FilterMapper filterMapper = session.getMapper(FilterMapper.class);
-						dumpDashboard(filterMapper, wrapper.getClient(), conf);
-					}
-					break;
+			Config conf = parseConfig(cli);
+			if (conf == null) {
+				return;
+			}
+			if (cli.hasOption(CLI.GRANT_OPTION)) {
+				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+					String[] roles = cli.getOptionValues(CLI.ROLE_OPTION);
+					String accountId = cli.getOptionValue(CLI.USER_OPTION);
+					assignProjectRoles(wrapper.getClient(), conf, accountId, roles, true);
 				}
-				case DUMP_CLOUD:
-					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-						dumpCloud(wrapper.getClient(), conf);
-					}
-					break;
-				case MAP_OBJECT:
-					mapObjects();
-					break;
-				case MAP_FILTER: 
-					mapFilters();
-					break;
-				case CREATE_FILTER: 
-					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-						createFilters(wrapper.getClient(), conf);
-					}
-					break;
-				case MAP_DASHBOARD:
-					mapDashboards();
-					break;
-				case CREATE_DASHBOARD: 
-					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-						createDashboards(wrapper.getClient(), conf);
-					}
-					break;
-				case DELETE_FILTER:
-					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-						deleteFilter(wrapper.getClient(), conf);
-					}
-					break;
-				case LIST_FILTER:
-					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-						listFilter(wrapper.getClient(), conf);
-					}
-					break;
-				case DELETE_DASHBOARD:
-					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-						deleteDashboard(wrapper.getClient(), conf);
-					}
-					break;
-				case LIST_DASHBOARD:
-					try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-						listDashboard(wrapper.getClient(), conf);
-					}
-					break;
+			} else if (cli.hasOption(CLI.REVOKE_OPTION)) {
+				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+					String[] roles = cli.getOptionValues(CLI.ROLE_OPTION);
+					String accountId = cli.getOptionValue(CLI.USER_OPTION); 
+					assignProjectRoles(wrapper.getClient(), conf, accountId, roles, false);
 				}
+			} else {
+				// CLI.MAIN_OPTIONS
+				for (Option op : cli.getOptions()) {
+					switch (CLIOptions.parse(op)) {
+					case DUMP_DC: {
+						SqlSessionFactory sqlSessionFactory = setupMyBatis(conf);
+						try (	SqlSession session = sqlSessionFactory.openSession();
+								ClientWrapper wrapper = new ClientWrapper(false, conf)) {
+							// Get filter info from source
+							dumpDC(wrapper.getClient(), conf);
+							FilterMapper filterMapper = session.getMapper(FilterMapper.class);
+							dumpDashboard(filterMapper, wrapper.getClient(), conf);
+						}
+						break;
+					}
+					case DUMP_CLOUD:
+						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+							dumpCloud(wrapper.getClient(), conf);
+						}
+						break;
+					case MAP_OBJECT:
+						mapObjects();
+						break;
+					case MAP_FILTER: 
+						mapFilters();
+						break;
+					case CREATE_FILTER: 
+						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+							createFilters(wrapper.getClient(), conf);
+						}
+						break;
+					case MAP_DASHBOARD:
+						mapDashboards();
+						break;
+					case CREATE_DASHBOARD: 
+						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+							createDashboards(wrapper.getClient(), conf);
+						}
+						break;
+					case DELETE_FILTER:
+						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+							deleteFilter(wrapper.getClient(), conf);
+						}
+						break;
+					case LIST_FILTER:
+						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+							listFilter(wrapper.getClient(), conf);
+						}
+						break;
+					case DELETE_DASHBOARD:
+						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+							deleteDashboard(wrapper.getClient(), conf);
+						}
+						break;
+					case LIST_DASHBOARD:
+						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
+							listDashboard(wrapper.getClient(), conf);
+						}
+						break;
+					}
+				}				
 			}
 		} catch (Exception ex) {
 			LOGGER.fatal("Exception: " + ex.getMessage(), ex);

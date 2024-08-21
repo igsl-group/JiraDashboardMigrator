@@ -12,7 +12,6 @@ public class Config {
 	private String targetRESTBaseURL = "[Base URL for Jira Cloud REST API, e.g. https://igsl-cms-uat.atlassian.net]";
 	private String targetUser = "[Cloud site user, e.g kc.wong@igsl-group.com]";
 	private String targetAPIToken = "[REST API token, generate one at https://id.atlassian.com/manage-profile/security/api-tokens]";
-	private List<Operation> operations;
 	private boolean jerseyLog = false;
 
 	// Generated
@@ -94,13 +93,5 @@ public class Config {
 
 	public void setJerseyLog(boolean jerseyLog) {
 		this.jerseyLog = jerseyLog;
-	}
-
-	public List<Operation> getOperations() {
-		return operations;
-	}
-
-	public void setOperations(List<Operation> operations) {
-		this.operations = operations;
 	}
 }
