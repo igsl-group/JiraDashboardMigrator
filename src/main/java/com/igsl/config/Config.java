@@ -1,7 +1,5 @@
 package com.igsl.config;
 
-import java.util.List;
-
 public class Config {
 	private String sourceDatabaseURL = "[Connection string to source database, e.g. jdbc:postgresql://127.0.0.1:5432/jiradb]";
 	private String sourceDatabaseUser = "[Database user, e.g. postgres]";
@@ -14,6 +12,11 @@ public class Config {
 	private String targetAPIToken = "[REST API token, generate one at https://id.atlassian.com/manage-profile/security/api-tokens]";
 	private boolean jerseyLog = false;
 
+	private String sourceScheme = "[https/http, defaults to https]";
+	private String sourceHost = "[IP]:[Port]";
+	private String targetScheme = "[https/http, defaults to https]";
+	private String targetHost = "[Cloud Domain].atlassian.net";
+	
 	// Generated
 	public String getSourceUser() {
 		return sourceUser;
@@ -93,5 +96,37 @@ public class Config {
 
 	public void setJerseyLog(boolean jerseyLog) {
 		this.jerseyLog = jerseyLog;
+	}
+
+	public String getSourceScheme() {
+		return sourceScheme;
+	}
+
+	public void setSourceScheme(String sourceScheme) {
+		this.sourceScheme = sourceScheme;
+	}
+
+	public String getSourceHost() {
+		return sourceHost;
+	}
+
+	public void setSourceHost(String sourceHost) {
+		this.sourceHost = sourceHost;
+	}
+
+	public String getTargetScheme() {
+		return targetScheme;
+	}
+
+	public void setTargetScheme(String targetScheme) {
+		this.targetScheme = targetScheme;
+	}
+
+	public String getTargetHost() {
+		return targetHost;
+	}
+
+	public void setTargetHost(String targetHost) {
+		this.targetHost = targetHost;
 	}
 }

@@ -1,9 +1,16 @@
 package com.igsl.model;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.igsl.Log;
 
 @JsonInclude(value = JsonInclude.Include.NON_NULL)
 public class CloudPermission {
+	
+	private static final Logger LOGGER = LogManager.getLogger();
+	
 	private String type;
 	private PermissionTarget project;
 	private PermissionTarget group;
@@ -45,26 +52,30 @@ public class CloudPermission {
 		if (permission != null) {
 			result = new CloudPermission();
 			PermissionType cpt = PermissionType.parse(permission.getType());
-			result.setType(cpt.toString());
-			switch (cpt) {
-			case GLOBAL:
-			case LOGGED_IN:
-			case UNKNOWN:
-				// No other fields required
-				break;
-			case GROUP:
-				result.group = PermissionTarget.create(cpt, permission);
-				break;
-			case PROJECT_ROLE:
-				result.project = PermissionTarget.create(PermissionType.PROJECT, permission);
-				result.role = PermissionTarget.create(PermissionType.PROJECT_ROLE, permission);
-				break;
-			case PROJECT:
-				result.project = PermissionTarget.create(cpt, permission);
-				break;
-			case USER:
-				result.user = PermissionTarget.create(cpt, permission);
-				break;
+			if (cpt == null) {
+				Log.error(LOGGER, "Unrecognized permission type: [" + permission.getType() + "]");
+			} else {
+				result.setType(cpt.toString());
+				switch (cpt) {
+				case GLOBAL:
+				case LOGGED_IN:
+				case UNKNOWN:
+					// No other fields required
+					break;
+				case GROUP:
+					result.group = PermissionTarget.create(cpt, permission);
+					break;
+				case PROJECT_ROLE:
+					result.project = PermissionTarget.create(PermissionType.PROJECT, permission);
+					result.role = PermissionTarget.create(PermissionType.PROJECT_ROLE, permission);
+					break;
+				case PROJECT:
+					result.project = PermissionTarget.create(cpt, permission);
+					break;
+				case USER:
+					result.user = PermissionTarget.create(cpt, permission);
+					break;
+				}
 			}
 		}
 		return result;

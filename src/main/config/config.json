@@ -3,10 +3,16 @@
 	"sourceDatabaseUser": "[User]",
 	"sourceDatabasePassword": "[Password]",
 	"sourceRESTBaseURL": "http://[IP]:8080/jira/",
-	"sourceUser": "[User]",
-	"sourcePassword": "[Password]",
 	"targetRESTBaseURL": "https://[Cloud Domain]/",
-	"targetUser": "[User]",
-	"targetAPIToken": "[API Token]",
-	"jerseyLog": false
+    "jerseyLog": false,
+	
+	"sourceScheme": "https",
+	"sourceHost": "[IP]:[Port]",
+    "sourceUser": "[User]",
+    "sourcePassword": "[Password]",
+
+    "targetScheme": "https",
+    "targetHost": "[Cloud Domain].atlassian.net",
+    "targetUser": "[User]",
+    "targetAPIToken": "[API Token]"
 }

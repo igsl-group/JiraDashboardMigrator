@@ -1,10 +1,33 @@
 package com.igsl.model.mapping;
 
-public class Role {
+import java.util.Map;
+
+import javax.ws.rs.HttpMethod;
+
+import com.igsl.rest.Paged;
+import com.igsl.rest.RestUtil;
+import com.igsl.rest.SinglePage;
+
+public class Role extends JiraObject<Role> {
 	private String id;
 	private String name;
 	private String description;
 
+	@Override
+	public int compareTo(Role obj1) {
+		if (obj1 != null) {
+			return STRING_COMPARATOR.compare(getName(), obj1.getName());
+		}
+		return 1;
+	}
+
+	@Override
+	public void setupRestUtil(RestUtil<Role> util, boolean cloud, Map<String, Object> data) {
+		util.path("/rest/api/latest/role")
+			.method(HttpMethod.GET)
+			.pagination(new SinglePage<Role>(Role.class, null));
+	}
+	
 	public String getId() {
 		return id;
 	}
@@ -28,4 +51,5 @@ public class Role {
 	public void setDescription(String description) {
 		this.description = description;
 	}
+
 }

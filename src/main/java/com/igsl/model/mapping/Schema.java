@@ -2,6 +2,9 @@ package com.igsl.model.mapping;
 
 import java.util.Comparator;
 
+/**
+ * Nested member in CustomField
+ */
 public class Schema implements Comparable<Schema> {
 	private static Comparator<String> nullableStringComparator = Comparator.nullsFirst(String::compareTo);
 	private String type;

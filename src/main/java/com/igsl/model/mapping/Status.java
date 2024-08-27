@@ -1,9 +1,32 @@
 package com.igsl.model.mapping;
 
-public class Status {
+import java.util.Map;
+
+import javax.ws.rs.HttpMethod;
+
+import com.igsl.rest.RestUtil;
+import com.igsl.rest.SinglePage;
+
+public class Status extends JiraObject<Status> {
 	private String id;
 	private String name;
 	private String description;
+
+	@Override
+	public int compareTo(Status obj1) {
+		if (obj1 != null) {
+			return STRING_COMPARATOR.compare(getName(), obj1.getName());
+		}
+		return 1;
+	}
+
+	@Override
+	public void setupRestUtil(RestUtil<Status> util, boolean cloud, Map<String, Object> data) {
+		// Status list is returned as a top-level array in a single page
+		util.path("/rest/api/latest/status")
+			.method(HttpMethod.GET)
+			.pagination(new SinglePage<Status>(Status.class, null));
+	}
 
 	public String getId() {
 		return id;

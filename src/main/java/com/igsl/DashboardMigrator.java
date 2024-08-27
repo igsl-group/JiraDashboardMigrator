@@ -32,6 +32,9 @@ import org.antlr.runtime.CharStream;
 import org.antlr.runtime.CommonTokenStream;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.apache.ibatis.logging.log4j2.Log4j2Impl;
 import org.apache.ibatis.mapping.Environment;
@@ -666,7 +669,7 @@ public class DashboardMigrator {
 	
 	private static List<Sprint> getCloudSprints(
 			Client client, String baseURL, List<AgileBoard> boards) throws Exception {
-		List<Sprint> result = new ArrayList<>();
+		Map<String, Sprint> result = new HashMap<>();
 		for (AgileBoard board : boards) {
 			if (SCRUM.equals(board.getType())) {
 				List<Sprint> list =	restCallWithPaging(
@@ -678,27 +681,64 @@ public class DashboardMigrator {
 					HttpMethod.GET,
 					null, null, null,
 					Sprint.class);
-				result.addAll(list);
+				for (Sprint sp : list) {
+					result.put(sp.getId(), sp);
+				}
 			}
 		}
-		return result;
+		// Set originalBoardName and originalBoardFilterName
+		for (Sprint sprint : result.values()) {
+			String boardId = sprint.getOriginBoardId();
+			if (boardId != null) {
+				for (AgileBoard board : boards) {
+					if (boardId.equals(board.getId())) {
+						sprint.setOriginalBoardName(board.getName());
+						sprint.setOriginalBoardFilterName(board.getFilterName());
+						break;
+					}
+				}
+			}
+		}
+		List<Sprint> list = new ArrayList<>();
+		list.addAll(result.values());
+		return list;
 	}
 
 	private static List<Sprint> getSprints(
 			Client client, String baseURL, List<AgileBoard> boards) throws Exception {
-		List<Sprint> result = new ArrayList<>();
+		Map<String, Sprint> result = new HashMap<>();
 		for (AgileBoard board : boards) {
 			if (SCRUM.equals(board.getType())) {
 				List<Sprint> list =	restCallWithPaging(
 					client, 
-					new URI(baseURL).resolve("rest/agile/1.0/board/").resolve(board.getId() + "/").resolve("sprint"), 
+					new URI(baseURL)
+						.resolve("rest/agile/1.0/board/")
+						.resolve(board.getId() + "/")
+						.resolve("sprint"), 
 					HttpMethod.GET,
 					null, null, null,
 					Sprint.class);
-				result.addAll(list);
+				for (Sprint sp : list) {
+					result.put(sp.getId(), sp);
+				}
 			}
 		}
-		return result;
+		// Set originalBoardName and originalBoardFilterName
+		for (Sprint sprint : result.values()) {
+			String boardId = sprint.getOriginBoardId();
+			if (boardId != null) {
+				for (AgileBoard board : boards) {
+					if (boardId.equals(board.getId())) {
+						sprint.setOriginalBoardName(board.getName());
+						sprint.setOriginalBoardFilterName(board.getFilterName());
+						break;
+					}
+				}
+			}
+		}
+		List<Sprint> list = new ArrayList<>();
+		list.addAll(result.values());
+		return list;
 	}
 	
 	private static Config parseConfig(CommandLine cli) {
@@ -1034,6 +1074,41 @@ public class DashboardMigrator {
 		Log.printCount(LOGGER, "Filters migrated: ", migratedCount, filters.size());
 	}
 	
+	private static Map<MappingType, Mapping> readMappings() throws Exception {
+		Map<MappingType, Mapping> result = new HashMap<>();
+		for (MappingType type : MappingType.values()) {
+			// TODO Skip some types
+			Mapping map = readFile(type.getMap(), Mapping.class);
+			result.put(type, map);
+		}
+		return result;
+	}
+	
+	private static void createFiltersV2() throws Exception {
+		// Check each filter for:
+		// - Unmapped owner
+		// - Unmapped share user
+		// - Unmapped share group
+		// - Unmapped custom field
+		// - Unmapped project
+		// - etc.
+		// Everything should be mapped after mapObject.
+		// If not, treat as error.
+		
+		// Calculate filter dependency, order filters into batches
+		// Filter de-serializing
+		// - Keep track of filters referenced
+		// - Validate values
+		// Map and create each batch
+		// Filter serializing
+		// - Some components are serialized with curly brackets
+
+		Log.info(LOGGER, "Processing Filters...");
+		List<DataCenterFilter> filters = readValuesFromFile(MappingType.FILTER.getDC(), 
+				DataCenterFilter.class);
+
+	}
+	
 	private static void mapFilters() throws Exception {
 		Log.info(LOGGER, "Processing Filters...");
 		List<DataCenterFilter> filters = readValuesFromFile(MappingType.FILTER.getDC(), 
@@ -1050,11 +1125,11 @@ public class DashboardMigrator {
 		for (DataCenterFilter filter : filters) {
 			boolean hasError = false;
 			// Translate owner
-			if (userMapping.getMapped().containsKey(filter.getOwner().getName())) {
-				filter.getOwner().setAccountId(userMapping.getMapped().get(filter.getOwner().getName()));
+			if (userMapping.getMapped().containsKey(filter.getOwner().getKey())) {
+				filter.getOwner().setAccountId(userMapping.getMapped().get(filter.getOwner().getKey()));
 			} else {
 				hasError = true;
-				Log.error(LOGGER, "Filter [" + filter.getName() + "] owner [" + filter.getOwner().getName()
+				Log.error(LOGGER, "Filter [" + filter.getName() + "] owner [" + filter.getOwner().getKey()
 						+ "] cannot be mapped");
 			}
 			// Translate permissions
@@ -1063,19 +1138,19 @@ public class DashboardMigrator {
 				if (type == PermissionType.USER) {
 					if (userMapping.getMapped().containsKey(permission.getUser().getId())) {
 						permission.getUser()
-								.setAccountId(userMapping.getMapped().get(permission.getUser().getName()));
+								.setAccountId(userMapping.getMapped().get(permission.getUser().getKey()));
 					} else {
 						hasError = true;
-						Log.error(LOGGER, "Filter [" + filter.getName() + "] user [" + permission.getUser().getName()
+						Log.error(LOGGER, "Filter [" + filter.getName() + "] user [" + permission.getUser().getKey()
 								+ "] (" + permission.getUser().getDisplayName() + ") cannot be mapped");
 					}
 				} else if (type == PermissionType.GROUP) {
 					if (groupMapping.getMapped().containsKey(permission.getGroup().getName())) {
 						permission.getGroup()
-								.setGroupId(groupMapping.getMapped().get(permission.getGroup().getName()));
+								.setGroupId(groupMapping.getMapped().get(permission.getGroup().getKey()));
 					} else {
 						hasError = true;
-						Log.error(LOGGER, "Filter [" + filter.getName() + "] group [" + permission.getGroup().getName()
+						Log.error(LOGGER, "Filter [" + filter.getName() + "] group [" + permission.getGroup().getKey()
 								+ "] cannot be mapped");
 					}
 				} else if (type == PermissionType.PROJECT) {
@@ -1341,6 +1416,58 @@ public class DashboardMigrator {
 		saveFile(MappingType.PROJECT.getMap(), projectMapping);
 	}
 	
+	private static void mapUsersWithCSV(String csvFile) throws Exception {
+		// Parse CSV file, exact columns unknown, target is "User Id" and "email" columns only.
+		final String COL_EMAIL = "email";
+		final String COL_ACCOUNTID = "User id";
+		List<User> serverUsers = readValuesFromFile(MappingType.USER.getDC(), User.class);
+		Map<String, String> csvUsers = new HashMap<>();	// Key: Email, Value: Account ID
+		CSVFormat format = CSVFormat.Builder.create()
+				.setHeader()
+				.setSkipHeaderRecord(false)
+				.build();
+		try (FileReader fr = new FileReader(csvFile); 
+			CSVParser parser = CSVParser.parse(fr, format)) {
+			List<String> colNames = parser.getHeaderNames();
+			for (String colName : colNames) {
+				Log.info(LOGGER, "CSV column: " + colName);
+			}
+			Integer accountIdCol = null;
+			Integer emailCol = null;
+			for (int i = 0; i < colNames.size(); i++) {
+				String colName = colNames.get(i);
+				if (COL_EMAIL.equals(colName)) {
+					emailCol = i;
+				} else if (COL_ACCOUNTID.equals(colName)) {
+					accountIdCol = i;
+				}
+			}
+			if (emailCol == null) {
+				throw new Exception("CSV provided does not contain column " + COL_EMAIL);
+			}
+			if (accountIdCol == null) {
+				throw new Exception("CSV provided does not contain column " + COL_ACCOUNTID);
+			}
+			for (CSVRecord row : parser.getRecords()) {
+				String accountId = row.get(accountIdCol);
+				String email = row.get(emailCol);
+				csvUsers.put(email, accountId);
+			}
+		}
+		Mapping userMapping = new Mapping(MappingType.USER);
+		int mappedUserCount = 0;
+		for (User src : serverUsers) {
+			if (csvUsers.containsKey(src.getEmailAddress())) {
+				userMapping.getMapped().put(src.getKey(), csvUsers.get(src.getEmailAddress()));
+				mappedUserCount++;
+			} else {
+				userMapping.getUnmapped().add(src);
+				Log.warn(LOGGER, "User [" + src.getName() + "] is not mapped");
+			}
+		}
+		Log.printCount(LOGGER, "Users mapped: ", mappedUserCount, serverUsers.size());
+		saveFile(MappingType.USER.getMap(), userMapping);
+	}
 	
 	private static void mapUsers() throws Exception {
 		Log.info(LOGGER, "Processing Users...");
@@ -1367,15 +1494,15 @@ public class DashboardMigrator {
 			switch (targets.size()) {
 			case 0:
 				userMapping.getUnmapped().add(src);
-				Log.warn(LOGGER, "User [" + src.getName() + "] is not mapped");
+				Log.warn(LOGGER, "User [" + src.getKey() + "] is not mapped");
 				break;
 			case 1:
-				userMapping.getMapped().put(src.getName(), targets.get(0));
+				userMapping.getMapped().put(src.getKey(), targets.get(0));
 				mappedUserCount++;
 				break;
 			default:
-				userMapping.getConflict().put(src.getName(), targets);
-				Log.warn(LOGGER, "User [" + src.getName() + "] is mapped to multiple Cloud users");
+				userMapping.getConflict().put(src.getKey(), targets);
+				Log.warn(LOGGER, "User [" + src.getKey() + "] is mapped to multiple Cloud users");
 				break;
 			}
 		}
@@ -1571,6 +1698,7 @@ public class DashboardMigrator {
 	}
 	
 	private static void mapSprints() throws Exception {
+		Comparator<String> nullFirstCompare = Comparator.nullsFirst(String::compareTo);
 		Log.info(LOGGER, "Processing Sprints...");
 		int mappedCount = 0;
 		List<Sprint> serverSprints = readValuesFromFile(MappingType.SPRINT.getDC(), Sprint.class);
@@ -1579,7 +1707,10 @@ public class DashboardMigrator {
 		for (Sprint src : serverSprints) {
 			List<String> targets = new ArrayList<>();
 			for (Sprint target : cloudSprints) {
-				if (target.getName().equals(src.getName())) {
+				if (nullFirstCompare.compare(target.getName(), src.getName()) == 0 && 
+					nullFirstCompare.compare(target.getOriginalBoardName(), src.getOriginalBoardName()) == 0 && 
+					nullFirstCompare.compare(
+							target.getOriginalBoardFilterName(), src.getOriginalBoardFilterName()) == 0) {
 					targets.add(target.getId());
 				}
 			}
@@ -1998,7 +2129,7 @@ public class DashboardMigrator {
 			}
 		}
 	}
-	
+
 	@SuppressWarnings("incomplete-switch")
 	public static void main(String[] args) {
 		AnsiConsole.systemInstall();
@@ -2012,6 +2143,79 @@ public class DashboardMigrator {
 			if (conf == null) {
 				return;
 			}
+
+			// TODO
+			/*
+			Status s = new Status();
+			List<Status> sList = s.getCloudObjects(conf, Status.class, null);
+			List<Status> sList2 = s.getServerObjects(conf, Status.class, null);
+			
+			User u = new User();
+			List<User> uList = u.getCloudObjects(conf, User.class, null);
+			List<User> uList2 = u.getServerObjects(conf, User.class, null);
+			
+			Role r = new Role();
+			List<Role> rList = r.getCloudObjects(conf, Role.class, null);
+			List<Role> rList2 = r.getServerObjects(conf, Role.class, null);
+			
+			Project p = new Project();
+			List<Project> pList = p.getCloudObjects(conf, Project.class, null);
+			for (Project project : pList) {
+				Map<String, Object> data = new HashMap<>();
+				data.put(ProjectComponent.PARAM_PROJECTID, project.getId());
+				ProjectComponent pc = new ProjectComponent();
+				List<ProjectComponent> pcList = pc.getCloudObjects(conf, ProjectComponent.class, data);
+			}
+			List<Project> pList2 = p.getServerObjects(conf, Project.class, null);
+			for (Project project : pList2) {
+				Map<String, Object> data = new HashMap<>();
+				data.put(ProjectComponent.PARAM_PROJECTID, project.getId());
+				ProjectComponent pc = new ProjectComponent();
+				List<ProjectComponent> pcList = pc.getServerObjects(conf, ProjectComponent.class, data);
+			}
+
+			ProjectCategory pcat = new ProjectCategory();
+			List<ProjectCategory> pcatList = pcat.getCloudObjects(conf, ProjectCategory.class, null);
+			List<ProjectCategory> pcatList2 = pcat.getServerObjects(conf, ProjectCategory.class, null);
+
+			Group g = new Group();
+			List<Group> gList = g.getCloudObjects(conf, Group.class, null);
+			List<Group> gList2 = g.getServerObjects(conf, Group.class, null);
+
+			CustomField cf = new CustomField();
+			List<CustomField> cfList = cf.getCloudObjects(conf, CustomField.class, null);
+			List<CustomField> cfList2 = cf.getServerObjects(conf, CustomField.class, null);
+			
+			AgileBoard ab = new AgileBoard();
+			List<AgileBoard> abList = ab.getCloudObjects(conf, AgileBoard.class, null);
+			Sprint sp = new Sprint();
+			for (AgileBoard a : abList) {
+				if (a.canHasSprint()) {
+					Map<String, Object> data = new HashMap<>();
+					data.put(Sprint.PARAM_BOARDID, a.getId());
+					List<Sprint> spList = sp.getCloudObjects(conf, Sprint.class, data);
+					Log.info(LOGGER, "Board: " + a.getName() + " (" + a.getId() + ")");
+					Log.info(LOGGER, "Sprint: " + spList.size());
+					for (Sprint s : spList) {
+						Log.info(LOGGER, "Sprint: " + s.getName() + " (" + s.getId() + ")");
+					}
+				}
+			}
+			List<AgileBoard> abList2 = ab.getServerObjects(conf, AgileBoard.class, null);
+			for (AgileBoard a : abList2) {
+				if (a.canHasSprint()) {
+					Map<String, Object> data = new HashMap<>();
+					data.put(Sprint.PARAM_BOARDID, a.getId());
+					List<Sprint> spList = sp.getServerObjects(conf, Sprint.class, data);
+					Log.info(LOGGER, "Board: " + a.getName() + " (" + a.getId() + ")");
+					Log.info(LOGGER, "Sprint: " + spList.size());
+					for (Sprint s : spList) {
+						Log.info(LOGGER, "Sprint: " + s.getName() + " (" + s.getId() + ")");
+					}
+				}
+			}
+			*/
+			
 			if (cli.hasOption(CLI.GRANT_OPTION)) {
 				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
 					String[] roles = cli.getOptionValues(CLI.ROLE_OPTION);
@@ -2027,7 +2231,14 @@ public class DashboardMigrator {
 			} else {
 				// CLI.MAIN_OPTIONS
 				for (Option op : cli.getOptions()) {
-					switch (CLIOptions.parse(op)) {
+					CLIOptions opt = CLIOptions.parse(op);
+					if (opt == null) {
+						continue;
+					}
+					switch (opt) {
+					case MAP_USER: 
+						mapUsersWithCSV(cli.getOptionValue(CLI.MAPUSER_OPTION));
+						break;
 					case DUMP_DC: {
 						SqlSessionFactory sqlSessionFactory = setupMyBatis(conf);
 						try (	SqlSession session = sqlSessionFactory.openSession();

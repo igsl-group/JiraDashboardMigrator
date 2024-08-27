@@ -14,9 +14,11 @@ public class CLI {
 	
 	// Enum so we can use switch on Option
 	public static enum CLIOptions {
+		CONFIG(null),
 		DUMP_DC(DUMPDC_OPTION),
 		DUMP_CLOUD(DUMPCLOUD_OPTION),
 		MAP_OBJECT(MAPOBJECT_OPTION),
+		MAP_USER(MAPUSER_OPTION),
 		MAP_FILTER(MAPFILTER_OPTION),
 		CREATE_FILTER(CREATEFILTER_OPTION),
 		DELETE_FILTER(DELETEFILTER_OPTION),
@@ -36,7 +38,8 @@ public class CLI {
 		}
 		public static CLIOptions parse(Option option) {
 			for (CLIOptions opt : CLIOptions.values()) {
-				if (opt.option.equals(option)) {
+				if (opt.option != null &&
+					opt.option.getOpt().equals(option.getOpt())) {
 					return opt;
 				}
 			}
@@ -68,6 +71,13 @@ public class CLI {
 			.desc("Map Data Center and Cloud objects")
 			.option("m")
 			.longOpt("mapObject")
+			.build();
+	
+	public static final Option MAPUSER_OPTION = Option.builder()
+			.desc("Map user using CSV exported from Cloud User Management")
+			.option("mu")
+			.longOpt("mapUser")
+			.hasArg()
 			.build();
 	
 	public static final Option MAPFILTER_OPTION = Option.builder()
@@ -130,7 +140,8 @@ public class CLI {
 			.addOption(MAPDASHBOARD_OPTION)
 			.addOption(CREATEDASHBOARD_OPTION)
 			.addOption(DELETEDASHBOARD_OPTION)
-			.addOption(LISTDASHBOARD_OPTION);
+			.addOption(LISTDASHBOARD_OPTION)
+			.addOption(MAPUSER_OPTION);
 	
 	public static final Option ROLE_OPTION = Option.builder()
 			.desc("Role name(s)")

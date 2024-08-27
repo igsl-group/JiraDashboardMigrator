@@ -1,6 +1,13 @@
 package com.igsl.model.mapping;
 
-public class User {
+import java.util.Map;
+
+import javax.ws.rs.HttpMethod;
+
+import com.igsl.rest.Paged;
+import com.igsl.rest.RestUtil;
+
+public class User extends JiraObject<User> {
 	private String name;
 	private String key;
 	private String accountId;
@@ -9,6 +16,35 @@ public class User {
 	private boolean deleted;
 	private String emailAddress;
 
+	@Override
+	public int compareTo(User obj1) {
+		// Note: User can only be compared using CSV exported from Cloud User Management
+		// As via REST API all emailAddress except yourself will be null
+		if (obj1 != null) {
+			return STRING_COMPARATOR.compare(getEmailAddress(), obj1.getEmailAddress());
+		}
+		return 1;
+	}
+
+	@Override
+	public void setupRestUtil(RestUtil<User> util, boolean cloud, Map<String, Object> data) {
+		util.method(HttpMethod.GET);
+		Paged<User> paging = new Paged<User>(User.class, "startAt", 0, null, 0, null, null);
+		if (cloud) {
+			util.path("/rest/api/latest/users/search")
+				.query("query", ".")
+				.query("includeActive", true)
+				.query("includeInactive", true)
+				.pagination(paging);
+		} else {
+			util.path("/rest/api/latest/user/search")
+				.query("username", ".")
+				.query("includeActive", true)
+				.query("includeInactive", true)
+				.pagination(paging);
+		}
+	}
+	
 	public String getName() {
 		return name;
 	}

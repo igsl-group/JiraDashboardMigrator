@@ -1,8 +1,13 @@
 package com.igsl.model;
 
 public enum PermissionType {
-	USER("user"), GROUP("group"), PROJECT("project"), PROJECT_ROLE("projectRole"), GLOBAL("global"),
-	LOGGED_IN("loggedin", "authenticated"), UNKNOWN("project-unknown");
+	USER("user"), 
+	GROUP("group"), 
+	PROJECT("project"), 
+	PROJECT_ROLE("projectRole"), 
+	GLOBAL("global"),
+	LOGGED_IN("loggedin", "authenticated"), 
+	UNKNOWN("project-unknown");
 
 	private String dataCenterType;
 	private String cloudType;
