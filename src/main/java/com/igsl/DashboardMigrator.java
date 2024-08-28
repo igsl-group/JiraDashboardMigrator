@@ -106,8 +106,10 @@ import com.igsl.model.mapping.DashboardSearchResult;
 import com.igsl.model.mapping.Filter;
 import com.igsl.model.mapping.Group;
 import com.igsl.model.mapping.GroupPickerResult;
+import com.igsl.model.mapping.IssueType;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
+import com.igsl.model.mapping.Priority;
 import com.igsl.model.mapping.Project;
 import com.igsl.model.mapping.ProjectCategory;
 import com.igsl.model.mapping.ProjectComponent;
@@ -2214,6 +2216,14 @@ public class DashboardMigrator {
 					}
 				}
 			}
+			
+			IssueType it = new IssueType();
+			List<IssueType> itList = it.getCloudObjects(conf, IssueType.class, null);
+			List<IssueType> itList2 = it.getServerObjects(conf, IssueType.class, null);
+
+			Priority p = new Priority();
+			List<Priority> pList = p.getCloudObjects(conf, Priority.class, null);
+			List<Priority> pList2 = p.getServerObjects(conf, Priority.class, null);
 			*/
 			
 			if (cli.hasOption(CLI.GRANT_OPTION)) {

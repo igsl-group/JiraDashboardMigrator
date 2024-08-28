@@ -12,7 +12,8 @@ public enum MappingType {
 	FILTER("Filter", Filter.class), 
 	DASHBOARD("Dashboard", Dashboard.class), 
 	AGILE_BOARD("AgileBoard", AgileBoard.class), 
-	SPRINT("Sprint", Sprint.class);
+	SPRINT("Sprint", Sprint.class),
+	ISSUE_TYPE("IssueType", IssueType.class);
 	
 	private static final String EXTENSION = ".json";
 
