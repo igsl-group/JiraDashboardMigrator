@@ -470,7 +470,7 @@ public class DashboardMigrator {
 	private static <U extends JiraObject<U>> void mapObjectsV2() throws Exception {
 		Log.info(LOGGER, "Mapping objects between Data Center and Cloud...");
 		for (MappingType type : MappingType.values()) {
-			Log.info(LOGGER, "Mapping " + type);
+			Log.info(LOGGER, "Processing mapping for " + type);
 			int mappedCount = 0;
 			Mapping mapping = new Mapping(type);
 			if (type.isIncludeCloud() && type.isIncludeServer()) {

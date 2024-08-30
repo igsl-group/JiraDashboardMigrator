@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.logging.log4j.Logger;
-import org.fusesource.jansi.Ansi;
-import org.fusesource.jansi.Ansi.Color;
 
 /**
  * VeraCode wants log data to be sanitized to prevent user data from masquerading as log data.
@@ -27,14 +25,7 @@ public class Log {
 	}
 	
 	public static void printCount(Logger logger, String title, int count, int total) {
-		Ansi bar = null;
-		String barString = "\t";
-		if (count == total) {
-			bar = Ansi.ansi().bg(Color.GREEN).a(barString).reset();
-		} else {
-			bar = Ansi.ansi().bg(Color.YELLOW).a(barString).reset();
-		}
-		logger.info(bar + " " + title + count + "/" + total + " " + bar);
+		logger.info(title + count + "/" + total);
 	}
 	
 	public static void error(Logger logger, String format, Object... args) {
