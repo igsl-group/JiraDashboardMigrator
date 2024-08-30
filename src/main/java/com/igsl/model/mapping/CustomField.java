@@ -1,7 +1,5 @@
 package com.igsl.model.mapping;
 
-import java.util.Map;
-
 import javax.ws.rs.HttpMethod;
 
 import com.igsl.rest.RestUtil;
@@ -16,13 +14,14 @@ public class CustomField extends JiraObject<CustomField> {
 	@Override
 	public int compareTo(CustomField obj1) {
 		if (obj1 != null) {
-			return STRING_COMPARATOR.compare(getName(), obj1.getName());
+			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) | 
+					Schema.COMPARATOR.compare(getSchema(), obj1.getSchema());
 		}
 		return 1;
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<CustomField> util, boolean cloud, Map<String, Object> data) {
+	public void setupRestUtil(RestUtil<CustomField> util, boolean cloud, Object... data) {
 		util.path("rest/api/latest/field")
 			.method(HttpMethod.GET)
 			.pagination(new SinglePage<CustomField>(CustomField.class, null));

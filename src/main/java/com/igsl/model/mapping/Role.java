@@ -1,10 +1,7 @@
 package com.igsl.model.mapping;
 
-import java.util.Map;
-
 import javax.ws.rs.HttpMethod;
 
-import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
 import com.igsl.rest.SinglePage;
 
@@ -22,7 +19,7 @@ public class Role extends JiraObject<Role> {
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<Role> util, boolean cloud, Map<String, Object> data) {
+	public void setupRestUtil(RestUtil<Role> util, boolean cloud, Object... data) {
 		util.path("/rest/api/latest/role")
 			.method(HttpMethod.GET)
 			.pagination(new SinglePage<Role>(Role.class, null));

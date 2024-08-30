@@ -1,14 +1,12 @@
 package com.igsl.model.mapping;
 
 import java.util.List;
-import java.util.Map;
 
 import javax.ws.rs.HttpMethod;
 
 import com.igsl.rest.RestUtil;
 
 public class UserPicker extends JiraObject<UserPicker> {
-	public static final String PARAM_QUERY = "query";
 	
 	private List<User> users;
 	private int total;
@@ -20,10 +18,11 @@ public class UserPicker extends JiraObject<UserPicker> {
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<UserPicker> util, boolean cloud, Map<String, Object> data) {
+	public void setupRestUtil(RestUtil<UserPicker> util, boolean cloud, Object... data) {
+		String query = String.valueOf(data[0]);
 		util.path("/rest/api/3/user/picker")
 			.method(HttpMethod.GET)
-			.query("query", data.get(PARAM_QUERY))
+			.query("query", query)
 			.query("maxResults", 1);
 	}
 	

@@ -22,7 +22,7 @@ public class ProjectCategory extends JiraObject<ProjectCategory> {
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<ProjectCategory> util, boolean cloud, Map<String, Object> data) {
+	public void setupRestUtil(RestUtil<ProjectCategory> util, boolean cloud, Object... data) {
 		util.path("/rest/api/latest/projectCategory")
 			.method(HttpMethod.GET)
 			.pagination(new SinglePage<ProjectCategory>(ProjectCategory.class));

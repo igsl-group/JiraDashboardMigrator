@@ -329,7 +329,7 @@ public class RestUtil<T> {
 				Log.debug(LOGGER, "query: " + item.getKey() + " = " + item.getValue());
 				target = target.queryParam(item.getKey(), item.getValue());
 			}
-		}		
+		}
 		Builder builder = target.request();
 		MultivaluedMap<String, Object> finalHeaders = new MultivaluedHashMap<>();
 		if (headers != null) {
@@ -467,6 +467,7 @@ public class RestUtil<T> {
 		if (this.pagination == null) {
 			throw new IllegalStateException("Pagination is not configured. Call .pagination() first.");
 		}
+		this.pagination.reset();
 		List<T> result = new ArrayList<>();
 		while (true) {
 			this.pagination.setup(this);

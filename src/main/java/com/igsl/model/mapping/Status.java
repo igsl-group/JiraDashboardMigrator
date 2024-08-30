@@ -1,7 +1,5 @@
 package com.igsl.model.mapping;
 
-import java.util.Map;
-
 import javax.ws.rs.HttpMethod;
 
 import com.igsl.rest.RestUtil;
@@ -21,7 +19,7 @@ public class Status extends JiraObject<Status> {
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<Status> util, boolean cloud, Map<String, Object> data) {
+	public void setupRestUtil(RestUtil<Status> util, boolean cloud, Object... data) {
 		// Status list is returned as a top-level array in a single page
 		util.path("/rest/api/latest/status")
 			.method(HttpMethod.GET)

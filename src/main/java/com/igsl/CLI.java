@@ -181,6 +181,14 @@ public class CLI {
 			.addOption(ROLE_OPTION)
 			.addOption(USER_OPTION);
 	
+	public static void printHelp() {
+		String command = "java -jar JiraDashboardMigrator-[Version].jar -c [config.json] ";
+		HelpFormatter hf = new HelpFormatter();
+		hf.printHelp(command + " [other options to be executed in sequence]", MAIN_OPTIONS);
+		hf.printHelp(command + " -gr -r [Role names]", GRANT_OPTIONS);
+		hf.printHelp(command + " -rr -r [Role names]", REVOKE_OPTIONS);
+	}
+	
 	public static CommandLine parseCommandLine(String[] args) {
 		CommandLineParser parser = new DefaultParser();
 		CommandLine cmd = null;
@@ -199,11 +207,7 @@ public class CLI {
 		} catch (Exception ex) {
 			// Ignore
 		}
-		String command = "java -jar JiraDashboardMigrator-[Version].jar -c [config.json] ";
-		HelpFormatter hf = new HelpFormatter();
-		hf.printHelp(command + " [other options to be executed in sequence]", MAIN_OPTIONS);
-		hf.printHelp(command + " -gr -r [Role names]", GRANT_OPTIONS);
-		hf.printHelp(command + " -rr -r [Role names]", REVOKE_OPTIONS);
+		printHelp();
 		return null;
 	}
 }

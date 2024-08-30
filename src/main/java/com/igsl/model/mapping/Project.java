@@ -1,7 +1,5 @@
 package com.igsl.model.mapping;
 
-import java.util.Map;
-
 import javax.ws.rs.HttpMethod;
 
 import com.igsl.rest.Paged;
@@ -17,14 +15,14 @@ public class Project extends JiraObject<Project> {
 	@Override
 	public int compareTo(Project obj1) {
 		if (obj1 != null) {
-			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) &
+			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) |
 					STRING_COMPARATOR.compare(getKey(), obj1.getKey());
 		}
 		return 1;
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<Project> util, boolean cloud, Map<String, Object> data) {
+	public void setupRestUtil(RestUtil<Project> util, boolean cloud, Object... data) {
 		util.method(HttpMethod.GET);
 		if (cloud) {
 			util.path("/rest/api/latest/project/search")

@@ -13,7 +13,6 @@ import com.igsl.rest.RestUtil;
 import com.igsl.rest.SinglePage;
 
 public class AgileBoardConfig extends JiraObject<AgileBoardConfig> {
-	public static final String PARAM_BOARDID = "boardId";
 	private Filter filter;
 
 	@Override
@@ -25,35 +24,33 @@ public class AgileBoardConfig extends JiraObject<AgileBoardConfig> {
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<AgileBoardConfig> util, boolean cloud, Map<String, Object> data) {
-		String boardId = String.valueOf(data.get(PARAM_BOARDID));
+	public void setupRestUtil(RestUtil<AgileBoardConfig> util, boolean cloud, Object... data) {
+		String boardId = String.valueOf(data[0]);
 		util.path("/rest/agile/1.0/board/{boardId}/configuration")
-			.pathTemplate(PARAM_BOARDID, boardId)
+			.pathTemplate("boardId", boardId)
 			.method(HttpMethod.GET)
 			.pagination(new SinglePage<AgileBoardConfig>(AgileBoardConfig.class, null));
 	}
 	
 	// Override to get filter name
 	@Override
-	protected List<AgileBoardConfig> getObjects(
-			Config config, Class<AgileBoardConfig> dataClass, Map<String, Object> data, boolean cloud)
-			throws IOException, IllegalStateException, URISyntaxException {
+	protected List<AgileBoardConfig> _getObjects(
+			Config config, Class<AgileBoardConfig> dataClass, boolean cloud, 
+			Map<MappingType, List<? extends JiraObject<?>>> map, 
+			Object... data)
+			throws Exception {
 		RestUtil<AgileBoardConfig> util = RestUtil.getInstance(dataClass);
 		util.config(config, cloud);
-		if (data == null) {
-			data = new HashMap<>();
-		}
 		setupRestUtil(util, cloud, data);
 		List<AgileBoardConfig> result = util.requestAllPages();
 		if (result.size() == 1) {
 			// Get filter name
 			Filter filter = new Filter();
 			// Get single filter
-			Map<String, Object> fData = new HashMap<>();
-			fData.put(Filter.PARAM_FILTERID, result.get(0).getFilter().getId());
-			List<Filter> fList = filter.getObjects(config, Filter.class, fData, cloud);
-			if (fList.size() == 1) {
-				result.get(0).getFilter().setName(fList.get(0).getName());
+			List<Filter> filterList = JiraObject.getObjects(
+					config, Filter.class, cloud, map, result.get(0).getFilter().getId());
+			if (filterList.size() == 1) {
+				result.get(0).getFilter().setName(filterList.get(0).getName());
 			}
 		}
 		return result;

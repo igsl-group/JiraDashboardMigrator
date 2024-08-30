@@ -24,14 +24,14 @@ public class AgileBoard extends JiraObject<AgileBoard> {
 	@Override
 	public int compareTo(AgileBoard obj1) {
 		if (obj1 != null) {
-			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) &
+			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) |
 					STRING_COMPARATOR.compare(getFilterName(), obj1.getFilterName());
 		}
 		return 1;
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<AgileBoard> util, boolean cloud, Map<String, Object> data) {
+	public void setupRestUtil(RestUtil<AgileBoard> util, boolean cloud, Object... data) {
 		util.path("/rest/agile/1.0/board")
 			.method(HttpMethod.GET)
 			.pagination(new Paged<AgileBoard>(AgileBoard.class));
@@ -39,22 +39,19 @@ public class AgileBoard extends JiraObject<AgileBoard> {
 	
 	// Override to get agile board configuration
 	@Override
-	protected List<AgileBoard> getObjects(
-			Config config, Class<AgileBoard> dataClass, Map<String, Object> data, boolean cloud)
-			throws IOException, IllegalStateException, URISyntaxException {
+	protected List<AgileBoard> _getObjects(
+			Config config, Class<AgileBoard> dataClass, boolean cloud, 
+			Map<MappingType, List<? extends JiraObject<?>>> map, 
+			Object... data)
+			throws Exception {
 		RestUtil<AgileBoard> util = RestUtil.getInstance(dataClass);
 		util.config(config, cloud);
-		if (data == null) {
-			data = new HashMap<>();
-		}
 		setupRestUtil(util, cloud, data);
 		List<AgileBoard> result = util.requestAllPages();
-		// Get filter name
-		AgileBoardConfig conf = new AgileBoardConfig();
+		// Get agile board config, and therefore, filter name
 		for (AgileBoard board : result) {
-			Map<String, Object> confData = new HashMap<>();
-			confData.put(AgileBoardConfig.PARAM_BOARDID, board.getId());
-			List<AgileBoardConfig> confList = conf.getObjects(config, AgileBoardConfig.class, confData, cloud);
+			List<AgileBoardConfig> confList = 
+					JiraObject.getObjects(config, AgileBoardConfig.class, cloud, map, board.getId());
 			if (confList.size() == 1) {
 				board.setFilterName(confList.get(0).getFilter().getName());
 			}

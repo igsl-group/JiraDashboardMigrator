@@ -6,16 +6,17 @@ import java.util.Comparator;
  * Nested member in CustomField
  */
 public class Schema implements Comparable<Schema> {
-	private static Comparator<String> nullableStringComparator = Comparator.nullsFirst(String::compareTo);
+	public static final Comparator<Schema> COMPARATOR = Comparator.nullsFirst(Schema::compareTo);
+	private static final Comparator<String> STRING_COMPARATOR = Comparator.nullsFirst(String::compareTo); 
 	private String type;
 	private String items;
 	private String custom;
 
 	@Override
 	public int compareTo(Schema o) {
-		return nullableStringComparator.compare(this.type, o.type)
-				| nullableStringComparator.compare(this.items, o.items)
-				| nullableStringComparator.compare(this.custom, o.custom);
+		// items can be different, so ignore it
+		return STRING_COMPARATOR.compare(this.type, o.type)
+				| STRING_COMPARATOR.compare(this.custom, o.custom);
 	}
 
 	public String getType() {

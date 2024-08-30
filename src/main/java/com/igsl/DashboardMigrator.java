@@ -10,7 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,32 +90,20 @@ import com.igsl.model.CloudDashboard;
 import com.igsl.model.CloudFilter;
 import com.igsl.model.CloudGadget;
 import com.igsl.model.CloudGadgetConfiguration;
-import com.igsl.model.DataCenterFilter;
 import com.igsl.model.DataCenterPermission;
 import com.igsl.model.DataCenterPortalPage;
 import com.igsl.model.DataCenterPortalPermission;
 import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.PermissionTarget;
 import com.igsl.model.PermissionType;
-import com.igsl.model.mapping.AgileBoard;
-import com.igsl.model.mapping.AgileBoardConfig;
-import com.igsl.model.mapping.CustomField;
 import com.igsl.model.mapping.Dashboard;
 import com.igsl.model.mapping.DashboardSearchResult;
 import com.igsl.model.mapping.Filter;
-import com.igsl.model.mapping.Group;
-import com.igsl.model.mapping.GroupPickerResult;
-import com.igsl.model.mapping.IssueType;
+import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
-import com.igsl.model.mapping.Priority;
 import com.igsl.model.mapping.Project;
-import com.igsl.model.mapping.ProjectCategory;
-import com.igsl.model.mapping.ProjectComponent;
-import com.igsl.model.mapping.Role;
 import com.igsl.model.mapping.SearchResult;
-import com.igsl.model.mapping.Sprint;
-import com.igsl.model.mapping.Status;
 import com.igsl.model.mapping.User;
 import com.igsl.model.mapping.UserPicker;
 import com.igsl.mybatis.FilterMapper;
@@ -134,8 +121,6 @@ import com.igsl.mybatis.FilterMapper;
 public class DashboardMigrator {
 
 	private static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
-	
-	private static final String SCRUM = "scrum";	// AgileBoard type that allows Sprint
 	
 	private static final String NEWLINE = "\r\n";
 	private static final Logger LOGGER = LogManager.getLogger(DashboardMigrator.class);
@@ -379,370 +364,6 @@ public class DashboardMigrator {
 		return result;
 	}
 
-	private static List<ProjectComponent> getServerProjectComponents(
-			Client client, String baseURL, List<Project> projects) throws Exception {
-		List<ProjectComponent> result = new ArrayList<>();
-		for (Project p : projects) {
-			Response resp = restCall(
-					client, 
-					new URI(baseURL).resolve("/rest/api/latest/project/").resolve(p.getId() + "/").resolve("components"), 
-					HttpMethod.GET, 
-					null, null, null);
-			if (checkStatusCode(resp, Response.Status.OK)) {
-				List<ProjectComponent> searchResult = resp.readEntity(new GenericType<List<ProjectComponent>>(){});
-				result.addAll(searchResult);
-			} else {
-				throw new Exception(resp.readEntity(String.class));
-			}
-		}
-		return result;
-	}
-
-	private static List<ProjectComponent> getCloudProjectComponents(
-			Client client, String baseURL, List<Project> projects) throws Exception {
-		List<ProjectComponent> result = new ArrayList<>();
-		for (Project p : projects) {
-			List<ProjectComponent> list = restCallWithPaging(
-					client, 
-					new URI(baseURL).resolve("/rest/api/latest/project/").resolve(p.getId() + "/").resolve("component"), 
-					HttpMethod.GET, 
-					null, null, null,
-					ProjectComponent.class);
-			result.addAll(list);
-		}
-		return result;
-	}
-
-	private static List<ProjectCategory> getServerProjectCategories(Client client, String baseURL) throws Exception {
-		List<ProjectCategory> result = new ArrayList<>();
-		Response resp = restCall(
-				client, new URI(baseURL).resolve("/rest/api/latest/projectCategory"), HttpMethod.GET, 
-				null, null, null);
-		if (checkStatusCode(resp, Response.Status.OK)) {
-			List<ProjectCategory> searchResult = resp.readEntity(new GenericType<List<ProjectCategory>>(){});
-			result.addAll(searchResult);
-		} else {
-			throw new Exception(resp.readEntity(String.class));
-		}
-		return result;
-	}
-	
-	private static List<ProjectCategory> getCloudProjectCategories(Client client, String baseURL) throws Exception {
-		List<ProjectCategory> result = new ArrayList<>();
-		Response resp = restCall(
-				client, new URI(baseURL).resolve("..").resolve("/rest/api/latest/projectCategory"), HttpMethod.GET, 
-				null, null, null);
-		if (checkStatusCode(resp, Response.Status.OK)) {
-			List<ProjectCategory> searchResult = resp.readEntity(new GenericType<List<ProjectCategory>>() {
-			});
-			result.addAll(searchResult);
-		} else {
-			throw new Exception(resp.readEntity(String.class));
-		}
-		return result;
-	}
-	
-	private static List<Project> getServerProjects(Client client, Config conf) throws Exception {
-		List<Project> result = new ArrayList<>();
-		Response resp = restCall(client, new URI(conf.getSourceRESTBaseURL()).resolve("rest/api/latest/project"),
-				HttpMethod.GET, null, null, null);
-		if (checkStatusCode(resp, Response.Status.OK)) {
-			List<Project> searchResult = resp.readEntity(new GenericType<List<Project>>() {
-			});
-			result.addAll(searchResult);
-		} else {
-			throw new Exception(resp.readEntity(String.class));
-		}
-		return result;
-	}
-
-	private static List<CustomField> getCustomFields(Client client, String baseURL) throws Exception {
-		List<CustomField> result = new ArrayList<>();
-		Response resp = restCall(client, new URI(baseURL).resolve("rest/api/latest/field"), HttpMethod.GET, null, null,
-				null);
-		if (checkStatusCode(resp, Response.Status.OK)) {
-			List<CustomField> searchResult = resp.readEntity(new GenericType<List<CustomField>>() {
-			});
-			for (CustomField cf : searchResult) {
-				if (cf.isCustom()) {
-					result.add(cf);
-				}
-			}
-		} else {
-			throw new Exception(resp.readEntity(String.class));
-		}
-		return result;
-	}
-
-	private static List<User> getServerUsers(Client client, Config conf) throws Exception {
-		List<User> result = new ArrayList<>();
-		int startAt = 0;
-		do {
-			Map<String, Object> queryParameters = new HashMap<>();
-			queryParameters.put("username", ".");
-			queryParameters.put("startAt", startAt);
-			queryParameters.put("includeActive", true);
-			queryParameters.put("includeInactive", true);
-			Response resp = restCall(client,
-					new URI(conf.getSourceRESTBaseURL()).resolve("rest/api/latest/user/search"), HttpMethod.GET, null,
-					queryParameters, null);
-			if (checkStatusCode(resp, Response.Status.OK)) {
-				List<User> searchResult = resp.readEntity(new GenericType<List<User>>() {
-				});
-				if (searchResult.size() != 0) {
-					result.addAll(searchResult);
-					startAt += searchResult.size();
-				} else {
-					break;
-				}
-			} else {
-				throw new Exception(resp.readEntity(String.class));
-			}
-		} while (true);
-		return result;
-	}
-
-	private static List<User> getCloudUsers(Client client, Config conf) throws Exception {
-		List<User> result = new ArrayList<>();
-		int startAt = 0;
-		do {
-			Map<String, Object> queryParameters = new HashMap<>();
-			queryParameters.put("query", ".");
-			queryParameters.put("startAt", startAt);
-			queryParameters.put("includeActive", true);
-			queryParameters.put("includeInactive", true);
-			Response resp = restCall(client,
-					new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/users/search"), HttpMethod.GET, null,
-					queryParameters, null);
-			if (checkStatusCode(resp, Response.Status.OK)) {
-				List<User> searchResult = resp.readEntity(new GenericType<List<User>>() {
-				});
-				if (searchResult.size() != 0) {
-					result.addAll(searchResult);
-					startAt += searchResult.size();
-				} else {
-					break;
-				}
-			} else {
-				throw new Exception(resp.readEntity(String.class));
-			}
-		} while (true);
-		return result;
-	}
-
-	private static List<Status> getCloudStatuses(Client client, String baseURL) throws Exception {
-		List<Status> result = restCallWithPaging(
-				client, new URI(baseURL).resolve("/rest/api/3/statuses/search"), HttpMethod.GET, 
-				null, null, null, 
-				Status.class);
-		return result;
-	}
-
-	private static List<Status> getStatuses(Client client, String baseURL) throws Exception {
-		List<Status> result = new ArrayList<>();
-		Response resp = restCall(client, new URI(baseURL).resolve("rest/api/latest/status"), HttpMethod.GET, null, null,
-				null);
-		if (checkStatusCode(resp, Response.Status.OK)) {
-			List<Status> searchResult = resp.readEntity(new GenericType<List<Status>>() {
-			});
-			result.addAll(searchResult);
-		} else {
-			throw new Exception(resp.readEntity(String.class));
-		}
-		return result;
-	}
-	
-	private static List<Role> getRoles(Client client, String baseURL) throws Exception {
-		List<Role> result = new ArrayList<>();
-		Response resp = restCall(client, new URI(baseURL).resolve("rest/api/latest/role"), HttpMethod.GET, null, null,
-				null);
-		if (checkStatusCode(resp, Response.Status.OK)) {
-			List<Role> searchResult = resp.readEntity(new GenericType<List<Role>>() {
-			});
-			result.addAll(searchResult);
-		} else {
-			throw new Exception(resp.readEntity(String.class));
-		}
-		return result;
-	}
-
-	private static List<Group> getGroups(Client client, String baseURL) throws Exception {
-		List<Group> result = new ArrayList<>();
-		Response resp = restCall(client, new URI(baseURL).resolve("rest/api/latest/groups/picker"), HttpMethod.GET,
-				null, null, null);
-		if (checkStatusCode(resp, Response.Status.OK)) {
-			GroupPickerResult searchResult = resp.readEntity(GroupPickerResult.class);
-			result.addAll(searchResult.getGroups());
-		} else {
-			throw new Exception(resp.readEntity(String.class));
-		}
-		return result;
-	}
-	
-	private static List<AgileBoard> getCloudAgileBoards(Client client, String baseURL) throws Exception {
-		List<AgileBoard> result = restCallWithPaging(
-				client, new URI(baseURL).resolve("..").resolve("rest/agile/1.0/board"), HttpMethod.GET,
-				null, null, null,
-				AgileBoard.class);
-		// Get associated filter name
-		for (AgileBoard board : result) {
-			Response resp = restCall(
-					client, 
-					new URI(baseURL)
-						.resolve("rest/agile/1.0/board/")
-						.resolve(board.getId() + "/")
-						.resolve("configuration"),
-					HttpMethod.GET,
-					null, null, null);
-			if (checkStatusCode(resp, Response.Status.OK)) {
-				AgileBoardConfig config = resp.readEntity(AgileBoardConfig.class);
-				Response resp2 = restCall(
-						client, 
-						new URI(baseURL)
-							.resolve("/rest/api/2/filter/")
-							.resolve(config.getFilter().getId()),
-						HttpMethod.GET, 
-						null, null, null);
-				if (checkStatusCode(resp, Response.Status.OK)) {
-					Filter f = resp2.readEntity(Filter.class);
-					board.setFilterName(f.getName());
-				} else {
-					Log.error(
-							LOGGER, 
-							"Unable to retrieve filter for AgileBoard " + 
-							board.getName() + " (" + board.getId() + "): " + 
-							resp2.readEntity(String.class));
-				}
-			} else {
-				Log.error(
-						LOGGER, 
-						"Unable to retrieve filter for AgileBoard " + 
-						board.getName() + " (" + board.getId() + "): " + 
-						resp.readEntity(String.class));
-			}
-		}
-		return result;
-	}
-	
-	private static List<AgileBoard> getAgileBoards(Client client, String baseURL) throws Exception {
-		List<AgileBoard> result = restCallWithPaging(
-				client, new URI(baseURL).resolve("rest/agile/1.0/board"), HttpMethod.GET,
-				null, null, null,
-				AgileBoard.class);
-		// Get associated filter name
-		for (AgileBoard board : result) {
-			Response resp = restCall(
-					client, 
-					new URI(baseURL)
-						.resolve("rest/agile/1.0/board/")
-						.resolve(board.getId() + "/")
-						.resolve("configuration"),
-					HttpMethod.GET,
-					null, null, null);
-			if (checkStatusCode(resp, Response.Status.OK)) {
-				AgileBoardConfig config = resp.readEntity(AgileBoardConfig.class);
-				Response resp2 = restCall(
-						client, 
-						new URI(baseURL)
-							.resolve("/rest/api/latest/filter/")
-							.resolve(config.getFilter().getId()),
-						HttpMethod.GET, 
-						null, null, null);
-				if (checkStatusCode(resp, Response.Status.OK)) {
-					Filter f = resp2.readEntity(Filter.class);
-					board.setFilterName(f.getName());
-				} else {
-					Log.error(
-							LOGGER, 
-							"Unable to retrieve filter for AgileBoard " + 
-							board.getName() + " (" + board.getId() + "): " + 
-							resp2.readEntity(String.class));
-				}
-			} else {
-				Log.error(
-						LOGGER, 
-						"Unable to retrieve filter for AgileBoard " + 
-						board.getName() + " (" + board.getId() + "): " + 
-						resp.readEntity(String.class));
-			}
-		}
-		return result;
-	}
-	
-	private static List<Sprint> getCloudSprints(
-			Client client, String baseURL, List<AgileBoard> boards) throws Exception {
-		Map<String, Sprint> result = new HashMap<>();
-		for (AgileBoard board : boards) {
-			if (SCRUM.equals(board.getType())) {
-				List<Sprint> list =	restCallWithPaging(
-					client, 
-					new URI(baseURL)
-						.resolve("../rest/agile/1.0/board/")
-						.resolve(board.getId() + "/")
-						.resolve("sprint"), 
-					HttpMethod.GET,
-					null, null, null,
-					Sprint.class);
-				for (Sprint sp : list) {
-					result.put(sp.getId(), sp);
-				}
-			}
-		}
-		// Set originalBoardName and originalBoardFilterName
-		for (Sprint sprint : result.values()) {
-			String boardId = sprint.getOriginBoardId();
-			if (boardId != null) {
-				for (AgileBoard board : boards) {
-					if (boardId.equals(board.getId())) {
-						sprint.setOriginalBoardName(board.getName());
-						sprint.setOriginalBoardFilterName(board.getFilterName());
-						break;
-					}
-				}
-			}
-		}
-		List<Sprint> list = new ArrayList<>();
-		list.addAll(result.values());
-		return list;
-	}
-
-	private static List<Sprint> getSprints(
-			Client client, String baseURL, List<AgileBoard> boards) throws Exception {
-		Map<String, Sprint> result = new HashMap<>();
-		for (AgileBoard board : boards) {
-			if (SCRUM.equals(board.getType())) {
-				List<Sprint> list =	restCallWithPaging(
-					client, 
-					new URI(baseURL)
-						.resolve("rest/agile/1.0/board/")
-						.resolve(board.getId() + "/")
-						.resolve("sprint"), 
-					HttpMethod.GET,
-					null, null, null,
-					Sprint.class);
-				for (Sprint sp : list) {
-					result.put(sp.getId(), sp);
-				}
-			}
-		}
-		// Set originalBoardName and originalBoardFilterName
-		for (Sprint sprint : result.values()) {
-			String boardId = sprint.getOriginBoardId();
-			if (boardId != null) {
-				for (AgileBoard board : boards) {
-					if (boardId.equals(board.getId())) {
-						sprint.setOriginalBoardName(board.getName());
-						sprint.setOriginalBoardFilterName(board.getFilterName());
-						break;
-					}
-				}
-			}
-		}
-		List<Sprint> list = new ArrayList<>();
-		list.addAll(result.values());
-		return list;
-	}
-	
 	private static Config parseConfig(CommandLine cli) {
 		Config result = null;
 		String configFile = cli.getOptionValue(CLI.CONFIG_OPTION);
@@ -789,155 +410,102 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "File " + fileName + " saved");
 	}
 	
-	private static void dumpDashboard(FilterMapper filterMapper, Client dataCenterClient, Config conf) 
-			throws Exception {
-		Log.info(LOGGER, "Dumping filters and dashboards from Data Center...");
-		Log.info(LOGGER, "Processing Filters...");
-		List<Integer> filters = filterMapper.getFilters();
-		List<DataCenterFilter> filterList = new ArrayList<>();
-		for (Integer id : filters) {
-			DataCenterFilter filter = getFilter(dataCenterClient, conf.getSourceRESTBaseURL(), id);
-			filterList.add(filter);
+	private static void mapFilterV2(Config conf) throws Exception {
+		// TODO
+		// Group filters in batches
+		// Map and create each batch
+	}
+	
+	private static void dumpDashboard(Config conf) throws Exception {
+		SqlSessionFactory factory = setupMyBatis(conf);
+		try (SqlSession session = factory.openSession()) {
+			// Get filter info from source
+			FilterMapper filterMapper = session.getMapper(FilterMapper.class);
+			Log.info(LOGGER, "Dumping filters and dashboards from Data Center...");
+			Log.info(LOGGER, "Processing Filters...");
+			List<Integer> filters = filterMapper.getFilters();
+			List<Filter> filterList = new ArrayList<>();
+			for (Integer id : filters) {
+				List<Filter> filter = JiraObject.getObjects(conf, Filter.class, false, null, id);
+				filterList.addAll(filter);
+			}
+			Log.info(LOGGER, "Filters found: " + filterList.size());
+			saveFile(MappingType.FILTER.getDC(), filterList);
+			
+			Log.info(LOGGER, "Processing Dashboards...");
+			List<DataCenterPortalPage> dashboards = filterMapper.getDashboards();
+			Log.info(LOGGER, "Dashboards found: " + dashboards.size());
+			// Sort gadget configuration
+			for (DataCenterPortalPage dashboard : dashboards) {
+				for (DataCenterPortletConfiguration config : dashboard.getPortlets()) {
+					config.getGadgetConfigurations().sort(new GadgetConfigurationComparator());
+				}
+			}
+			saveFile(MappingType.DASHBOARD.getDC(), dashboards);
 		}
-		Log.info(LOGGER, "Filters found: " + filterList.size());
-		saveFile(MappingType.FILTER.getDC(), filterList);
-		
-		Log.info(LOGGER, "Processing Dashboards...");
-		List<DataCenterPortalPage> dashboards = filterMapper.getDashboards();
-		Log.info(LOGGER, "Dashboards found: " + dashboards.size());
-		// Sort gadget configuration
-		for (DataCenterPortalPage dashboard : dashboards) {
-			for (DataCenterPortletConfiguration config : dashboard.getPortlets()) {
-				config.getGadgetConfigurations().sort(new GadgetConfigurationComparator());
+	}
+	
+	private static Map<MappingType, List<? extends JiraObject<?>>> dumpObjects(
+			Config conf, boolean cloud) throws Exception {
+		Map<MappingType, List<? extends JiraObject<?>>> map = new HashMap<>();
+		for (MappingType type : MappingType.values()) {
+			Class<?> dataClass = null;
+			if (cloud && type.isIncludeCloud()) {
+				dataClass = type.getDataClass();
+			} else if (!cloud && type.isIncludeServer()) {
+				dataClass = type.getDataClass();
+			}
+			if (dataClass != null) {
+				@SuppressWarnings({ "unchecked" })
+				List<? extends JiraObject<?>> list = 
+					(List<? extends JiraObject<?>>) JiraObject.getObjects(conf, dataClass, cloud, map);
+				map.put(type, list);
+				Log.info(LOGGER, type + ": " + list.size() + " object(s) found");
+				saveFile((cloud? type.getCloud() : type.getDC()), list);
 			}
 		}
-		saveFile(MappingType.DASHBOARD.getDC(), dashboards);
+		return map;
 	}
 
-	private static void dumpDC(Client dataCenterClient, Config conf) throws Exception {
-		Log.info(LOGGER, "Dumping data from Data Center...");
-		
-		Log.info(LOGGER, "Processing Projects...");
-		List<Project> serverProjects = getServerProjects(dataCenterClient, conf);
-		Log.info(LOGGER, "Projects found: " + serverProjects.size());
-		saveFile(MappingType.PROJECT.getDC(), serverProjects);
-		
-		Log.info(LOGGER, "Processing Project Categories...");
-		List<ProjectCategory> serverProjectCategories = getServerProjectCategories(
-				dataCenterClient, conf.getSourceRESTBaseURL());
-		Log.info(LOGGER, "Project categories found: " + serverProjectCategories.size());
-		saveFile(MappingType.PROJECT_CATEGORY.getDC(), serverProjectCategories);
-		
-		Log.info(LOGGER, "Processing Project Components...");
-		List<ProjectComponent> serverProjectComponents = getServerProjectComponents(
-				dataCenterClient, conf.getSourceRESTBaseURL(), serverProjects);
-		Log.info(LOGGER, "Project components found: " + serverProjectComponents.size());
-		saveFile(MappingType.PROJECT_COMPONENT.getDC(), serverProjectComponents);
-		
-		Log.info(LOGGER, "Processing Users...");
-		List<User> serverUsers = getServerUsers(dataCenterClient, conf);
-		Log.info(LOGGER, "Users found: " + serverUsers.size());
-		saveFile(MappingType.USER.getDC(), serverUsers);
-		
-		Log.info(LOGGER, "Processing Custom Fields...");
-		List<CustomField> serverFields = getCustomFields(dataCenterClient, conf.getSourceRESTBaseURL());
-		Log.info(LOGGER, "Custom fields found: " + serverFields.size());
-		saveFile(MappingType.CUSTOM_FIELD.getDC(), serverFields);
-		
-		Log.info(LOGGER, "Processing Roles...");
-		List<Role> serverRoles = getRoles(dataCenterClient, conf.getSourceRESTBaseURL());
-		Log.info(LOGGER, "Roles found: " + serverRoles.size());
-		saveFile(MappingType.ROLE.getDC(), serverRoles);
-		
-		Log.info(LOGGER, "Processing Statuses...");
-		List<Status> serverStatus = getStatuses(dataCenterClient, conf.getSourceRESTBaseURL());
-		Log.info(LOGGER, "Statuses found: " + serverStatus.size());
-		saveFile(MappingType.STATUS.getDC(), serverStatus);
-		
-		Log.info(LOGGER, "Processing Groups...");
-		List<Group> serverGroups = getGroups(dataCenterClient, conf.getSourceRESTBaseURL());
-		Log.info(LOGGER, "Groups found: " + serverGroups.size());
-		saveFile(MappingType.GROUP.getDC(), serverGroups);
-		
-		Log.info(LOGGER, "Processing Agile Boards...");
-		List<AgileBoard> serverAgile = getAgileBoards(dataCenterClient, conf.getSourceRESTBaseURL());
-		Log.info(LOGGER, "Agile boards found: " + serverAgile.size());
-		saveFile(MappingType.AGILE_BOARD.getDC(), serverAgile);
-		
-		Log.info(LOGGER, "Processing Sprints...");
-		List<Sprint> serverSprints = getSprints(dataCenterClient, conf.getSourceRESTBaseURL(), serverAgile);
-		Log.info(LOGGER, "Sprints found: " + serverSprints.size());
-		saveFile(MappingType.SPRINT.getDC(), serverSprints);
-	}
-	
-	private static void dumpCloud(Client cloudClient, Config conf) throws Exception {
-		Log.info(LOGGER, "Dumping data from Cloud...");
-		
-		Log.info(LOGGER, "Processing Projects...");
-		List<Project> cloudProjects = getCloudProjects(cloudClient, conf);
-		Log.info(LOGGER, "Projects found: " + cloudProjects.size());
-		saveFile(MappingType.PROJECT.getCloud(), cloudProjects);
-		
-		Log.info(LOGGER, "Processing Project Categories...");
-		List<ProjectCategory> cloudProjectCategories = getCloudProjectCategories(
-				cloudClient, conf.getTargetRESTBaseURL());
-		Log.info(LOGGER, "Project categories found: " + cloudProjectCategories.size());
-		saveFile(MappingType.PROJECT_CATEGORY.getCloud(), cloudProjectCategories);
-		
-		Log.info(LOGGER, "Processing Project Components...");
-		List<ProjectComponent> cloudProjectComponents = getCloudProjectComponents(
-				cloudClient, conf.getTargetRESTBaseURL(), cloudProjects);
-		Log.info(LOGGER, "Project components found: " + cloudProjectComponents.size());
-		saveFile(MappingType.PROJECT_COMPONENT.getCloud(), cloudProjectComponents);
-		
-		Log.info(LOGGER, "Processing Users...");
-		List<User> cloudUsers = getCloudUsers(cloudClient, conf);
-		Log.info(LOGGER, "Users found: " + cloudUsers.size());
-		saveFile(MappingType.USER.getCloud(), cloudUsers);
-		
-		Log.info(LOGGER, "Processing Custom Fields...");
-		List<CustomField> cloudFields = getCustomFields(cloudClient, conf.getTargetRESTBaseURL());
-		Log.info(LOGGER, "Custom Fields found: " + cloudFields.size());
-		saveFile(MappingType.CUSTOM_FIELD.getCloud(), cloudFields);
-		
-		Log.info(LOGGER, "Processing Roles...");
-		List<Role> cloudRoles = getRoles(cloudClient, conf.getTargetRESTBaseURL());
-		Log.info(LOGGER, "Roles found: " + cloudRoles.size());
-		saveFile(MappingType.ROLE.getCloud(), cloudRoles);
-		
-		Log.info(LOGGER, "Processing Statuses...");
-		List<Status> cloudStatus = getCloudStatuses(cloudClient, conf.getTargetRESTBaseURL());
-		Log.info(LOGGER, "Statuses found: " + cloudStatus.size());
-		saveFile(MappingType.STATUS.getCloud(), cloudStatus);
-		
-		Log.info(LOGGER, "Processing Groups...");
-		List<Group> cloudGroups = getGroups(cloudClient, conf.getTargetRESTBaseURL());
-		Log.info(LOGGER, "Groups found: " + cloudGroups.size());
-		saveFile(MappingType.GROUP.getCloud(), cloudGroups);
-		
-		Log.info(LOGGER, "Processing Agile Boards...");
-		List<AgileBoard> cloudAgile = getCloudAgileBoards(cloudClient, conf.getTargetRESTBaseURL());
-		Log.info(LOGGER, "Agile boards found: " + cloudAgile.size());
-		saveFile(MappingType.AGILE_BOARD.getCloud(), cloudAgile);
-		
-		Log.info(LOGGER, "Processing Sprints...");
-		List<Sprint> cloudSprints = getCloudSprints(cloudClient, conf.getTargetRESTBaseURL(), cloudAgile);
-		Log.info(LOGGER, "Sprints found: " + cloudSprints.size());
-		saveFile(MappingType.SPRINT.getCloud(), cloudSprints);
-	}
-	
-	private static void mapObjects() throws Exception {
+	@SuppressWarnings("unchecked")
+	private static <U extends JiraObject<U>> void mapObjectsV2() throws Exception {
 		Log.info(LOGGER, "Mapping objects between Data Center and Cloud...");
-		mapProjects();
-		mapProjectCategories();
-		mapProjectComponents();
-		mapUsers();
-		mapCustomFields();
-		mapRoles();
-		mapStatuses();
-		mapGroups();
-		mapAgileBoards();
-		mapSprints();
+		for (MappingType type : MappingType.values()) {
+			Log.info(LOGGER, "Mapping " + type);
+			int mappedCount = 0;
+			Mapping mapping = new Mapping(type);
+			if (type.isIncludeCloud() && type.isIncludeServer()) {
+				List<U> serverObjects =
+						(List<U>) readValuesFromFile(type.getDC(), type.getDataClass());
+				List<U> cloudObjects =
+						(List<U>) readValuesFromFile(type.getCloud(), type.getDataClass());
+				for (U server : serverObjects) {
+					List<String> targets = new ArrayList<>();
+					for (U cloud : cloudObjects) {
+						if (server.compareTo(cloud) == 0) {
+							targets.add(cloud.getUniqueName());
+						}
+					}
+					switch (targets.size()) {
+					case 0:
+						mapping.getUnmapped().add(server);
+						Log.warn(LOGGER, type + " [" + server.getUniqueName() + "] is not mapped");
+						break;
+					case 1: 
+						mapping.getMapped().put(server.getUniqueName(), targets.get(0));
+						mappedCount++;
+						break;
+					default:
+						mapping.getConflict().put(server.getUniqueName(), targets);
+						Log.warn(LOGGER, 
+								type + " [" + server.getUniqueName() + "] is mapped to multiple Cloud objects");
+						break;
+					}
+				}
+				Log.printCount(LOGGER, type + " mapped: ", mappedCount, serverObjects.size());
+				saveFile(type.getMap(), mapping);
+			}	// If type is exported for both server and cloud
+		}	// For all types
 	}
 	
 	private static void createDashboards(Client cloudClient, Config conf) throws Exception {
@@ -1040,12 +608,11 @@ public class DashboardMigrator {
 	
 	private static void createFilters(Client cloudClient, Config conf) throws Exception {
 		Log.info(LOGGER, "Creating filters...");
-		List<DataCenterFilter> filters = readValuesFromFile(MappingType.FILTER.getRemapped(), 
-				DataCenterFilter.class);
+		List<Filter> filters = readValuesFromFile(MappingType.FILTER.getRemapped(), Filter.class);
 		// Create filter mapping along the way
 		Mapping migratedList = new Mapping(MappingType.FILTER);
 		int migratedCount = 0;
-		for (DataCenterFilter filter : filters) {
+		for (Filter filter : filters) {
 			CloudFilter cf = CloudFilter.create(filter);
 			Response resp = restCall(cloudClient,
 					new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/filter"), 
@@ -1076,45 +643,10 @@ public class DashboardMigrator {
 		Log.printCount(LOGGER, "Filters migrated: ", migratedCount, filters.size());
 	}
 	
-	private static Map<MappingType, Mapping> readMappings() throws Exception {
-		Map<MappingType, Mapping> result = new HashMap<>();
-		for (MappingType type : MappingType.values()) {
-			// TODO Skip some types
-			Mapping map = readFile(type.getMap(), Mapping.class);
-			result.put(type, map);
-		}
-		return result;
-	}
-	
-	private static void createFiltersV2() throws Exception {
-		// Check each filter for:
-		// - Unmapped owner
-		// - Unmapped share user
-		// - Unmapped share group
-		// - Unmapped custom field
-		// - Unmapped project
-		// - etc.
-		// Everything should be mapped after mapObject.
-		// If not, treat as error.
-		
-		// Calculate filter dependency, order filters into batches
-		// Filter de-serializing
-		// - Keep track of filters referenced
-		// - Validate values
-		// Map and create each batch
-		// Filter serializing
-		// - Some components are serialized with curly brackets
-
-		Log.info(LOGGER, "Processing Filters...");
-		List<DataCenterFilter> filters = readValuesFromFile(MappingType.FILTER.getDC(), 
-				DataCenterFilter.class);
-
-	}
-	
 	private static void mapFilters() throws Exception {
 		Log.info(LOGGER, "Processing Filters...");
-		List<DataCenterFilter> filters = readValuesFromFile(MappingType.FILTER.getDC(), 
-				DataCenterFilter.class);
+		List<Filter> filters = readValuesFromFile(MappingType.FILTER.getDC(), 
+				Filter.class);
 		Mapping userMapping = readFile(MappingType.USER.getMap(), Mapping.class);
 		Mapping projectMapping = readFile(MappingType.PROJECT.getMap(), Mapping.class);
 		Mapping roleMapping = readFile(MappingType.ROLE.getMap(), Mapping.class);
@@ -1124,7 +656,7 @@ public class DashboardMigrator {
 		maps.put("project", projectMapping);
 		maps.put("field", fieldMapping);
 		int successCount = 0;
-		for (DataCenterFilter filter : filters) {
+		for (Filter filter : filters) {
 			boolean hasError = false;
 			// Translate owner
 			if (userMapping.getMapped().containsKey(filter.getOwner().getKey())) {
@@ -1308,116 +840,6 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "Please manually translate references");
 	}
 	
-	private static void mapProjectComponents() throws Exception {
-		Log.info(LOGGER, "Processing Project Components...");
-		int mappedProjectComponentCount = 0;
-		List<ProjectComponent> serverProjectComponents = readValuesFromFile(
-				MappingType.PROJECT_COMPONENT.getDC(), ProjectComponent.class);
-		List<ProjectComponent> cloudProjectComponents = readValuesFromFile(
-				MappingType.PROJECT_COMPONENT.getCloud(), ProjectComponent.class);
-		Mapping projectCategoriesMapping = new Mapping(MappingType.PROJECT_CATEGORY);
-		for (ProjectComponent src : serverProjectComponents) {
-			List<String> targets = new ArrayList<>();
-			for (ProjectComponent target : cloudProjectComponents) {
-				if (target.getName().equals(src.getName()) && 
-					target.getProject().equals(src.getProject())) {
-					targets.add(target.getId());
-				}
-			}
-			switch (targets.size()) {
-			case 0:
-				projectCategoriesMapping.getUnmapped().add(src);
-				Log.warn(LOGGER, 
-						"Project Component [" + src.getName() + "] " + 
-						"for Project [" + src.getProject() + "] is not mapped");
-				break;
-			case 1:
-				projectCategoriesMapping.getMapped().put(src.getId(), targets.get(0));
-				mappedProjectComponentCount++;
-				break;
-			default:
-				projectCategoriesMapping.getConflict().put(src.getId(), targets);
-				Log.warn(LOGGER, 
-						"Project Component [" + src.getName() + "] " + 
-						"for Project [" + src.getProject() + "] is mapped to multiple Cloud projects components");
-				break;
-			}
-		}
-		Log.printCount(LOGGER, "Projects components mapped: ", 
-				mappedProjectComponentCount, serverProjectComponents.size());
-		saveFile(MappingType.PROJECT_COMPONENT.getMap(), projectCategoriesMapping);
-	}
-	
-	private static void mapProjectCategories() throws Exception {
-		Log.info(LOGGER, "Processing Project Categories...");
-		int mappedProjectCategoryCount = 0;
-		List<ProjectCategory> serverProjectCategories = readValuesFromFile(
-				MappingType.PROJECT_CATEGORY.getDC(), ProjectCategory.class);
-		List<ProjectCategory> cloudProjectCategories = readValuesFromFile(
-				MappingType.PROJECT_CATEGORY.getCloud(), ProjectCategory.class);
-		Mapping projectCategoriesMapping = new Mapping(MappingType.PROJECT_CATEGORY);
-		for (ProjectCategory src : serverProjectCategories) {
-			List<String> targets = new ArrayList<>();
-			for (ProjectCategory target : cloudProjectCategories) {
-				if (target.getName().equals(src.getName())) {
-					targets.add(target.getId());
-				}
-			}
-			switch (targets.size()) {
-			case 0:
-				projectCategoriesMapping.getUnmapped().add(src);
-				Log.warn(LOGGER, "Project Category [" + src.getName() + "] is not mapped");
-				break;
-			case 1:
-				projectCategoriesMapping.getMapped().put(src.getId(), targets.get(0));
-				mappedProjectCategoryCount++;
-				break;
-			default:
-				projectCategoriesMapping.getConflict().put(src.getId(), targets);
-				Log.warn(LOGGER, 
-						"Project Category [" + src.getName() + "] is mapped to multiple Cloud projects categories");
-				break;
-			}
-		}
-		Log.printCount(LOGGER, "Projects categories mapped: ", 
-				mappedProjectCategoryCount, serverProjectCategories.size());
-		saveFile(MappingType.PROJECT_CATEGORY.getMap(), projectCategoriesMapping);
-	}
-	
-	private static void mapProjects() throws Exception {
-		Log.info(LOGGER, "Processing Projects...");
-		int mappedProjectCount = 0;
-		List<Project> serverProjects = readValuesFromFile(MappingType.PROJECT.getDC(), Project.class);
-		List<Project> cloudProjects = readValuesFromFile(MappingType.PROJECT.getCloud(), Project.class);
-		Mapping projectMapping = new Mapping(MappingType.PROJECT);
-		for (Project src : serverProjects) {
-			List<String> targets = new ArrayList<>();
-			for (Project target : cloudProjects) {
-				if (target.getKey().equals(src.getKey()) && 
-					target.getProjectTypeKey().equals(src.getProjectTypeKey()) && 
-					target.getName().equals(src.getName())) {
-					targets.add(target.getId());
-				}
-			}
-			switch (targets.size()) {
-			case 0:
-				projectMapping.getUnmapped().add(src);
-				Log.warn(LOGGER, "Project [" + src.getName() + "] is not mapped");
-				break;
-			case 1:
-				projectMapping.getMapped().put(src.getId(), targets.get(0));
-				mappedProjectCount++;
-				break;
-			default:
-				projectMapping.getConflict().put(src.getId(), targets);
-				Log.warn(LOGGER, "Project [" + src.getName() + "] is mapped to multiple Cloud projects");
-				break;
-			}
-		}
-		Log.printCount(LOGGER, "Projects mapped: ", mappedProjectCount, serverProjects.size());
-		saveFile(MappingType.PROJECT.getMap(), projectMapping);
-	}
-	
 	private static void mapUsersWithCSV(String csvFile) throws Exception {
 		// Parse CSV file, exact columns unknown, target is "User Id" and "email" columns only.
 		final String COL_EMAIL = "email";
@@ -1471,282 +893,6 @@ public class DashboardMigrator {
 		saveFile(MappingType.USER.getMap(), userMapping);
 	}
 	
-	private static void mapUsers() throws Exception {
-		Log.info(LOGGER, "Processing Users...");
-		int mappedUserCount = 0;
-		List<User> serverUsers = readValuesFromFile(MappingType.USER.getDC(), User.class);
-		List<User> cloudUsers = readValuesFromFile(MappingType.USER.getCloud(), User.class);
-		Mapping userMapping = new Mapping(MappingType.USER);
-		Comparator<String> nullFirstCompare = Comparator.nullsFirst(String::compareTo);
-		for (User src : serverUsers) {
-			List<String> targets = new ArrayList<>();
-			for (User target : cloudUsers) {
-				// Migrated user names got changed... compare case-insensitively, remove all
-				// space, check both name and display name against Cloud display name
-				// Email should be the best condition, but cannot be retrieved from REST API
-				// unless approved by Atlassian
-				String srcDisplayName = src.getDisplayName().toLowerCase().replaceAll("\\s", "");
-				String srcName = src.getName().toLowerCase().replaceAll("\\s", "");
-				String targetDisplayName = target.getDisplayName().toLowerCase().replaceAll("\\s", "");
-				if (nullFirstCompare.compare(srcDisplayName, targetDisplayName) == 0
-						|| nullFirstCompare.compare(srcName, targetDisplayName) == 0) {
-					targets.add(target.getAccountId());
-				}
-			}
-			switch (targets.size()) {
-			case 0:
-				userMapping.getUnmapped().add(src);
-				Log.warn(LOGGER, "User [" + src.getKey() + "] is not mapped");
-				break;
-			case 1:
-				userMapping.getMapped().put(src.getKey(), targets.get(0));
-				mappedUserCount++;
-				break;
-			default:
-				userMapping.getConflict().put(src.getKey(), targets);
-				Log.warn(LOGGER, "User [" + src.getKey() + "] is mapped to multiple Cloud users");
-				break;
-			}
-		}
-		Log.printCount(LOGGER, "Users mapped: ", mappedUserCount, serverUsers.size());
-		saveFile(MappingType.USER.getMap(), userMapping);
-	}
-	
-	private static void mapCustomFields() throws Exception {
-		int mappedFieldCount = 0;
-		Log.info(LOGGER, "Processing Custom Fields...");
-		List<CustomField> serverFields = readValuesFromFile(MappingType.CUSTOM_FIELD.getDC(), CustomField.class);
-		List<CustomField> cloudFields = readValuesFromFile(MappingType.CUSTOM_FIELD.getCloud(), CustomField.class);
-		Mapping fieldMapping = new Mapping(MappingType.CUSTOM_FIELD);
-		for (CustomField src : serverFields) {
-			List<String> targets = new ArrayList<>();
-			List<String> migratedTargets = new ArrayList<>();
-			for (CustomField target : cloudFields) {
-				if (target.getSchema().compareTo(src.getSchema()) == 0) {
-					if (target.getName().equals(src.getName())) {
-						targets.add(target.getId());
-					}
-				}
-				if (target.getName().equals(src.getName() + " (migrated)")) {
-					migratedTargets.add(target.getId());
-				}
-			}
-			switch (migratedTargets.size()) {
-			case 1:
-				fieldMapping.getMapped().put(src.getId(), migratedTargets.get(0));
-				mappedFieldCount++;
-				break;
-			case 0:
-				// Fallback to targets
-				switch (targets.size()) {
-				case 0:
-					fieldMapping.getUnmapped().add(src);
-					Log.warn(LOGGER, "Custom Field [" + src.getName() + "] is not mapped");
-					break;
-				case 1:
-					fieldMapping.getMapped().put(src.getId(), targets.get(0));
-					mappedFieldCount++;
-					break;
-				default:
-					fieldMapping.getConflict().put(src.getId(), targets);
-					Log.warn(LOGGER, "Custom Field [" + src.getName() + "] is mapped to multiple Cloud fields");
-					break;
-				}
-				break;
-			default:
-				List<String> list = new ArrayList<>();
-				list.addAll(migratedTargets);
-				list.addAll(targets);
-				fieldMapping.getConflict().put(src.getId(), list);
-				Log.error(LOGGER, "Custom Field [" + src.getName() + "] is mapped to multiple Cloud fields");
-				break;
-			}
-		}
-		Log.printCount(LOGGER, "Custom Fields mapped: ", mappedFieldCount, serverFields.size());
-		saveFile(MappingType.CUSTOM_FIELD.getMap(), fieldMapping);
-	}
-	
-	private static void mapStatuses() throws Exception {
-		Log.info(LOGGER, "Processing Statuses...");
-		int mappedStatusCount = 0;
-		List<Role> serverStatuses = readValuesFromFile(MappingType.STATUS.getDC(), Role.class);
-		List<Role> cloudStatuses = readValuesFromFile(MappingType.STATUS.getCloud(), Role.class);
-		Mapping statusMapping = new Mapping(MappingType.ROLE);
-		Comparator<String> comparator = Comparator.nullsFirst(Comparator.naturalOrder());
-		for (Role src : serverStatuses) {
-			List<String> targets = new ArrayList<>();
-			for (Role target : cloudStatuses) {
-				// Don't compare description, only name
-				if (comparator.compare(target.getName(), src.getName()) == 0) {
-					targets.add(target.getId());
-				}
-			}
-			switch (targets.size()) {
-			case 0:
-				statusMapping.getUnmapped().add(src);
-				Log.warn(LOGGER, "Status [" + src.getName() + "] is not mapped");
-				break;
-			case 1:
-				statusMapping.getMapped().put(src.getId(), targets.get(0));
-				mappedStatusCount++;
-				break;
-			default:
-				statusMapping.getConflict().put(src.getId(), targets);
-				Log.warn(LOGGER, "Status [" + src.getName() + "] is mapped to multiple Cloud statuses");
-				break;
-			}
-		}
-		Log.printCount(LOGGER, "Statuses mapped: ", mappedStatusCount, serverStatuses.size());
-		saveFile(MappingType.STATUS.getMap(), statusMapping);
-	}
-	
-	private static void mapRoles() throws Exception {
-		Log.info(LOGGER, "Processing Roles...");
-		int mappedRoleCount = 0;
-		List<Role> serverRoles = readValuesFromFile(MappingType.ROLE.getDC(), Role.class);
-		List<Role> cloudRoles = readValuesFromFile(MappingType.ROLE.getCloud(), Role.class);
-		Mapping roleMapping = new Mapping(MappingType.ROLE);
-		Comparator<String> comparator = Comparator.nullsFirst(Comparator.naturalOrder());
-		for (Role src : serverRoles) {
-			List<String> targets = new ArrayList<>();
-			for (Role target : cloudRoles) {
-				// Don't compare description, only name
-				if (comparator.compare(target.getName(), src.getName()) == 0) {
-					targets.add(target.getId());
-				}
-			}
-			switch (targets.size()) {
-			case 0:
-				roleMapping.getUnmapped().add(src);
-				Log.warn(LOGGER, "Role [" + src.getName() + "] is not mapped");
-				break;
-			case 1:
-				roleMapping.getMapped().put(src.getId(), targets.get(0));
-				mappedRoleCount++;
-				break;
-			default:
-				roleMapping.getConflict().put(src.getId(), targets);
-				Log.warn(LOGGER, "Role [" + src.getName() + "] is mapped to multiple Cloud roles");
-				break;
-			}
-		}
-		Log.printCount(LOGGER, "Roles mapped: ", mappedRoleCount, serverRoles.size());
-		saveFile(MappingType.ROLE.getMap(), roleMapping);
-	}
-	
-	private static void mapGroups() throws Exception {
-		Log.info(LOGGER, "Processing Groups...");
-		int mappedGroupCount = 0;
-		List<Group> serverGroups = readValuesFromFile(MappingType.GROUP.getDC(), Group.class);
-		List<Group> cloudGroups = readValuesFromFile(MappingType.GROUP.getCloud(), Group.class);
-		Mapping groupMapping = new Mapping(MappingType.GROUP);
-		for (Group src : serverGroups) {
-			List<String> targets = new ArrayList<>();
-			for (Group target : cloudGroups) {
-				if (target.getHtml().equals(src.getHtml()) && target.getName().equals(src.getName())) {
-					targets.add(target.getGroupId());
-				}
-			}
-			switch (targets.size()) {
-			case 0:
-				groupMapping.getUnmapped().add(src);
-				Log.warn(LOGGER, "Group [" + src.getName() + "] is not mapped");
-				break;
-			case 1:
-				groupMapping.getMapped().put(src.getName(), targets.get(0));
-				mappedGroupCount++;
-				break;
-			default:
-				groupMapping.getConflict().put(src.getName(), targets);
-				Log.warn(LOGGER, "Group [" + src.getName() + "] is mapped to multiple Cloud groups");
-				break;
-			}
-		}
-		Log.printCount(LOGGER, "Groups mapped: ", mappedGroupCount, serverGroups.size());
-		saveFile(MappingType.GROUP.getMap(), groupMapping);
-	}
-	
-	private static void mapAgileBoards() throws Exception {
-		Log.info(LOGGER, "Processing Agile Boards...");
-		int mappedCount = 0;
-		List<AgileBoard> serverAgileBoards = readValuesFromFile(MappingType.AGILE_BOARD.getDC(), AgileBoard.class);
-		List<AgileBoard> cloudAgileBoards = readValuesFromFile(MappingType.AGILE_BOARD.getCloud(), AgileBoard.class);
-		Mapping agileMapping = new Mapping(MappingType.AGILE_BOARD);
-		for (AgileBoard src : serverAgileBoards) {
-			List<String> targets = new ArrayList<>();
-			for (AgileBoard target : cloudAgileBoards) {
-				if (target.getName().equals(src.getName()) && 
-					target.getFilterName().equals(src.getFilterName())) {
-					targets.add(target.getId());
-				}
-			}
-			switch (targets.size()) {
-			case 0:
-				agileMapping.getUnmapped().add(src);
-				Log.warn(LOGGER, "Agile Board [" + src.getName() + "] is not mapped");
-				break;
-			case 1:
-				agileMapping.getMapped().put(src.getId(), targets.get(0));
-				mappedCount++;
-				break;
-			default:
-				agileMapping.getConflict().put(src.getId(), targets);
-				Log.warn(LOGGER, "Agile Board [" + src.getName() + "] is mapped to multiple Cloud Agile Boards");
-				break;
-			}
-		}
-		Log.printCount(LOGGER, "Agile Boards mapped: ", mappedCount, serverAgileBoards.size());
-		saveFile(MappingType.AGILE_BOARD.getMap(), agileMapping);
-	}
-	
-	private static void mapSprints() throws Exception {
-		Comparator<String> nullFirstCompare = Comparator.nullsFirst(String::compareTo);
-		Log.info(LOGGER, "Processing Sprints...");
-		int mappedCount = 0;
-		List<Sprint> serverSprints = readValuesFromFile(MappingType.SPRINT.getDC(), Sprint.class);
-		List<Sprint> cloudSprints = readValuesFromFile(MappingType.SPRINT.getCloud(), Sprint.class);
-		Mapping sprintMapping = new Mapping(MappingType.SPRINT);
-		for (Sprint src : serverSprints) {
-			List<String> targets = new ArrayList<>();
-			for (Sprint target : cloudSprints) {
-				if (nullFirstCompare.compare(target.getName(), src.getName()) == 0 && 
-					nullFirstCompare.compare(target.getOriginalBoardName(), src.getOriginalBoardName()) == 0 && 
-					nullFirstCompare.compare(
-							target.getOriginalBoardFilterName(), src.getOriginalBoardFilterName()) == 0) {
-					targets.add(target.getId());
-				}
-			}
-			switch (targets.size()) {
-			case 0:
-				sprintMapping.getUnmapped().add(src);
-				Log.warn(LOGGER, "Sprint [" + src.getName() + "] is not mapped");
-				break;
-			case 1:
-				sprintMapping.getMapped().put(src.getId(), targets.get(0));
-				mappedCount++;
-				break;
-			default:
-				sprintMapping.getConflict().put(src.getId(), targets);
-				Log.warn(LOGGER, "Sprint [" + src.getName() + "] is mapped to multiple Cloud sprints");
-				break;
-			}
-		}
-		Log.printCount(LOGGER, "Sprints mapped: ", mappedCount, serverSprints.size());
-		saveFile(MappingType.SPRINT.getMap(), sprintMapping);
-	}
-	
-	private static DataCenterFilter getFilter(Client client, String baseURL, int id) throws Exception {
-		URI uri = new URI(baseURL).resolve("rest/api/latest/filter/").resolve(Integer.toString(id));
-		Response resp = restCall(client, uri, HttpMethod.GET, null, null, null);
-		if (checkStatusCode(resp, Response.Status.OK)) {
-			DataCenterFilter filter = resp.readEntity(DataCenterFilter.class);
-			filter.setOriginalJql(filter.getJql());
-			return filter;
-		} else {
-			throw new Exception(resp.readEntity(String.class));
-		}
-	}
-
 	private static void listFilter(Client cloudClient, Config conf)
 			throws Exception {
 		Log.info(LOGGER, "List filters from Cloud...");
@@ -2132,6 +1278,34 @@ public class DashboardMigrator {
 		}
 	}
 
+	private static void getCredentials(Config config, boolean cloud) throws IOException {
+		String userName = null;
+		String password = null;
+		if (cloud) {
+			userName = config.getTargetUser();
+			if (userName == null || userName.isEmpty()) {
+				userName = Console.readLine("Cloud administrator email: ");
+				config.setTargetUser(userName);
+			}
+			password = config.getTargetAPIToken();
+			if (password == null || password.isEmpty()) {
+				password = new String(Console.readPassword("API token for " + userName + ": "));
+				config.setTargetAPIToken(password);
+			}
+		} else {
+			userName = config.getSourceUser();
+			if (userName == null || userName.isEmpty()) {
+				userName = Console.readLine("DataCenter administrator username: ");
+				config.setSourceUser(userName);
+			}
+			password = config.getSourcePassword();
+			if (password == null || password.isEmpty()) {
+				password = new String(Console.readPassword("Password for " + userName + ": "));
+				config.setSourcePassword(password);
+			}
+		}
+	}
+	
 	@SuppressWarnings("incomplete-switch")
 	public static void main(String[] args) {
 		AnsiConsole.systemInstall();
@@ -2145,87 +1319,6 @@ public class DashboardMigrator {
 			if (conf == null) {
 				return;
 			}
-
-			// TODO
-			/*
-			Status s = new Status();
-			List<Status> sList = s.getCloudObjects(conf, Status.class, null);
-			List<Status> sList2 = s.getServerObjects(conf, Status.class, null);
-			
-			User u = new User();
-			List<User> uList = u.getCloudObjects(conf, User.class, null);
-			List<User> uList2 = u.getServerObjects(conf, User.class, null);
-			
-			Role r = new Role();
-			List<Role> rList = r.getCloudObjects(conf, Role.class, null);
-			List<Role> rList2 = r.getServerObjects(conf, Role.class, null);
-			
-			Project p = new Project();
-			List<Project> pList = p.getCloudObjects(conf, Project.class, null);
-			for (Project project : pList) {
-				Map<String, Object> data = new HashMap<>();
-				data.put(ProjectComponent.PARAM_PROJECTID, project.getId());
-				ProjectComponent pc = new ProjectComponent();
-				List<ProjectComponent> pcList = pc.getCloudObjects(conf, ProjectComponent.class, data);
-			}
-			List<Project> pList2 = p.getServerObjects(conf, Project.class, null);
-			for (Project project : pList2) {
-				Map<String, Object> data = new HashMap<>();
-				data.put(ProjectComponent.PARAM_PROJECTID, project.getId());
-				ProjectComponent pc = new ProjectComponent();
-				List<ProjectComponent> pcList = pc.getServerObjects(conf, ProjectComponent.class, data);
-			}
-
-			ProjectCategory pcat = new ProjectCategory();
-			List<ProjectCategory> pcatList = pcat.getCloudObjects(conf, ProjectCategory.class, null);
-			List<ProjectCategory> pcatList2 = pcat.getServerObjects(conf, ProjectCategory.class, null);
-
-			Group g = new Group();
-			List<Group> gList = g.getCloudObjects(conf, Group.class, null);
-			List<Group> gList2 = g.getServerObjects(conf, Group.class, null);
-
-			CustomField cf = new CustomField();
-			List<CustomField> cfList = cf.getCloudObjects(conf, CustomField.class, null);
-			List<CustomField> cfList2 = cf.getServerObjects(conf, CustomField.class, null);
-			
-			AgileBoard ab = new AgileBoard();
-			List<AgileBoard> abList = ab.getCloudObjects(conf, AgileBoard.class, null);
-			Sprint sp = new Sprint();
-			for (AgileBoard a : abList) {
-				if (a.canHasSprint()) {
-					Map<String, Object> data = new HashMap<>();
-					data.put(Sprint.PARAM_BOARDID, a.getId());
-					List<Sprint> spList = sp.getCloudObjects(conf, Sprint.class, data);
-					Log.info(LOGGER, "Board: " + a.getName() + " (" + a.getId() + ")");
-					Log.info(LOGGER, "Sprint: " + spList.size());
-					for (Sprint s : spList) {
-						Log.info(LOGGER, "Sprint: " + s.getName() + " (" + s.getId() + ")");
-					}
-				}
-			}
-			List<AgileBoard> abList2 = ab.getServerObjects(conf, AgileBoard.class, null);
-			for (AgileBoard a : abList2) {
-				if (a.canHasSprint()) {
-					Map<String, Object> data = new HashMap<>();
-					data.put(Sprint.PARAM_BOARDID, a.getId());
-					List<Sprint> spList = sp.getServerObjects(conf, Sprint.class, data);
-					Log.info(LOGGER, "Board: " + a.getName() + " (" + a.getId() + ")");
-					Log.info(LOGGER, "Sprint: " + spList.size());
-					for (Sprint s : spList) {
-						Log.info(LOGGER, "Sprint: " + s.getName() + " (" + s.getId() + ")");
-					}
-				}
-			}
-			
-			IssueType it = new IssueType();
-			List<IssueType> itList = it.getCloudObjects(conf, IssueType.class, null);
-			List<IssueType> itList2 = it.getServerObjects(conf, IssueType.class, null);
-
-			Priority p = new Priority();
-			List<Priority> pList = p.getCloudObjects(conf, Priority.class, null);
-			List<Priority> pList2 = p.getServerObjects(conf, Priority.class, null);
-			*/
-			
 			if (cli.hasOption(CLI.GRANT_OPTION)) {
 				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
 					String[] roles = cli.getOptionValues(CLI.ROLE_OPTION);
@@ -2240,6 +1333,10 @@ public class DashboardMigrator {
 				}
 			} else {
 				// CLI.MAIN_OPTIONS
+				if (cli.getOptions().length < 2) {
+					CLI.printHelp();
+					return;
+				}
 				for (Option op : cli.getOptions()) {
 					CLIOptions opt = CLIOptions.parse(op);
 					if (opt == null) {
@@ -2250,23 +1347,17 @@ public class DashboardMigrator {
 						mapUsersWithCSV(cli.getOptionValue(CLI.MAPUSER_OPTION));
 						break;
 					case DUMP_DC: {
-						SqlSessionFactory sqlSessionFactory = setupMyBatis(conf);
-						try (	SqlSession session = sqlSessionFactory.openSession();
-								ClientWrapper wrapper = new ClientWrapper(false, conf)) {
-							// Get filter info from source
-							dumpDC(wrapper.getClient(), conf);
-							FilterMapper filterMapper = session.getMapper(FilterMapper.class);
-							dumpDashboard(filterMapper, wrapper.getClient(), conf);
-						}
+						getCredentials(conf, false);
+						dumpObjects(conf, false);
+						dumpDashboard(conf);
 						break;
 					}
 					case DUMP_CLOUD:
-						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-							dumpCloud(wrapper.getClient(), conf);
-						}
+						getCredentials(conf, true);
+						dumpObjects(conf, true);
 						break;
 					case MAP_OBJECT:
-						mapObjects();
+						mapObjectsV2();
 						break;
 					case MAP_FILTER: 
 						mapFilters();

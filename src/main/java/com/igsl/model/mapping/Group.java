@@ -22,7 +22,7 @@ public class Group extends JiraObject<Group> {
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<Group> util, boolean cloud, Map<String, Object> data) {
+	public void setupRestUtil(RestUtil<Group> util, boolean cloud, Object... data) {
 		if (cloud) {
 			util.path("/rest/api/latest/group/bulk")
 				.method(HttpMethod.GET)

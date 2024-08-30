@@ -28,7 +28,7 @@ public class Priority extends JiraObject<Priority> {
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<Priority> util, boolean cloud, Map<String, Object> data) {
+	public void setupRestUtil(RestUtil<Priority> util, boolean cloud, Object... data) {
 		util.method(HttpMethod.GET);
 		if (cloud) {
 			util.path("/rest/api/3/priority/search")

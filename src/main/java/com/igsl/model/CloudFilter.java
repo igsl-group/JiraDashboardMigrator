@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.igsl.model.mapping.Filter;
 
 @JsonInclude(value = JsonInclude.Include.NON_NULL)
 public class CloudFilter {
@@ -14,6 +15,30 @@ public class CloudFilter {
 	private List<CloudPermission> sharePermissions;
 	private List<CloudPermission> editPermissions;
 
+	public static CloudFilter create(Filter filter) {
+		CloudFilter result = null;
+		if (filter != null) {
+			result = new CloudFilter();
+			result.name = filter.getName();
+			result.description = filter.getDescription();
+			result.jql = filter.getJql();
+			// TODO Add JQL parser and converter
+			result.sharePermissions = new ArrayList<CloudPermission>();
+			result.editPermissions = new ArrayList<CloudPermission>();
+			for (DataCenterPermission permission : filter.getSharePermissions()) {
+				if (permission.isEdit()) {
+					CloudPermission cp = CloudPermission.create(permission);
+					result.editPermissions.add(cp);
+				}
+				if (permission.isView()) {
+					CloudPermission cp = CloudPermission.create(permission);
+					result.sharePermissions.add(cp);
+				}
+			}
+		}
+		return result;
+	}
+	
 	public static CloudFilter create(DataCenterFilter filter) {
 		CloudFilter result = null;
 		if (filter != null) {

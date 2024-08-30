@@ -22,7 +22,7 @@ public class IssueType extends JiraObject<IssueType> {
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<IssueType> util, boolean cloud, Map<String, Object> data) {
+	public void setupRestUtil(RestUtil<IssueType> util, boolean cloud, Object... data) {
 		util.path("/rest/api/latest/issuetype")
 			.method(HttpMethod.GET)
 			.pagination(new SinglePage<IssueType>(IssueType.class, null));

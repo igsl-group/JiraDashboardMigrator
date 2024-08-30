@@ -1,18 +1,32 @@
 package com.igsl.model.mapping;
 
-import java.util.Map;
+import java.util.List;
 
 import javax.ws.rs.HttpMethod;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.igsl.model.DataCenterPermission;
+import com.igsl.model.PermissionTarget;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
 import com.igsl.rest.SinglePage;
 
+/**
+ * Filter list is retrieved from database for DC/Server as no REST API exists to list them.
+ */
 public class Filter extends JiraObject<Filter> {
-	public static final String PARAM_FILTERID = "filterId";
+	private static final Logger LOGGER = LogManager.getLogger();
+	
 	private String id;
 	private String name;
-
+	private String description;
+	private String jql;
+	private String originalJql;
+	private PermissionTarget owner;
+	private List<DataCenterPermission> sharePermissions;
+	
 	@Override
 	public int compareTo(Filter obj1) {
 		if (obj1 != null) {
@@ -22,20 +36,29 @@ public class Filter extends JiraObject<Filter> {
 	}
 
 	@Override
-	public void setupRestUtil(RestUtil<Filter> util, boolean cloud, Map<String, Object> data) {
-		String filterId = null;
-		if (data.containsKey(PARAM_FILTERID)) {
-			filterId = String.valueOf(data.get(PARAM_FILTERID));
-		}
-		if (filterId != null) {
+	public void setupRestUtil(RestUtil<Filter> util, boolean cloud, Object... data) {
+		if (cloud) {
+			String filterId = null;
+			if (data.length == 1) {
+				filterId = String.valueOf(data[0]);
+			}
+			if (filterId != null) {
+				util.path("/rest/api/latest/filter/{filterId}")
+					.pathTemplate("filterId", filterId)
+					.method(HttpMethod.GET)
+					.pagination(new SinglePage<Filter>(Filter.class, null));
+			} else {
+				util.path("/rest/api/latest/filter/search")
+					.method(HttpMethod.GET)
+					.pagination(new Paged<Filter>(Filter.class));
+			}
+		} else {
+			// There is no API to list filter in Server
+			String filterId = String.valueOf(data[0]);
 			util.path("/rest/api/latest/filter/{filterId}")
-				.pathTemplate(PARAM_FILTERID, filterId)
+				.pathTemplate("filterId", filterId)
 				.method(HttpMethod.GET)
 				.pagination(new SinglePage<Filter>(Filter.class, null));
-		} else {
-			util.path("/rest/api/latest/filter/search")
-				.method(HttpMethod.GET)
-				.pagination(new Paged<Filter>(Filter.class));
 		}
 	}
 	
@@ -53,5 +76,45 @@ public class Filter extends JiraObject<Filter> {
 
 	public void setName(String name) {
 		this.name = name;
+	}
+
+	public String getDescription() {
+		return description;
+	}
+
+	public void setDescription(String description) {
+		this.description = description;
+	}
+
+	public String getJql() {
+		return jql;
+	}
+
+	public void setJql(String jql) {
+		this.jql = jql;
+	}
+
+	public String getOriginalJql() {
+		return originalJql;
+	}
+
+	public void setOriginalJql(String originalJql) {
+		this.originalJql = originalJql;
+	}
+
+	public PermissionTarget getOwner() {
+		return owner;
+	}
+
+	public void setOwner(PermissionTarget owner) {
+		this.owner = owner;
+	}
+
+	public List<DataCenterPermission> getSharePermissions() {
+		return sharePermissions;
+	}
+
+	public void setSharePermissions(List<DataCenterPermission> sharePermissions) {
+		this.sharePermissions = sharePermissions;
 	}
 }
