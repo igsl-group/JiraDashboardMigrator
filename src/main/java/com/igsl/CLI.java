@@ -67,10 +67,11 @@ public class CLI {
 			.build();
 	
 	public static final Option MAPOBJECT_OPTION = Option.builder()
-			.desc("Map Data Center and Cloud objects, provide CSV exported from Cloud User Management")
+			.desc("Map Data Center and Cloud objects. Provide CSV exported from Cloud User Management, otherwise user is mapped based on display name")
 			.option("m")
 			.longOpt("mapObject")
 			.hasArg()
+			.optionalArg(true)
 			.build();
 	
 	public static final Option MAPUSER_OPTION = Option.builder()

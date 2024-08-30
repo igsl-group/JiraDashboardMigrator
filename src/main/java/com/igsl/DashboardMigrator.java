@@ -843,6 +843,7 @@ public class DashboardMigrator {
 	}
 	
 	private static void mapUsersWithCSV(String csvFile) throws Exception {
+		Log.info(LOGGER, "Mapping users with CSV: " + csvFile);
 		// Parse CSV file, exact columns unknown, target is "User Id" and "email" columns only.
 		final String COL_EMAIL = "email";
 		final String COL_ACCOUNTID = "User id";
@@ -855,9 +856,6 @@ public class DashboardMigrator {
 		try (FileReader fr = new FileReader(csvFile); 
 			CSVParser parser = CSVParser.parse(fr, format)) {
 			List<String> colNames = parser.getHeaderNames();
-			for (String colName : colNames) {
-				Log.info(LOGGER, "CSV column: " + colName);
-			}
 			Integer accountIdCol = null;
 			Integer emailCol = null;
 			for (int i = 0; i < colNames.size(); i++) {
@@ -1356,8 +1354,11 @@ public class DashboardMigrator {
 						break;
 					case MAP_OBJECT:
 						mapObjectsV2();
-						// Override user mapping with CSV file exported from Cloud User Management
-						mapUsersWithCSV(cli.getOptionValue(CLI.MAPOBJECT_OPTION));
+						String csvFile = cli.getOptionValue(CLI.MAPOBJECT_OPTION);
+						if (csvFile != null) {
+							// Override user mapping with CSV file exported from Cloud User Management
+							mapUsersWithCSV(csvFile);
+						}
 						break;
 					case MAP_FILTER: 
 						mapFilters();
