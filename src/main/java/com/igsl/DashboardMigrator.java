@@ -415,6 +415,9 @@ public class DashboardMigrator {
 		// Map and create each batch
 	}
 	
+	/**
+	 * Dashboard and Filter from Server requires DB access to dump, so this is needed outside of mapObjectsV2().
+	 */
 	private static void dumpDashboard(Config conf) throws Exception {
 		SqlSessionFactory factory = setupMyBatis(conf);
 		try (SqlSession session = factory.openSession()) {
@@ -1341,9 +1344,6 @@ public class DashboardMigrator {
 						continue;
 					}
 					switch (opt) {
-					case MAP_USER: 
-						mapUsersWithCSV(cli.getOptionValue(CLI.MAPUSER_OPTION));
-						break;
 					case DUMP_DC: {
 						getCredentials(conf, false);
 						dumpObjects(conf, false);
@@ -1356,6 +1356,8 @@ public class DashboardMigrator {
 						break;
 					case MAP_OBJECT:
 						mapObjectsV2();
+						// Override user mapping with CSV file exported from Cloud User Management
+						mapUsersWithCSV(cli.getOptionValue(CLI.MAPOBJECT_OPTION));
 						break;
 					case MAP_FILTER: 
 						mapFilters();

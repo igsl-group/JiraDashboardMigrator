@@ -18,7 +18,6 @@ public class CLI {
 		DUMP_DC(DUMPDC_OPTION),
 		DUMP_CLOUD(DUMPCLOUD_OPTION),
 		MAP_OBJECT(MAPOBJECT_OPTION),
-		MAP_USER(MAPUSER_OPTION),
 		MAP_FILTER(MAPFILTER_OPTION),
 		CREATE_FILTER(CREATEFILTER_OPTION),
 		DELETE_FILTER(DELETEFILTER_OPTION),
@@ -68,9 +67,10 @@ public class CLI {
 			.build();
 	
 	public static final Option MAPOBJECT_OPTION = Option.builder()
-			.desc("Map Data Center and Cloud objects")
+			.desc("Map Data Center and Cloud objects, provide CSV exported from Cloud User Management")
 			.option("m")
 			.longOpt("mapObject")
+			.hasArg()
 			.build();
 	
 	public static final Option MAPUSER_OPTION = Option.builder()
