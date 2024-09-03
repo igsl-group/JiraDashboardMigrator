@@ -11,6 +11,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -89,7 +90,6 @@ import com.igsl.model.CloudDashboard;
 import com.igsl.model.CloudFilter;
 import com.igsl.model.CloudGadget;
 import com.igsl.model.CloudGadgetConfiguration;
-import com.igsl.model.DataCenterPermission;
 import com.igsl.model.DataCenterPortalPage;
 import com.igsl.model.DataCenterPortalPermission;
 import com.igsl.model.DataCenterPortletConfiguration;
@@ -106,6 +106,7 @@ import com.igsl.model.mapping.SearchResult;
 import com.igsl.model.mapping.User;
 import com.igsl.model.mapping.UserPicker;
 import com.igsl.mybatis.FilterMapper;
+import com.igsl.rest.RestUtil;
 
 /**
  * Migrate dashboard and filter from Jira Data Center 8.14.1 to Jira Cloud. The
@@ -409,10 +410,317 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "File " + fileName + " saved");
 	}
 	
-	private static void mapFilterV2(Config conf) throws Exception {
-		// TODO
-		// Group filters in batches
-		// Map and create each batch
+	private static SingleValueOperand mapValue(
+			SingleValueOperand src, Mapping map, 
+			String filterName, String propertyName) throws Exception {
+		SingleValueOperand result = null;
+		if (src != null) {
+			boolean isLong = false;
+			String originalValue = null;
+			if (src.getLongValue() != null) {
+				originalValue = Long.toString(src.getLongValue());
+				isLong = true;
+			} else {
+				originalValue = src.getStringValue();
+				isLong = false;
+			}
+			if (map != null) {
+				if (isLong) {
+					if (map.getMapped().containsKey(originalValue)) {
+						// Remap numerical values
+						Long newValue = Long.valueOf(map.getMapped().get(originalValue));
+						Log.info(LOGGER, "Mapped value for filter [" + filterName + "] type [" +
+								propertyName + "] value [" + originalValue + "] => [" + newValue + "]");
+						result = new SingleValueOperand(newValue);
+					} else {
+						if (map.getType() == MappingType.FILTER) {
+							throw new FilterNotMappedException(originalValue);
+						} else {
+							throw new Exception("Unable to map value for filter [" + filterName + "] type [" + 
+										propertyName + "] value [" + originalValue + "]");
+						}
+					}
+				} else {
+					// String values not remapped
+					Log.info(LOGGER, "Value unchanged for filter [" + filterName + "] type [" +
+							propertyName + "] value [" + originalValue + "]");
+					result = new SingleValueOperand(originalValue);
+				}
+			} else {
+				if (isLong) {
+					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] type [" + propertyName
+							+ "] value [" + originalValue + "]");
+					result = new SingleValueOperand(src.getLongValue());
+				} else {
+					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] type [" + propertyName
+							+ "] value [" + originalValue + "]");
+					result = new SingleValueOperand(src.getStringValue());
+				}
+			}
+		}
+		return result;
+	}
+
+	private static Clause mapClause(String filterName, Map<MappingType, Mapping> maps, Clause c) throws Exception {
+		Clause clone = null;
+		List<Clause> clonedChildren = new ArrayList<>();
+		if (c != null) {
+			Log.debug(LOGGER, "Clause: [" + c + "], [" + c.getClass() + "]");
+			String propertyName = c.getName();
+			String newPropertyName = propertyName;
+			MappingType mappingType = null;
+			if (propertyName != null) {
+				// Get mapping type
+				mappingType = MappingType.parseFilterProperty(propertyName);
+				// Remap propertyName if it is a custom field
+				Mapping customFieldMapping = maps.get(MappingType.CUSTOM_FIELD);
+				newPropertyName = mapCustomFieldName(customFieldMapping.getMapped(), propertyName);
+				Log.info(LOGGER, "Property [" + propertyName + "] -> [" + newPropertyName + "]");
+			}
+			for (Clause sc : c.getClauses()) {
+				// Recursively process children
+				Clause clonedChild = mapClause(filterName, maps, sc);
+				clonedChildren.add(clonedChild);
+			}
+			if (c instanceof AndClause) {
+				clone = new AndClause(clonedChildren.toArray(new Clause[0]));
+			} else if (c instanceof OrClause) {
+				clone = new OrClause(clonedChildren.toArray(new Clause[0]));
+			} else if (c instanceof NotClause) {
+				clone = new NotClause(clonedChildren.get(0));
+			} else if (c instanceof TerminalClause) {
+				TerminalClause tc = (TerminalClause) c;
+				Operand originalOperand = tc.getOperand();
+				Operand clonedOperand = null;
+				if (mappingType != null) {
+					// Modify value
+					Mapping map = maps.get(mappingType);
+					if (originalOperand instanceof SingleValueOperand) {
+						SingleValueOperand svo = (SingleValueOperand) originalOperand;
+						// Change value
+						clonedOperand = mapValue(svo, map, filterName, tc.getName());
+					} else if (originalOperand instanceof MultiValueOperand) {
+						MultiValueOperand mvo = (MultiValueOperand) originalOperand;
+						List<Operand> list = new ArrayList<>();
+						for (Operand item : mvo.getValues()) {
+							if (item instanceof SingleValueOperand) {
+								// Change value
+								SingleValueOperand svo = (SingleValueOperand) item;
+								list.add(mapValue(svo, map, filterName, tc.getName()));
+							} else {
+								list.add(item);
+							}
+						}
+						clonedOperand = new MultiValueOperand(list);
+					} else if (originalOperand instanceof FunctionOperand) {
+						// TODO Throw error for unsupported function?
+						// TODO Remap arguments?
+						FunctionOperand fo = (FunctionOperand) originalOperand;
+						List<String> args = new ArrayList<>();
+						for (String s : fo.getArgs()) {
+							args.add("\"" + s + "\"");
+						}
+						clonedOperand = new FunctionOperand(fo.getName(), args);
+					} else if (originalOperand instanceof EmptyOperand) {
+						clonedOperand = originalOperand;
+					} else {
+						Log.warn(LOGGER, "Unrecognized Operand class for filter [" + filterName + "] class [" + originalOperand.getClass()
+								+ "], reusing reference");
+						clonedOperand = originalOperand;
+					}
+				} else {
+					// No change
+					clonedOperand = originalOperand;
+				}
+				// Create clone
+				clone = new MyTerminalClause(newPropertyName, tc.getOperator(), clonedOperand);
+			} else if (c instanceof WasClause) {
+				WasClause wc = (WasClause) c;
+				clone = new WasClauseImpl(newPropertyName, wc.getOperator(), wc.getOperand(), wc.getPredicate());
+			} else if (c instanceof ChangedClause) {
+				ChangedClause cc = (ChangedClause) c;
+				clone = new ChangedClauseImpl(newPropertyName, cc.getOperator(), cc.getPredicate());
+			} else {
+				Log.warn(LOGGER, "Unrecognized Clause class for filter [" + filterName + "] class [" + c.getClass()
+						+ "], reusing reference");
+				clone = c;
+			}
+		} else {
+			Log.warn(LOGGER, "Clause: null");
+		}
+		return clone;
+	}
+	
+	private static void mapFiltersV2(Config conf) throws Exception {
+		// Results of mapped and failed filters
+		Mapping result = new Mapping(MappingType.FILTER);
+		List<Filter> remappedList = new ArrayList<>();
+		
+		RestUtil<Object> util = RestUtil.getInstance(Object.class).config(conf, true);
+		
+		// Load mappings from files
+		Map<MappingType, Mapping> mappings = loadMappings(MappingType.FILTER, MappingType.DASHBOARD);
+		// Add filter mapping, to be filled as we go
+		mappings.put(MappingType.FILTER, result);
+		
+		// Get filters to map
+		List<Filter> filterList = readValuesFromFile(MappingType.FILTER.getDC(), Filter.class);
+//		Filter f = new Filter();
+//		f.setJql("project = 13202 AND status = New AND resolution = Unresolved AND \"Sales-Region (INsight)\" ~ MEA ORDER BY updated DESC");
+//		List<Filter> filterList = new ArrayList<>();
+//		filterList.add(f);
+
+		int batch = 0;
+		boolean done = false;
+		while (!done) {
+			Log.info(LOGGER, "Processing filters batch #" + batch);
+			// Put filters into current batch
+			Map<String, Filter> currentBatch = new LinkedHashMap<>();	// TODO LinkedHashMap to maintain order for testing
+			for (Filter filter : filterList) {
+				currentBatch.put(filter.getId(), filter);
+			}
+			filterList.clear();
+			// Process current batch, put those missing filter references back into filterList
+			for (Filter filter : currentBatch.values()) {
+				Log.info(LOGGER, "Processing filter " + filter.getName());
+				// Verify owner
+				String originalOwner = filter.getOwner().getKey();
+				String newOwner = null;
+				if (!mappings.get(MappingType.USER).getMapped().containsKey(originalOwner)) {
+					String msg = "Filter [" + filter.getName() + "] " + 
+							"owned by unmapped user [" + originalOwner + "]";
+					Log.error(LOGGER, msg);
+					result.getFailed().put(filter.getId(), msg);
+					continue;
+				}
+				newOwner = mappings.get(MappingType.USER).getMapped().get(originalOwner);
+				// TODO Verify share permissions
+				JqlLexer lexer = new JqlLexer((CharStream) new ANTLRStringStream(filter.getJql()));
+				CommonTokenStream cts = new CommonTokenStream(lexer);
+				JqlParser parser = new JqlParser(cts);
+				query_return qr = parser.query();
+				try {
+					validateClause(filter.getName(), qr.clause);
+				} catch (Exception ex) {
+					Log.error(LOGGER, "Failed to map filter [" + filter.getName() + "]", ex);
+					result.getFailed().put(filter.getId(), ex.getMessage());
+					continue;
+				}
+				try {
+					Clause clone = mapClause(filter.getName(), mappings, qr.clause);
+					// Handler order clause
+					OrderBy orderClone = null;
+					if (qr.order != null) {
+						Mapping fieldMapping = mappings.get(MappingType.CUSTOM_FIELD);
+						List<SearchSort> sortList = new ArrayList<>();
+						for (SearchSort ss : qr.order.getSearchSorts()) {
+							String newColumn = mapCustomFieldName(fieldMapping.getMapped(), ss.getField());
+							SearchSort newSS = new SearchSort(newColumn, ss.getProperty(), ss.getSortOrder());
+							sortList.add(newSS);
+							Log.warn(LOGGER, "Mapped sort column for filter [" + filter.getName() + "] " + 
+									"column [" + ss.getField() + "] => [" + newColumn + "]");
+						}
+						orderClone = new OrderByImpl(sortList);
+					}
+					Log.info(LOGGER, "Updated JQL for filter [" + filter.getName() + "]: " + 
+							"[" + clone + ((orderClone != null)? " " + orderClone : "") + "]");
+					filter.setJql(clone + ((orderClone != null) ? " " + orderClone : ""));
+					remappedList.add(filter);
+					// Create filter
+					CloudFilter cloudFilter = CloudFilter.create(filter);
+					Response respFilter = util.path("/rest/api/latest/filter")
+						.method(HttpMethod.POST)
+						.payload(cloudFilter)
+						.request();
+					if (!checkStatusCode(respFilter, Response.Status.OK)) {
+						String msg = respFilter.readEntity(String.class);
+						result.getFailed().put(filter.getId(), msg);
+						continue;
+					} 
+					CloudFilter newFilter = respFilter.readEntity(CloudFilter.class);
+					result.getMapped().put(filter.getId(), newFilter.getId());
+					Log.info(LOGGER, "Filter [" + filter.getName() + "] created: " + newFilter.getId());
+					// Change owner
+					PermissionTarget owner = new PermissionTarget();
+					owner.setAccountId(newOwner);
+					Response respOwner = util.path("/rest/api/latest/filter/{filterId}/owner")
+						.pathTemplate("filterId", newFilter.getId())
+						.method(HttpMethod.PUT)
+						.payload(owner)
+						.request();
+					if (!checkStatusCode(respOwner, Response.Status.NO_CONTENT)) {
+						String msg = "Failed to set owner for filter [" + filter.getName() + "]: "
+								+ respOwner.readEntity(String.class);
+						Log.error(LOGGER, msg);
+						result.getFailed().put(filter.getId(), msg);
+						continue;
+					}
+					Log.info(LOGGER, "Filter [" + filter.getName() + "] owner changed: " + newOwner);
+					// TODO Change permissions
+				} catch (FilterNotMappedException fnmex) {
+					String refId = fnmex.getReferencedFilter();
+					// TODO How to detect impossible to map ones?
+					if (refId.equals(filter.getId())) {
+						// Filter references self
+						String msg = "Filter [" + filter.getName() + "] references itself";
+						Log.error(LOGGER, msg);
+						result.getFailed().put(filter.getId(), msg);
+					} else if (	!currentBatch.containsKey(refId) && 
+								!result.getMapped().containsKey(refId)) {
+						// Filter references non-existent filter
+						String msg = "Filter [" + filter.getName() + "] references non-existing filter [" + refId + "]";
+						Log.error(LOGGER, msg);
+						result.getFailed().put(filter.getId(), msg);
+					} else if (result.getFailed().containsKey(refId)) {
+						// Filter references a filter that failed
+						String msg = "Filter [" + filter.getName() + "] references failed filter [" + refId + "]";
+						Log.error(LOGGER, msg);
+						result.getFailed().put(filter.getId(), msg);
+					} else {					
+						// Add filter to next batch
+						Log.info(LOGGER, "Filter [" + filter.getName() + "] " + 
+								"references filter [" + refId + "] which is not created in Cloud yet, " + 
+								"delaying filter to next batch");
+						filterList.add(filter);
+					}
+					// Note: Circular reference is impossible to begin with
+				} catch (Exception ex) {
+					Log.error(LOGGER, "Failed to map filter [" + filter.getName() + "]", ex);
+					result.getFailed().put(filter.getId(), ex.getMessage());
+					continue;
+				}
+			} // For each filter in currentBatch
+			if (filterList.size() == 0) {
+				// No more filters
+				done = true;
+			}
+			batch++;
+		}	// While !done
+		// Save result
+		saveFile(MappingType.FILTER.getRemapped(), remappedList);
+		saveFile(MappingType.FILTER.getMap(), result);
+	}
+	
+	private static void validateClause(String filterName, Clause clause) throws Exception {
+		if (clause instanceof TerminalClause) {
+			TerminalClause tc = (TerminalClause) clause;
+			Operand originalOperand = tc.getOperand();
+			String propertyName = tc.getName().toLowerCase();
+			if ("issuefunction".equals(propertyName)) {
+				throw new Exception("Filter [" + filterName + "] Property [" + propertyName + "] " + 
+						"issueFunction is no longer supported");
+			}
+			// TODO Check value?
+			if (originalOperand instanceof SingleValueOperand) {
+			} else if (originalOperand instanceof MultiValueOperand) {
+				MultiValueOperand mvo = (MultiValueOperand) originalOperand;
+			} else if (originalOperand instanceof FunctionOperand) {
+			}
+		} 
+		// Check children
+		for (Clause child :	clause.getClauses()) {
+			validateClause(filterName, child);
+		}
 	}
 	
 	/**
@@ -645,102 +953,6 @@ public class DashboardMigrator {
 		Log.printCount(LOGGER, "Filters migrated: ", migratedCount, filters.size());
 	}
 	
-	private static void mapFilters() throws Exception {
-		Log.info(LOGGER, "Processing Filters...");
-		List<Filter> filters = readValuesFromFile(MappingType.FILTER.getDC(), 
-				Filter.class);
-		Mapping userMapping = readFile(MappingType.USER.getMap(), Mapping.class);
-		Mapping projectMapping = readFile(MappingType.PROJECT.getMap(), Mapping.class);
-		Mapping roleMapping = readFile(MappingType.ROLE.getMap(), Mapping.class);
-		Mapping groupMapping = readFile(MappingType.GROUP.getMap(), Mapping.class);
-		Mapping fieldMapping = readFile(MappingType.CUSTOM_FIELD.getMap(), Mapping.class);
-		Map<String, Mapping> maps = new HashMap<>();
-		maps.put("project", projectMapping);
-		maps.put("field", fieldMapping);
-		int successCount = 0;
-		for (Filter filter : filters) {
-			boolean hasError = false;
-			// Translate owner
-			if (userMapping.getMapped().containsKey(filter.getOwner().getKey())) {
-				filter.getOwner().setAccountId(userMapping.getMapped().get(filter.getOwner().getKey()));
-			} else {
-				hasError = true;
-				Log.error(LOGGER, "Filter [" + filter.getName() + "] owner [" + filter.getOwner().getKey()
-						+ "] cannot be mapped");
-			}
-			// Translate permissions
-			for (DataCenterPermission permission : filter.getSharePermissions()) {
-				PermissionType type = PermissionType.parse(permission.getType());
-				if (type == PermissionType.USER) {
-					if (userMapping.getMapped().containsKey(permission.getUser().getId())) {
-						permission.getUser()
-								.setAccountId(userMapping.getMapped().get(permission.getUser().getKey()));
-					} else {
-						hasError = true;
-						Log.error(LOGGER, "Filter [" + filter.getName() + "] user [" + permission.getUser().getKey()
-								+ "] (" + permission.getUser().getDisplayName() + ") cannot be mapped");
-					}
-				} else if (type == PermissionType.GROUP) {
-					if (groupMapping.getMapped().containsKey(permission.getGroup().getName())) {
-						permission.getGroup()
-								.setGroupId(groupMapping.getMapped().get(permission.getGroup().getKey()));
-					} else {
-						hasError = true;
-						Log.error(LOGGER, "Filter [" + filter.getName() + "] group [" + permission.getGroup().getKey()
-								+ "] cannot be mapped");
-					}
-				} else if (type == PermissionType.PROJECT) {
-					if (projectMapping.getMapped().containsKey(permission.getProject().getId())) {
-						permission.getProject()
-								.setId(projectMapping.getMapped().get(permission.getProject().getId()));
-					} else {
-						hasError = true;
-						Log.error(LOGGER, "Filter [" + filter.getName() + "] project [" + permission.getProject().getId()
-								+ "] (" + permission.getProject().getName() + ") cannot be mapped");
-					}
-					if (permission.getRole() != null) {
-						permission.setType(PermissionType.PROJECT_ROLE.toString());
-						if (roleMapping.getMapped().containsKey(permission.getRole().getId())) {
-							permission.getRole().setId(roleMapping.getMapped().get(permission.getRole().getId()));
-						} else {
-							hasError = true;
-							Log.error(LOGGER, "Filter [" + filter.getName() + "] role [" + permission.getRole().getId()
-									+ "] (" + permission.getRole().getName() + ") cannot be mapped");
-						}
-					}
-				}
-			}
-			// Translate JQL
-			String jql = filter.getJql();
-			// Log.info(LOGGER, "Filter [" + filter.getName() + "] JQL: [" + jql + "]");
-			JqlLexer lexer = new JqlLexer((CharStream) new ANTLRStringStream(jql));
-			CommonTokenStream cts = new CommonTokenStream(lexer);
-			JqlParser parser = new JqlParser(cts);
-			query_return qr = parser.query();
-			Clause clone = cloneClause(filter.getName(), maps, qr.clause);
-			OrderBy orderClone = null;
-			if (qr.order != null) {
-				List<SearchSort> sortList = new ArrayList<>();
-				for (SearchSort ss : qr.order.getSearchSorts()) {
-					String newColumn = mapCustomFieldName(fieldMapping.getMapped(), ss.getField());
-					SearchSort newSS = new SearchSort(newColumn, ss.getProperty(), ss.getSortOrder());
-					sortList.add(newSS);
-					// Log.warn(LOGGER, "Mapped sort column for filter [" + filter.getName() + "] column
-					// [" + ss.getField() + "] => [" + newColumn + "]");
-				}
-				orderClone = new OrderByImpl(sortList);
-			}
-			// Log.info(LOGGER, "Updated JQL for filter [" + filter.getName() + "]: [" + clone +
-			// ((orderClone != null)? " " + orderClone : "") + "]");
-			filter.setJql(clone + ((orderClone != null) ? " " + orderClone : ""));
-			if (!hasError) {
-				successCount++;
-			}
-		}
-		saveFile(MappingType.FILTER.getRemapped(), filters);
-		Log.printCount(LOGGER, "Filters mapped: ", successCount, filters.size());
-	}
-	
 	private static Map<MappingType, Mapping> loadMappings(MappingType... excludes) throws Exception {
 		List<MappingType> excludeList = new ArrayList<>();
 		for (MappingType e : excludes) {
@@ -749,8 +961,12 @@ public class DashboardMigrator {
 		Map<MappingType, Mapping> result = new HashMap<>();
 		for (MappingType type : MappingType.values()) {
 			if (!excludeList.contains(type)) {
-				Mapping m = readFile(type.getMap(), Mapping.class);
-				result.put(type, m);
+				if (Files.exists(Paths.get(type.getMap()))) {
+					Mapping m = readFile(type.getMap(), Mapping.class);
+					result.put(type, m);
+				} else {
+					Log.warn(LOGGER, "Mapping [" + type.getMap() + "] cannot be loaded");
+				}
 			}
 		}
 		return result;
@@ -1036,10 +1252,9 @@ public class DashboardMigrator {
 		return result;
 	}
 
-	private static final Pattern CUSTOM_FIELD_CF = Pattern.compile("(cf\\[)([0-9]+)(\\])");
+	private static final Pattern CUSTOM_FIELD_CF = Pattern.compile("^cf\\[([0-9]+)\\]$");
 	private static final String CUSTOM_FIELD = "customfield_";
-
-	private static String mapCustomFieldName(Map<String, String> map, String data) {
+	private static String mapCustomFieldName(Map<String, String> map, String data) throws Exception {
 		// If data is customfield_#
 		if (map.containsKey(data)) {
 			return map.get(data);
@@ -1047,10 +1262,12 @@ public class DashboardMigrator {
 		// If data is cf[#]
 		Matcher m = CUSTOM_FIELD_CF.matcher(data);
 		if (m.matches()) {
-			if (map.containsKey(CUSTOM_FIELD + m.group(2))) {
-				String s = map.get(CUSTOM_FIELD + m.group(2));
+			if (map.containsKey(CUSTOM_FIELD + m.group(1))) {
+				String s = map.get(CUSTOM_FIELD + m.group(1));
 				s = s.substring(CUSTOM_FIELD.length());
 				return "cf[" + s + "]";
+			} else {
+				throw new Exception("Custom field [" + data + "] cannot be mapped");
 			}
 		}
 		if (data.contains(" ")) {
@@ -1060,7 +1277,7 @@ public class DashboardMigrator {
 		}
 	}
 
-	private static Clause cloneClause(String filterName, Map<String, Mapping> maps, Clause c) {
+	private static Clause cloneClause(String filterName, Map<String, Mapping> maps, Clause c) throws Exception {
 		Clause clone = null;
 		Map<String, String> propertyMap = maps.get("field").getMapped();
 		List<Clause> clonedChildren = new ArrayList<>();
@@ -1360,13 +1577,8 @@ public class DashboardMigrator {
 							mapUsersWithCSV(csvFile);
 						}
 						break;
-					case MAP_FILTER: 
-						mapFilters();
-						break;
 					case CREATE_FILTER: 
-						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-							createFilters(wrapper.getClient(), conf);
-						}
+						mapFiltersV2(conf);
 						break;
 					case MAP_DASHBOARD:
 						mapDashboards();

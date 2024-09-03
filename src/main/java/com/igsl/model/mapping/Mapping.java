@@ -2,15 +2,16 @@ package com.igsl.model.mapping;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class Mapping {
 	private MappingType type;
-	private Map<String, String> mapped = new HashMap<>();
-	private Map<String, List<String>> conflict = new HashMap<>();
+	private Map<String, String> mapped = new LinkedHashMap<>();
+	private Map<String, List<String>> conflict = new LinkedHashMap<>();
 	private List<Object> unmapped = new ArrayList<>();
-	private Map<String, String> failed = new HashMap<>();
+	private Map<String, String> failed = new LinkedHashMap<>();
 
 	public Mapping() {
 	}

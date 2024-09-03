@@ -18,7 +18,6 @@ public class CLI {
 		DUMP_DC(DUMPDC_OPTION),
 		DUMP_CLOUD(DUMPCLOUD_OPTION),
 		MAP_OBJECT(MAPOBJECT_OPTION),
-		MAP_FILTER(MAPFILTER_OPTION),
 		CREATE_FILTER(CREATEFILTER_OPTION),
 		DELETE_FILTER(DELETEFILTER_OPTION),
 		LIST_FILTER(LISTFILTER_OPTION),
@@ -81,12 +80,6 @@ public class CLI {
 			.hasArg()
 			.build();
 	
-	public static final Option MAPFILTER_OPTION = Option.builder()
-			.desc("Map filters")
-			.option("mf")
-			.longOpt("mapFilter")
-			.build();
-
 	public static final Option CREATEFILTER_OPTION = Option.builder()
 			.desc("Create filters in Cloud")
 			.option("cf")
@@ -134,7 +127,6 @@ public class CLI {
 			.addOption(DUMPDC_OPTION)
 			.addOption(DUMPCLOUD_OPTION)
 			.addOption(MAPOBJECT_OPTION)
-			.addOption(MAPFILTER_OPTION)
 			.addOption(CREATEFILTER_OPTION)
 			.addOption(DELETEFILTER_OPTION)
 			.addOption(LISTFILTER_OPTION)
