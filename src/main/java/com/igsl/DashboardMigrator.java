@@ -355,6 +355,7 @@ public class DashboardMigrator {
 	
 	@SuppressWarnings("incomplete-switch")
 	private static void mapFiltersV2(Config conf) throws Exception {
+		String myAccountId = getUserAccountId(conf, conf.getTargetUser());
 		// Results of mapped and failed filters
 		Mapping result = new Mapping(MappingType.FILTER);
 		List<Filter> remappedList = new ArrayList<>();
@@ -529,12 +530,30 @@ public class DashboardMigrator {
 						.path("/rest/api/latest/filter/search")
 						.method(HttpMethod.GET)
 						.query("filterName", "\"" + filter.getName() + "\"")
+						.query("overrideSharePermissions", true)
+						.query("accountId", newOwner)
 						.pagination(new Paged<Filter>(Filter.class).maxResults(1))
 						.requestAllPages();
 					Response respFilter = null;
 					boolean updateFilter = false;
 					Log.info(LOGGER, "Filter payload: [" + OM.writeValueAsString(cloudFilter) + "]");
 					if (foundFilterList.size() == 1) {
+						// Change owner to self so we can update it
+						PermissionTarget owner = new PermissionTarget();
+						owner.setAccountId(myAccountId);
+						Response respOwner = util.path("/rest/api/latest/filter/{filterId}/owner")
+								.pathTemplate("filterId", foundFilterList.get(0).getId())
+								.method(HttpMethod.PUT)
+								.payload(owner)
+								.request();
+						if (!checkStatusCode(respOwner, Response.Status.NO_CONTENT)) {
+							String msg = "Failed to set owner for filter [" + filter.getName() + "] to " + 
+									"[" + myAccountId + "]: " + 
+									respOwner.readEntity(String.class);
+							Log.error(LOGGER, msg);
+							result.getFailed().put(filter.getId(), msg);
+							continue;
+						}
 						cloudFilter.setId(foundFilterList.get(0).getId());
 						// Update filter
 						updateFilter = true;
@@ -562,7 +581,7 @@ public class DashboardMigrator {
 					result.getMapped().put(filter.getId(), newFilter.getId());
 					Log.info(LOGGER, "Filter [" + filter.getName() + "] " + 
 							(updateFilter? "updated" : "created") + ": " + newFilter.getId());
-					// Change owner
+					// Change owner to real target
 					PermissionTarget owner = new PermissionTarget();
 					owner.setAccountId(newOwner);
 					Response respOwner = util.path("/rest/api/latest/filter/{filterId}/owner")
@@ -1241,28 +1260,27 @@ public class DashboardMigrator {
 	}
 	*/
 	
+	private static String getUserAccountId(Config config, String userEmail) throws Exception {
+		RestUtil<User> userUtil = RestUtil.getInstance(User.class).config(config, true);
+		List<User> userList = userUtil.path("/rest/api/latest/user/picker")
+				.method(HttpMethod.GET)
+				.query("query", config.getTargetUser())
+				.pagination(new Paged<User>(User.class).maxResults(1).valuesProperty("users"))
+				.requestAllPages();
+		if (userList.size() == 1) {
+			return userList.get(0).getAccountId();
+		}
+		return null;
+	}
+	
 	private static void assignProjectRoles(
 			Client client, Config config, String accountId, String[] roleNames, boolean grant) 
 			throws Exception {
-		RestUtil<User> userUtil = RestUtil.getInstance(User.class).config(config, true);
 		RestUtil<Object> util = RestUtil.getInstance(Object.class).config(config, true);
 		Pattern pattern = Pattern.compile("^.+/([0-9]+)$");
 		// Get account if null
 		if (accountId == null) {
-			Map<String, Object> query = new HashMap<>();
-			query.put("query", config.getTargetUser());
-			query.put("maxResults", 1);
-			List<User> userList = userUtil.path("/rest/api/latest/user/picker")
-					.method(HttpMethod.GET)
-					.query("query", config.getTargetUser())
-					.pagination(new Paged<User>(User.class).maxResults(1).valuesProperty("users"))
-					.requestAllPages();
-			if (userList.size() == 1) {
-				accountId = userList.get(0).getAccountId();
-			} else {
-				Log.error(LOGGER, "Unable to retrieve account id for " + config.getTargetUser());
-				return;
-			}
+			accountId = getUserAccountId(config, config.getTargetUser());
 		}
 		// Get project list
 		List<Project> projectList = getCloudProjects(client, config);
