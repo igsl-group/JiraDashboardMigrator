@@ -47,6 +47,7 @@ public class CloudPermission {
 		return result;
 	}
 
+	@SuppressWarnings("incomplete-switch")
 	public static CloudPermission create(DataCenterPermission permission) {
 		CloudPermission result = null;
 		if (permission != null) {
@@ -65,7 +66,7 @@ public class CloudPermission {
 				case GROUP:
 					result.group = PermissionTarget.create(cpt, permission);
 					break;
-				case PROJECT_ROLE:
+				case PROJECT_ROLE: 
 					result.project = PermissionTarget.create(PermissionType.PROJECT, permission);
 					result.role = PermissionTarget.create(PermissionType.PROJECT_ROLE, permission);
 					break;

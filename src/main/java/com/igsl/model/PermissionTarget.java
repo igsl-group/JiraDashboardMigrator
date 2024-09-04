@@ -37,7 +37,7 @@ public class PermissionTarget {
 		PermissionTarget result = new PermissionTarget();
 		switch (type) {
 		case GROUP:
-			result.groupId = permission.getGroup().getGroupId();
+			result.name = permission.getGroup().getName();
 			break;
 		case PROJECT_ROLE:
 			result.id = permission.getRole().getId();

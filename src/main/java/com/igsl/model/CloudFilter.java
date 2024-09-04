@@ -22,7 +22,6 @@ public class CloudFilter {
 			result.name = filter.getName();
 			result.description = filter.getDescription();
 			result.jql = filter.getJql();
-			// TODO Add JQL parser and converter
 			result.sharePermissions = new ArrayList<CloudPermission>();
 			result.editPermissions = new ArrayList<CloudPermission>();
 			for (DataCenterPermission permission : filter.getSharePermissions()) {
@@ -34,6 +33,18 @@ public class CloudFilter {
 					CloudPermission cp = CloudPermission.create(permission);
 					result.sharePermissions.add(cp);
 				}
+			}
+			// If logged in user is in sharePermissions, delete everything else
+			CloudPermission shareAuthenticated = null;
+			for (CloudPermission permission : result.sharePermissions) {
+				if (PermissionType.LOGGED_IN.toString().equals(permission.getType())) {
+					shareAuthenticated = permission;
+					break;
+				}
+			}
+			if (shareAuthenticated != null) {
+				result.sharePermissions.clear();
+				result.sharePermissions.add(shareAuthenticated);
 			}
 		}
 		return result;
