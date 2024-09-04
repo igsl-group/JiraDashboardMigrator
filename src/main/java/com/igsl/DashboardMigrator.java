@@ -621,18 +621,20 @@ public class DashboardMigrator {
 	private static void validateClause(String filterName, Clause clause) throws Exception {
 		if (clause instanceof TerminalClause) {
 			TerminalClause tc = (TerminalClause) clause;
-			Operand originalOperand = tc.getOperand();
 			String propertyName = tc.getName().toLowerCase();
 			if ("issuefunction".equals(propertyName)) {
 				throw new Exception("Filter [" + filterName + "] Property [" + propertyName + "] " + 
 						"issueFunction is no longer supported");
 			}
 			// TODO Check value?
+			/*
+			Operand originalOperand = tc.getOperand();
 			if (originalOperand instanceof SingleValueOperand) {
 			} else if (originalOperand instanceof MultiValueOperand) {
 				MultiValueOperand mvo = (MultiValueOperand) originalOperand;
 			} else if (originalOperand instanceof FunctionOperand) {
 			}
+			*/
 		} 
 		// Check children
 		for (Clause child :	clause.getClauses()) {
