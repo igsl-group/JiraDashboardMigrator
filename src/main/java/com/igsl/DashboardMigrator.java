@@ -1331,6 +1331,7 @@ public class DashboardMigrator {
 		}
 	}
 
+	/*
 	private static SingleValueOperand cloneValue(SingleValueOperand src, Map<String, String> map, String filterName,
 			String propertyName) {
 		SingleValueOperand result = null;
@@ -1368,6 +1369,7 @@ public class DashboardMigrator {
 		}
 		return result;
 	}
+	*/
 
 	private static final Pattern CUSTOM_FIELD_CF = Pattern.compile("^cf\\[([0-9]+)\\]$");
 	private static final String CUSTOM_FIELD = "customfield_";
@@ -1394,6 +1396,7 @@ public class DashboardMigrator {
 		}
 	}
 
+	/*
 	private static Clause cloneClause(String filterName, Map<String, Mapping> maps, Clause c) throws Exception {
 		Clause clone = null;
 		Map<String, String> propertyMap = maps.get("field").getMapped();
@@ -1477,6 +1480,7 @@ public class DashboardMigrator {
 		}
 		return clone;
 	}
+	*/
 	
 	private static void assignProjectRoles(
 			Client client, Config config, String accountId, String[] roleNames, boolean grant) 
