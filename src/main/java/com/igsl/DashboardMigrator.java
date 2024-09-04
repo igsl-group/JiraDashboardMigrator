@@ -3,13 +3,12 @@ package com.igsl;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,12 +18,7 @@ import java.util.regex.Pattern;
 
 import javax.ws.rs.HttpMethod;
 import javax.ws.rs.client.Client;
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.client.Invocation.Builder;
-import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.GenericType;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 
 import org.antlr.runtime.ANTLRStringStream;
@@ -75,13 +69,11 @@ import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.node.JsonNodeType;
 import com.igsl.CLI.CLIOptions;
 import com.igsl.config.Config;
 import com.igsl.config.GadgetConfigType;
@@ -90,7 +82,6 @@ import com.igsl.model.CloudDashboard;
 import com.igsl.model.CloudFilter;
 import com.igsl.model.CloudGadget;
 import com.igsl.model.CloudGadgetConfiguration;
-import com.igsl.model.CloudPermission;
 import com.igsl.model.DataCenterPermission;
 import com.igsl.model.DataCenterPortalPage;
 import com.igsl.model.DataCenterPortalPermission;
@@ -98,18 +89,16 @@ import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.PermissionTarget;
 import com.igsl.model.PermissionType;
 import com.igsl.model.mapping.Dashboard;
-import com.igsl.model.mapping.DashboardSearchResult;
 import com.igsl.model.mapping.Filter;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
 import com.igsl.model.mapping.Project;
-import com.igsl.model.mapping.SearchResult;
 import com.igsl.model.mapping.User;
-import com.igsl.model.mapping.UserPicker;
 import com.igsl.mybatis.FilterMapper;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
+import com.igsl.rest.SinglePage;
 
 /**
  * Migrate dashboard and filter from Jira Data Center 8.14.1 to Jira Cloud. The
@@ -157,199 +146,6 @@ public class DashboardMigrator {
 		return new SqlSessionFactoryBuilder().build(configuration);
 	}
 	
-	/**
-	 * Overloaded version with default parameter values.
-	 */
-	private static <T> List<T> restCallWithPaging(
-			Client client, 
-			URI path, 
-			String method, 
-			MultivaluedMap<String, Object> headers,
-			Map<String, Object> queryParameters, 
-			Object data,
-			Class<T> objectClass) throws Exception {
-		return restCallWithPaging(
-				client, path, method, 
-				headers, queryParameters, data, 
-				null, 0, 
-				"startAt", 0,
-				null, 
-				"values",
-				objectClass);
-	}
-	
-	/** Invoke REST API with paging
-	 * 
-	 * @param client Client object with authentication already setup.
-	 * @param URI REST API full path.
-	 * @param method HTTP method.
-	 * @param headers MultivaluedMap<String, Object> containing request headers, can be null.
-	 * @param queryParameters Map<String, Object> containing query parameters, can be null.
-	 * @param data Object containing POST data, can be null.
-	 * @param pageSizeParameterName Name of page size parameter. Usually "maxResults". If null, page size is not set.
-	 * @param pageSize Page size.
-	 * @param pagingParameterName Name of starting index. Usually "startAt". 
-	 * @param startingPage Int of first starting index. Usually 0.
-	 * @param lastPageAttributeName Name of boolean attribute indicating last page.
-	 * 								If null, calls will continue until returned size is 0.
-	 * @param valuesAttributeName 	Name of attribute containing array of values. Usually "values". 
-	 * 								If null, the root is an array of values. lastPageAttributeName should be null.
-	 * @param objectClass Class<T> indicating which POJO to use to contain the values.
-	 */
-	private static <T> List<T> restCallWithPaging(
-				Client client, URI path, String method, 
-				MultivaluedMap<String, Object> headers,
-				Map<String, Object> queryParameters, 
-				Object data,
-				String pageSizeParameterName,
-				int pageSize,
-				String pagingParameterName,	
-				int startingPage,
-				String lastPageAttributeName,
-				String valuesAttributeName,
-				Class<T> objectClass
-			) throws Exception {
-		List<T> result = new ArrayList<>();
-		ObjectReader reader = OM.readerFor(objectClass);
-		int pageIndex = startingPage;
-		boolean done = false;
-		while (!done) {
-			WebTarget target = client.target(path);
-			if (queryParameters != null) {
-				for (Map.Entry<String, Object> entry : queryParameters.entrySet()) {
-					if (entry.getValue() instanceof Collection) {
-						Collection<?> list = (Collection<?>) entry.getValue();
-						target = target.queryParam(entry.getKey(), list.toArray());
-					} else if (entry.getValue().getClass().isArray()) {
-						Object[] list = (Object[]) entry.getValue();
-						target = target.queryParam(entry.getKey(), list);
-					} else {
-						target = target.queryParam(entry.getKey(), entry.getValue());
-					}
-				}
-			}
-			if (pageSizeParameterName != null) {
-				target = target.queryParam(pageSizeParameterName, pageSize);
-			}
-			target = target.queryParam(pagingParameterName, pageIndex);
-			Builder builder = target.request(MediaType.APPLICATION_JSON);
-			if (headers != null) {
-				builder = builder.headers(headers);
-			}
-			Response resp = null;
-			if (HttpMethod.DELETE.equals(method)) {
-				resp = builder.delete();
-			} else if (HttpMethod.GET.equals(method)) {
-				resp = builder.get();
-			} else if (HttpMethod.HEAD.equals(method)) {
-				resp = builder.head();
-			} else if (HttpMethod.OPTIONS.equals(method)) {
-				resp = builder.options();
-			} else if (HttpMethod.POST.equals(method)) {
-				resp = builder.post(Entity.entity(data, MediaType.APPLICATION_JSON));
-			} else if (HttpMethod.PUT.equals(method)) {
-				resp = builder.put(Entity.entity(data, MediaType.APPLICATION_JSON));
-			} else {
-				resp = builder.method(method, Entity.entity(data, MediaType.APPLICATION_JSON));
-			}
-			if (!checkStatusCode(resp, Response.Status.OK)) {
-				throw new Exception(resp.readEntity(String.class));
-			}
-			String s = resp.readEntity(String.class);
-			JsonNode root = OM.reader().readTree(s);
-			JsonNode values;
-			if (valuesAttributeName != null) {
-				values = root.get(valuesAttributeName);
-			} else {
-				values = root;
-			}
-			if (values == null) {
-				throw new Exception("Unable to read " + valuesAttributeName + " attribute");
-			}
-			if (values.getNodeType() != JsonNodeType.ARRAY) {
-				throw new Exception("Attribute " + valuesAttributeName + " is not an array");
-			}
-			// Check if it is last page
-			if (lastPageAttributeName != null) {
-				JsonNode lastPageNode = root.get(lastPageAttributeName);
-				if (lastPageNode == null) {
-					throw new Exception("Unable to read " + lastPageAttributeName + " attribute");
-				}
-				if (lastPageNode.getNodeType() != JsonNodeType.BOOLEAN) {
-					throw new Exception("Attribute " + lastPageAttributeName + " is not a boolean");
-				}
-				done = lastPageNode.asBoolean();
-			} else {
-				// Check result size
-				done = (values.size() == 0);
-			}
-			List<T> list = new ArrayList<>();
-			values.forEach(t -> {
-				try {
-					T obj = reader.readValue(t);
-					list.add(obj);
-				} catch (IOException e) {
-					throw new RuntimeException(
-							"Unable to parse JSON into " + objectClass.getCanonicalName() + ": " + t, e);
-				}
-			});
-			pageIndex += list.size();
-			result.addAll(list);
-		}
-		return result;
-	}
-
-	/**
-	 * Invoke REST API
-	 * 
-	 * @param client          Jersey2 client
-	 * @param path            URI
-	 * @param method          Method as string
-	 * @param acceptedTypes   String[]
-	 * @param headers         MultivaluedMap<String, Object>
-	 * @param queryParameters Map<String, List<Object>>
-	 * @param dataType        String, valid for POST and PUT
-	 * @param data            Object, valid for POST and PUT
-	 * @return Response
-	 * @throws Exception
-	 */
-	private static Response restCall(Client client, URI path, String method, MultivaluedMap<String, Object> headers,
-			Map<String, Object> queryParameters, Object data) throws Exception {
-		WebTarget target = client.target(path);
-		if (queryParameters != null) {
-			for (Map.Entry<String, Object> entry : queryParameters.entrySet()) {
-				if (entry.getValue() instanceof Collection) {
-					Collection<?> list = (Collection<?>) entry.getValue();
-					target = target.queryParam(entry.getKey(), list.toArray());
-				} else if (entry.getValue().getClass().isArray()) {
-					Object[] list = (Object[]) entry.getValue();
-					target = target.queryParam(entry.getKey(), list);
-				} else {
-					target = target.queryParam(entry.getKey(), entry.getValue());
-				}
-			}
-		}
-		Builder builder = target.request(MediaType.APPLICATION_JSON);
-		if (headers != null) {
-			builder = builder.headers(headers);
-		}
-		if (HttpMethod.DELETE.equals(method)) {
-			return builder.delete();
-		} else if (HttpMethod.GET.equals(method)) {
-			return builder.get();
-		} else if (HttpMethod.HEAD.equals(method)) {
-			return builder.head();
-		} else if (HttpMethod.OPTIONS.equals(method)) {
-			return builder.options();
-		} else if (HttpMethod.POST.equals(method)) {
-			return builder.post(Entity.entity(data, MediaType.APPLICATION_JSON));
-		} else if (HttpMethod.PUT.equals(method)) {
-			return builder.put(Entity.entity(data, MediaType.APPLICATION_JSON));
-		} else {
-			return builder.method(method, Entity.entity(data, MediaType.APPLICATION_JSON));
-		}
-	}
-
 	private static boolean checkStatusCode(Response resp, Response.Status check) {
 		if ((resp.getStatus() & check.getStatusCode()) == check.getStatusCode()) {
 			return true;
@@ -358,12 +154,12 @@ public class DashboardMigrator {
 	}
 
 	private static List<Project> getCloudProjects(Client client, Config conf) throws Exception {
-		List<Project> result = restCallWithPaging(
-				client, 
-				new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/project/search"), 
-				HttpMethod.GET, 
-				null, null, null,
-				Project.class);	
+		List<Project> result = RestUtil.getInstance(Project.class)
+				.config(conf, true)
+				.path("/rest/api/latest/project/search")
+				.method(HttpMethod.GET)
+				.pagination(new Paged<Project>(Project.class))
+				.requestAllPages();
 		return result;
 	}
 
@@ -371,8 +167,11 @@ public class DashboardMigrator {
 		Config result = null;
 		String configFile = cli.getOptionValue(CLI.CONFIG_OPTION);
 		ObjectReader reader = OM.readerFor(Config.class);
-		try (FileReader fr = new FileReader(configFile)) {
+		Path p = Paths.get(configFile);
+		Log.info(LOGGER, "Reading configuration file: [" + p.toAbsolutePath() + "]");
+		try (FileReader fr = new FileReader(p.toFile())) {
 			result = reader.readValue(fr);
+			Log.info(LOGGER, "Config: [" + OM.writeValueAsString(result) + "]");
 		} catch (IOException ioex) {
 			Log.error(LOGGER, "Unable to read configuration file [" + configFile + "]", ioex);
 		}
@@ -607,8 +406,9 @@ public class DashboardMigrator {
 						// This happens when you share to a project you cannot access. 
 						// This type of permissions cannot be created via REST.
 						// So this is excluded.
-						Log.warn(LOGGER, "Share permission to inaccessible project [" + 
-								share.getProject().getId() + "] excluded");
+						Log.warn(LOGGER, "Filter [" + filter.getName() + "] " + 
+								"share permission to inaccessible objects [" + OM.writeValueAsString(share) + "] " + 
+								"is excluded");
 						break;
 					case GROUP:
 						if (mappings.get(MappingType.GROUP).getMapped().containsKey(share.getGroup().getName())) {
@@ -937,6 +737,8 @@ public class DashboardMigrator {
 	
 	private static void createDashboards(Client cloudClient, Config conf) throws Exception {
 		Log.info(LOGGER, "Creating dashboards...");
+		RestUtil<Object> util = RestUtil.getInstance(Object.class)
+				.config(conf, true);
 		List<DataCenterPortalPage> dashboards = readValuesFromFile(MappingType.DASHBOARD.getRemapped(),
 				DataCenterPortalPage.class);
 		// Create dashboard mapping along the way
@@ -945,10 +747,14 @@ public class DashboardMigrator {
 		for (DataCenterPortalPage dashboard : dashboards) {
 			// Create dashboard
 			CloudDashboard cd = CloudDashboard.create(dashboard);
+			
+			// TODO Remap permissions
+			
 			Log.info(LOGGER, "CloudDashboard: " + OM.writeValueAsString(cd));
-			Response resp = restCall(cloudClient,
-					new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/dashboard"), HttpMethod.POST, null,
-					null, cd);
+			Response resp = util.path("/rest/api/latest/dashboard")
+					.method(HttpMethod.POST)
+					.payload(cd)
+					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				CloudDashboard createdDashboard = resp.readEntity(CloudDashboard.class);
 				// Sort portlets with position
@@ -959,10 +765,11 @@ public class DashboardMigrator {
 					CloudGadget cg = CloudGadget.create(gadget);
 					Log.info(LOGGER, "DC Gadget: " + OM.writeValueAsString(gadget));
 					Log.info(LOGGER, "Cloud Gadget: " + OM.writeValueAsString(cg));
-					Response resp1 = restCall(cloudClient,
-							new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/dashboard/")
-									.resolve(createdDashboard.getId() + "/").resolve("gadget"),
-							HttpMethod.POST, null, null, cg);
+					Response resp1 = util.path("/rest/api/latest/dashboard/{boardId}/gadget")
+							.pathTemplate("boardId", createdDashboard.getId())
+							.method(HttpMethod.POST)
+							.payload(cg)
+							.request();
 					if (checkStatusCode(resp1, Response.Status.OK)) {
 						CloudGadget createdGadget = resp1.readEntity(CloudGadget.class);
 						// Gadget configuration
@@ -977,12 +784,14 @@ public class DashboardMigrator {
 							switch (configType) {
 							case CONFIG: 
 								// Add all properties under propertyKey as JSON
-								resp2 = restCall(cloudClient,
-										new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/dashboard/")
-												.resolve(createdDashboard.getId() + "/").resolve("items/")
-												.resolve(createdGadget.getId() + "/").resolve("properties/")
-												.resolve(GadgetConfigType.CONFIG.getPropertyKey()),
-										HttpMethod.PUT, null, null, cc);
+								resp2 = util
+									.path("/rest/api/latest/dashboard/{boardId}/items/{gadgetId}/properties/{key}")
+									.pathTemplate("boardId", createdDashboard.getId())
+									.pathTemplate("gadgetId", createdGadget.getId())
+									.pathTemplate("key", GadgetConfigType.CONFIG.getPropertyKey())
+									.method(HttpMethod.PUT)
+									.payload(cc)
+									.request();
 								if (!checkStatusCode(resp2, Response.Status.OK)) {
 									Log.error(LOGGER, "Failed to config for gadget [" + gadget.getGadgetXml() + 
 											"] in dashboard ["
@@ -993,12 +802,14 @@ public class DashboardMigrator {
 								// Add property one by one
 								for (Map.Entry<String, String> entry : cc.entrySet()) {
 									Log.info(LOGGER, "Config: [" + entry.getKey() + "] = [" + entry.getValue() + "]");
-									resp2 = restCall(cloudClient,
-											new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/dashboard/")
-													.resolve(createdDashboard.getId() + "/").resolve("items/")
-													.resolve(createdGadget.getId() + "/").resolve("properties/")
-													.resolve(entry.getKey()),
-											HttpMethod.PUT, null, null, entry.getValue());
+									resp2 = util
+											.path("/rest/api/latest/dashboard/{boardId}/items/{gadgetId}/properties/{key}")
+											.pathTemplate("boardId", createdDashboard.getId())
+											.pathTemplate("gadgetId", createdGadget.getId())
+											.pathTemplate("key", entry.getKey())
+											.method(HttpMethod.PUT)
+											.payload(entry.getValue())
+											.request();
 									if (!checkStatusCode(resp2, Response.Status.OK)) {
 										Log.error(LOGGER, "Failed to config for gadget [" + gadget.getGadgetXml() + 
 												"] in dashboard ["
@@ -1031,43 +842,6 @@ public class DashboardMigrator {
 		}
 		saveFile(MappingType.DASHBOARD.getMap(), migratedList);
 		Log.printCount(LOGGER, "Dashboards migrated: ", migratedCount, dashboards.size());
-	}
-	
-	private static void createFilters(Client cloudClient, Config conf) throws Exception {
-		Log.info(LOGGER, "Creating filters...");
-		List<Filter> filters = readValuesFromFile(MappingType.FILTER.getRemapped(), Filter.class);
-		// Create filter mapping along the way
-		Mapping migratedList = new Mapping(MappingType.FILTER);
-		int migratedCount = 0;
-		for (Filter filter : filters) {
-			CloudFilter cf = CloudFilter.create(filter);
-			Response resp = restCall(cloudClient,
-					new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/filter"), 
-					HttpMethod.POST, null, null,
-					cf);
-			if (checkStatusCode(resp, Response.Status.OK)) {
-				CloudFilter newFilter = resp.readEntity(CloudFilter.class);
-				// Change owner
-				PermissionTarget owner = new PermissionTarget();
-				owner.setAccountId(filter.getOwner().getAccountId());
-				Response resp2 = restCall(cloudClient, new URI(conf.getTargetRESTBaseURL())
-						.resolve("rest/api/latest/filter/").resolve(newFilter.getId() + "/").resolve("owner"),
-						HttpMethod.PUT, null, null, owner);
-				if (!checkStatusCode(resp2, Response.Status.NO_CONTENT)) {
-					Log.error(LOGGER, "Failed to set owner for filter [" + filter.getName() + "]: "
-							+ resp2.readEntity(String.class));
-				}
-				// TODO Change permissions	
-				migratedList.getMapped().put(filter.getId(), newFilter.getId());
-				migratedCount++;
-			} else {
-				String msg = resp.readEntity(String.class);
-				migratedList.getFailed().put(filter.getId(), msg);
-				Log.error(LOGGER, "Failed to create filter [" + filter.getName() + "]: " + msg);
-			}
-		}
-		saveFile(MappingType.FILTER.getMap(), migratedList);
-		Log.printCount(LOGGER, "Filters migrated: ", migratedCount, filters.size());
 	}
 	
 	private static Map<MappingType, Mapping> loadMappings(MappingType... excludes) throws Exception {
@@ -1229,28 +1003,12 @@ public class DashboardMigrator {
 	private static void listFilter(Client cloudClient, Config conf)
 			throws Exception {
 		Log.info(LOGGER, "List filters from Cloud...");
-		URI uri = new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/filter/search");
-		Map<String, String> result = new HashMap<>();
-		int startAt = 0;
-		int maxResults = 50;
-		boolean isLast = false;
-		do {
-			Map<String, Object> queryParameters = new HashMap<>();
-			queryParameters.put("startAt", startAt);
-			queryParameters.put("maxResults", maxResults);
-			Response resp = restCall(cloudClient, uri, HttpMethod.GET, null, queryParameters, null);
-			if (checkStatusCode(resp, Response.Status.OK)) {
-				SearchResult<Filter> searchResult = resp.readEntity(new GenericType<SearchResult<Filter>>() {
-				});
-				isLast = searchResult.getIsLast();
-				for (Filter f : searchResult.getValues()) {
-					result.put(f.getId(), f.getId());
-				}
-				startAt += searchResult.getMaxResults();
-			} else {
-				throw new Exception(resp.readEntity(String.class));
-			}
-		} while (!isLast);
+		List<Filter> result = RestUtil.getInstance(Filter.class)
+				.config(conf, true)
+				.path("/rest/api/latest/filter/search")
+				.method(HttpMethod.GET)
+				.pagination(new Paged<Filter>(Filter.class))
+				.requestAllPages();
 		saveFile(MappingType.FILTER.getList(), result);
 		Log.info(LOGGER, "Filters found: " + result.size());
 		Log.info(LOGGER, "Filter list completed");
@@ -1258,17 +1016,12 @@ public class DashboardMigrator {
 
 	private static void listDashboard(Client cloudClient, Config conf) throws Exception {
 		Log.info(LOGGER, "List dashboards from Cloud...");
-		URI uri = new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/dashboard");
-		Map<String, String> result = new HashMap<>();
-		Response resp = restCall(cloudClient, uri, HttpMethod.GET, null, null, null);
-		if (checkStatusCode(resp, Response.Status.OK)) {
-			DashboardSearchResult searchResult = resp.readEntity(DashboardSearchResult.class);
-			for (Dashboard d : searchResult.getDashboards()) {
-				result.put(d.getId(), d.getId());
-			}
-		} else {
-			throw new Exception(resp.readEntity(String.class));
-		}
+		List<Dashboard> result = RestUtil.getInstance(Dashboard.class)
+				.config(conf, true)
+				.path("/rest/api/latest/dashboard")
+				.method(HttpMethod.GET)
+				.pagination(new Paged<Dashboard>(Dashboard.class).valuesProperty("dashboards"))
+				.requestAllPages();
 		saveFile(MappingType.DASHBOARD.getList(), result);
 		Log.info(LOGGER, "Dashboards found: " + result.size());
 		Log.info(LOGGER, "Dashboard list completed");
@@ -1278,10 +1031,12 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "Deleting migrated filters...");
 		Mapping filters = readFile(MappingType.FILTER.getMap(), Mapping.class);
 		int deletedCount = 0;
+		RestUtil<Object> util = RestUtil.getInstance(Object.class).config(conf, true);
 		for (Map.Entry<String, String> filter : filters.getMapped().entrySet()) {
-			Response resp = restCall(cloudClient,
-					new URI(conf.getTargetRESTBaseURL()).resolve("rest/api/latest/filter/").resolve(filter.getValue()),
-					HttpMethod.DELETE, null, null, null);
+			Response resp = util.path("/rest/api/latest/filter/{filterId}")
+					.pathTemplate("filterId", filter.getValue())
+					.method(HttpMethod.DELETE)
+					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				deletedCount++;
 			} else {
@@ -1297,10 +1052,12 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "Deleting migrated dashboards...");
 		Mapping dashboards = readFile(MappingType.DASHBOARD.getMap(), Mapping.class);
 		int deletedCount = 0;
+		RestUtil<Object> util = RestUtil.getInstance(Object.class).config(conf, true);
 		for (Map.Entry<String, String> dashboard : dashboards.getMapped().entrySet()) {
-			Response resp = restCall(cloudClient, new URI(conf.getTargetRESTBaseURL())
-					.resolve("rest/api/latest/dashboard/").resolve(dashboard.getValue()), HttpMethod.DELETE, null, null,
-					null);
+			Response resp = util.path("/rest/api/latest/dashboard/{boardId}")
+					.pathTemplate("boardId", dashboard.getValue())
+					.method(HttpMethod.DELETE)
+					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				deletedCount++;
 			} else {
@@ -1485,21 +1242,21 @@ public class DashboardMigrator {
 	private static void assignProjectRoles(
 			Client client, Config config, String accountId, String[] roleNames, boolean grant) 
 			throws Exception {
+		RestUtil<User> userUtil = RestUtil.getInstance(User.class).config(config, true);
+		RestUtil<Object> util = RestUtil.getInstance(Object.class).config(config, true);
 		Pattern pattern = Pattern.compile("^.+/([0-9]+)$");
 		// Get account if null
 		if (accountId == null) {
 			Map<String, Object> query = new HashMap<>();
 			query.put("query", config.getTargetUser());
 			query.put("maxResults", 1);
-			Response resp = restCall(
-					client, 
-					new URI(config.getTargetRESTBaseURL())
-						.resolve("/rest/api/3/user/picker"), 
-					HttpMethod.GET, 
-					null, query, null);
-			UserPicker userPicker = resp.readEntity(UserPicker.class);
-			if (userPicker.getTotal() == 1) {
-				accountId = userPicker.getUsers().get(0).getAccountId();
+			List<User> userList = userUtil.path("/rest/api/latest/user/picker")
+					.method(HttpMethod.GET)
+					.query("query", config.getTargetUser())
+					.pagination(new Paged<User>(User.class).maxResults(1).valuesProperty("users"))
+					.requestAllPages();
+			if (userList.size() == 1) {
+				accountId = userList.get(0).getAccountId();
 			} else {
 				Log.error(LOGGER, "Unable to retrieve account id for " + config.getTargetUser());
 				return;
@@ -1509,13 +1266,12 @@ public class DashboardMigrator {
 		List<Project> projectList = getCloudProjects(client, config);
 		for (Project project : projectList) {
 			// For each project, get role list
-			Response resp = restCall(	client, 
-										new URI(config.getTargetRESTBaseURL())
-											.resolve("/rest/api/3/project/")
-											.resolve(project.getId() + "/")
-											.resolve("role"),
-										HttpMethod.GET,
-										null, null, null);
+			Response resp = util
+					.path("/rest/api/latest/project/{projectId}/role")
+					.pathTemplate("projectId", project.getId())
+					.method(HttpMethod.GET)
+					.pagination(new SinglePage<Object>(Object.class))
+					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				// Parse name and id
 				Map<String, String> roleMap = new HashMap<>();
@@ -1539,25 +1295,22 @@ public class DashboardMigrator {
 						Map<String, Object> query = new HashMap<>();	
 						Map<String, Object> payload = new HashMap<>();
 						if (grant) {
-							// Put user in post data
+							// Put user in post data for grant
 							List<String> userList = new ArrayList<>();
 							userList.add(accountId);
 							payload.put("user", userList);
 						} else {
-							// Put user in query
+							// Put user in query for revoke
 							query.put("user", accountId);
 						}
-						Response resp2 = restCall(
-								client,
-								new URI(config.getTargetRESTBaseURL())
-									.resolve("/rest/api/3/project/")
-									.resolve(project.getId() + "/")
-									.resolve("role/")
-									.resolve(roleId),
-								(grant? HttpMethod.POST : HttpMethod.DELETE),
-								null, 
-								(grant? null : query), 
-								(grant? payload : null));
+						Response resp2 = util.path("/rest/api/latest/project/{projectId}/role/{roleId}")
+								.pathTemplate("projectId", project.getId())
+								.pathTemplate("roleId", roleId)
+								.method((grant? HttpMethod.POST : HttpMethod.DELETE))
+								.query((grant? null : query))
+								.payload((grant? payload : null))
+								.status(null)
+								.request();
 						if (grant) {
 							// Grant result
 							switch (resp2.getStatus()) {
@@ -1672,6 +1425,8 @@ public class DashboardMigrator {
 				// CLI.MAIN_OPTIONS
 				if (cli.getOptions().length < 2) {
 					CLI.printHelp();
+					System.out.println("Config.json syntax: ");
+					System.out.println(OM.writeValueAsString(Config.getExample()));
 					return;
 				}
 				for (Option op : cli.getOptions()) {
@@ -1730,7 +1485,7 @@ public class DashboardMigrator {
 						}
 						break;
 					}
-				}				
+				}
 			}
 		} catch (Exception ex) {
 			LOGGER.fatal("Exception: " + ex.getMessage(), ex);

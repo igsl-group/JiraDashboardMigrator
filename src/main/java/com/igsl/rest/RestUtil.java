@@ -130,13 +130,12 @@ public class RestUtil<T> {
 			throws UnsupportedEncodingException, URISyntaxException {
 		if (cloud) {
 			return this
-					.scheme(DEFAULT_SCHEME)
+					.scheme(config.getTargetScheme())
 					.host(config.getTargetHost())
 					.authenticate(config.getTargetUser(), config.getTargetAPIToken());
 		} else {
-			URI uri = new URI(config.getSourceRESTBaseURL());
 			return this
-					.scheme(uri.getScheme())
+					.scheme(config.getSourceScheme())
 					.host(config.getSourceHost())
 					.authenticate(config.getSourceUser(), config.getSourcePassword());
 		}
@@ -271,28 +270,27 @@ public class RestUtil<T> {
 	/**
 	 * Set valid status codes. These codes with be checked with bitwise AND.
 	 * Default is [HttpStatus.SC_OK]
+	 * Pass null as statuses to bypass status code check. Call .request() and check the response code.
 	 * @param statuses Valid status codes.
 	 */
 	public RestUtil<T> status(int... statuses) {
-		this.bitwiseStatus = true;
-		this.statusList = new ArrayList<>();
-		for (int status : statuses) {
-			this.statusList.add(status);
-		}
-		return this;
+		return this.status(true, statuses);
 	}
 	
 	/**
 	 * Set valid status codes.
 	 * Default is true, [HttpStatus.SC_OK]
+	 * Pass null as statuses to bypass status code check. Call .request() and check the response code.
 	 * @param bitwiseAnd If false, status code must match exactly. Otherwise checked with bitwise AND.
 	 * @param statuses Valid status codes.
 	 */
 	public RestUtil<T> status(boolean bitwiseAnd, int... statuses) {
 		this.bitwiseStatus = bitwiseAnd;
 		this.statusList = new ArrayList<>();
-		for (int status : statuses) {
-			this.statusList.add(status);
+		if (statuses != null) {
+			for (int status : statuses) {
+				this.statusList.add(status);
+			}
 		}
 		return this;
 	}

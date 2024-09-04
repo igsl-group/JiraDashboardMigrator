@@ -1,21 +1,42 @@
 package com.igsl.config;
 
 public class Config {
-	private String sourceDatabaseURL = "[Connection string to source database, e.g. jdbc:postgresql://127.0.0.1:5432/jiradb]";
-	private String sourceDatabaseUser = "[Database user, e.g. postgres]";
-	private String sourceDatabasePassword = "[Database password]";
-	private String sourceRESTBaseURL = "[Base URL for Jira 8.14.1 REST API, e.g. http://localhost:8080/jira]";
-	private String sourceUser = "[Source Jira user, e.g. localadmin]";
-	private String sourcePassword = "[Source Jira password]";
-	private String targetRESTBaseURL = "[Base URL for Jira Cloud REST API, e.g. https://igsl-cms-uat.atlassian.net]";
-	private String targetUser = "[Cloud site user, e.g kc.wong@igsl-group.com]";
-	private String targetAPIToken = "[REST API token, generate one at https://id.atlassian.com/manage-profile/security/api-tokens]";
-	private boolean jerseyLog = false;
+	public static final String DEFAULT_SCHEME = "https";
+	
+	private String sourceDatabaseURL;
+	private String sourceDatabaseUser;
+	private String sourceDatabasePassword;
 
-	private String sourceScheme = "[https/http, defaults to https]";
-	private String sourceHost = "[IP]:[Port]";
-	private String targetScheme = "[https/http, defaults to https]";
-	private String targetHost = "[Cloud Domain].atlassian.net";
+	private String sourceScheme = DEFAULT_SCHEME;
+	private String sourceHost;
+	private String sourceUser;
+	private String sourcePassword;
+	
+	private String targetScheme = DEFAULT_SCHEME;
+	private String targetHost;
+	private String targetUser;
+	private String targetAPIToken;
+	
+	private boolean jerseyLog = false;
+	
+	public static Config getExample() {
+		Config c = new Config();
+		c.sourceDatabaseURL = "[Connection string to source database, e.g. jdbc:postgresql://127.0.0.1:5432/jiradb]";
+		c.sourceDatabaseUser = "[Database user, e.g. postgres]";
+		c.sourceDatabasePassword = "[Database password]";
+
+		c.sourceScheme = "[https/http, defaults to https]";
+		c.sourceHost = "[IP]:[Port]";
+		c.sourceUser = "[Source Jira user, e.g. localadmin]";
+		c.sourcePassword = "[Source Jira password]";
+		
+		c.targetScheme = "[https/http, defaults to https]";
+		c.targetHost = "[Cloud Domain].atlassian.net";
+		c.targetUser = "[Cloud site user, e.g kc.wong@igsl-group.com]";
+		c.targetAPIToken = "[REST API token, generate one at https://id.atlassian.com/manage-profile/security/api-tokens]";
+	
+		return c;
+	}
 	
 	// Generated
 	public String getSourceUser() {
@@ -56,22 +77,6 @@ public class Config {
 
 	public void setSourceDatabasePassword(String sourceDatabasePassword) {
 		this.sourceDatabasePassword = sourceDatabasePassword;
-	}
-
-	public String getSourceRESTBaseURL() {
-		return sourceRESTBaseURL;
-	}
-
-	public void setSourceRESTBaseURL(String sourceRESTBaseURL) {
-		this.sourceRESTBaseURL = sourceRESTBaseURL;
-	}
-
-	public String getTargetRESTBaseURL() {
-		return targetRESTBaseURL;
-	}
-
-	public void setTargetRESTBaseURL(String targetRESTBaseURL) {
-		this.targetRESTBaseURL = targetRESTBaseURL;
 	}
 
 	public String getTargetUser() {
