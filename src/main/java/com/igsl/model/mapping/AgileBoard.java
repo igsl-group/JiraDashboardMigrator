@@ -41,7 +41,6 @@ public class AgileBoard extends JiraObject<AgileBoard> {
 	@Override
 	protected List<AgileBoard> _getObjects(
 			Config config, Class<AgileBoard> dataClass, boolean cloud, 
-			Map<MappingType, List<? extends JiraObject<?>>> map, 
 			Object... data)
 			throws Exception {
 		RestUtil<AgileBoard> util = RestUtil.getInstance(dataClass);
@@ -51,7 +50,7 @@ public class AgileBoard extends JiraObject<AgileBoard> {
 		// Get agile board config, and therefore, filter name
 		for (AgileBoard board : result) {
 			List<AgileBoardConfig> confList = 
-					JiraObject.getObjects(config, AgileBoardConfig.class, cloud, map, board.getId());
+					JiraObject.getObjects(config, AgileBoardConfig.class, cloud, board.getId());
 			if (confList.size() == 1) {
 				board.setFilterName(confList.get(0).getFilter().getName());
 			}

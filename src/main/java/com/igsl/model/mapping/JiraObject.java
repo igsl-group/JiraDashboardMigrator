@@ -89,7 +89,6 @@ public abstract class JiraObject<T> implements Comparable<T> {
 			Config config, 
 			Class<T> dataClass, 
 			boolean cloud,
-			Map<MappingType, List<? extends JiraObject<?>>> map, 
 			Object... data)
 			throws Exception {
 		RestUtil<T> util = RestUtil.getInstance(dataClass);
@@ -111,13 +110,12 @@ public abstract class JiraObject<T> implements Comparable<T> {
 			Config config, 
 			Class<U> dataClass, 
 			boolean cloud, 
-			Map<MappingType, List<? extends JiraObject<?>>> map, 
 			Object... data) 
 			throws Exception {
 		// Get a dummy instance of POJO class to invoke its .export() method
 		U cls = dataClass.getConstructor().newInstance();
 		Method method = dataClass.getSuperclass().getDeclaredMethod(
-				"_getObjects", Config.class, Class.class, boolean.class, Map.class, Object[].class);
-		return (List<U>) method.invoke(cls, config, dataClass, cloud, map, data);
+				"_getObjects", Config.class, Class.class, boolean.class, Object[].class);
+		return (List<U>) method.invoke(cls, config, dataClass, cloud, data);
 	}
 }

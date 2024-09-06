@@ -178,7 +178,7 @@ public class DashboardMigrator {
 		return result;
 	}
 
-	private static <T> T readFile(String fileName, Class<? extends T> cls) throws IOException, JsonParseException {
+	public static <T> T readFile(String fileName, Class<? extends T> cls) throws IOException, JsonParseException {
 		ObjectReader reader = OM.readerFor(cls);
 		StringBuilder sb = new StringBuilder();
 		for (String line : Files.readAllLines(Paths.get(fileName), DEFAULT_CHARSET)) {
@@ -187,7 +187,7 @@ public class DashboardMigrator {
 		return reader.readValue(sb.toString());
 	}
 
-	private static <T> List<T> readValuesFromFile(String fileName, Class<? extends T> cls) 
+	public static <T> List<T> readValuesFromFile(String fileName, Class<? extends T> cls) 
 			throws IOException, JsonParseException {
 		ObjectReader reader = OM.readerFor(cls);
 		StringBuilder sb = new StringBuilder();
@@ -674,7 +674,7 @@ public class DashboardMigrator {
 			List<Integer> filters = filterMapper.getFilters();
 			List<Filter> filterList = new ArrayList<>();
 			for (Integer id : filters) {
-				List<Filter> filter = JiraObject.getObjects(conf, Filter.class, false, null, id);
+				List<Filter> filter = JiraObject.getObjects(conf, Filter.class, false, id);
 				filterList.addAll(filter);
 			}
 			Log.info(LOGGER, "Filters found: " + filterList.size());
@@ -693,26 +693,25 @@ public class DashboardMigrator {
 		}
 	}
 	
-	private static Map<MappingType, List<? extends JiraObject<?>>> dumpObjects(
-			Config conf, boolean cloud) throws Exception {
-		Map<MappingType, List<? extends JiraObject<?>>> map = new HashMap<>();
+	private static void dumpObjects(
+			Config conf, boolean cloud, List<MappingType> requestedTypes) throws Exception {
 		for (MappingType type : MappingType.values()) {
-			Class<?> dataClass = null;
-			if (cloud && type.isIncludeCloud()) {
-				dataClass = type.getDataClass();
-			} else if (!cloud && type.isIncludeServer()) {
-				dataClass = type.getDataClass();
-			}
-			if (dataClass != null) {
-				@SuppressWarnings({ "unchecked" })
-				List<? extends JiraObject<?>> list = 
-					(List<? extends JiraObject<?>>) JiraObject.getObjects(conf, dataClass, cloud, map);
-				map.put(type, list);
-				Log.info(LOGGER, type + ": " + list.size() + " object(s) found");
-				saveFile((cloud? type.getCloud() : type.getDC()), list);
+			if (requestedTypes.contains(type)) {
+				Class<?> dataClass = null;
+				if (cloud && type.isIncludeCloud()) {
+					dataClass = type.getDataClass();
+				} else if (!cloud && type.isIncludeServer()) {
+					dataClass = type.getDataClass();
+				}
+				if (dataClass != null) {
+					@SuppressWarnings({ "unchecked" })
+					List<? extends JiraObject<?>> list = 
+						(List<? extends JiraObject<?>>) JiraObject.getObjects(conf, dataClass, cloud);
+					Log.info(LOGGER, type + ": " + list.size() + " object(s) found");
+					saveFile((cloud? type.getCloud() : type.getDC()), list);
+				}
 			}
 		}
-		return map;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -865,7 +864,7 @@ public class DashboardMigrator {
 		Log.printCount(LOGGER, "Dashboards migrated: ", migratedCount, dashboards.size());
 	}
 	
-	private static Map<MappingType, Mapping> loadMappings(MappingType... excludes) throws Exception {
+	public static Map<MappingType, Mapping> loadMappings(MappingType... excludes) throws Exception {
 		List<MappingType> excludeList = new ArrayList<>();
 		for (MappingType e : excludes) {
 			excludeList.add(e);
@@ -1417,6 +1416,26 @@ public class DashboardMigrator {
 		}
 	}
 	
+	private static List<MappingType> parseMappingTypes(String... objectTypes) {
+		List<MappingType> requestedTypes = new ArrayList<>();
+		if (objectTypes != null) {
+			for (String s : objectTypes) {
+				MappingType type = MappingType.parse(s);
+				if (type != null) {
+					requestedTypes.add(type);
+				} else {
+					Log.error(LOGGER, "Invalid object type [" + s + "] ignored");
+				}
+			}
+		} else {
+			// Add all
+			for (MappingType type : MappingType.values()) {
+				requestedTypes.add(type);
+			}
+		}
+		return requestedTypes;
+	}
+	
 	@SuppressWarnings("incomplete-switch")
 	public static void main(String[] args) {
 		try {
@@ -1457,13 +1476,16 @@ public class DashboardMigrator {
 					switch (opt) {
 					case DUMP_DC: {
 						getCredentials(conf, false);
-						dumpObjects(conf, false);
-						dumpDashboard(conf);
+						List<MappingType> types = parseMappingTypes(cli.getOptionValues(CLI.DUMPDC_OPTION));
+						dumpObjects(conf, false, types);
+						if (types.contains(MappingType.FILTER) && types.contains(MappingType.DASHBOARD)) {
+							dumpDashboard(conf);
+						}
 						break;
 					}
 					case DUMP_CLOUD:
 						getCredentials(conf, true);
-						dumpObjects(conf, true);
+						dumpObjects(conf, true, parseMappingTypes(cli.getOptionValues(CLI.DUMPDC_OPTION)));
 						break;
 					case MAP_OBJECT:
 						mapObjectsV2();

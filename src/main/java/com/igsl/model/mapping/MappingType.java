@@ -38,6 +38,31 @@ public enum MappingType {
 		this.nameInJQL = nameInFilter;
 	}	
 	
+	public static String getMappingTypes(boolean cloud) {
+		StringBuilder sb = new StringBuilder();
+		for (MappingType type : MappingType.values()) {
+			if ((cloud && type.isIncludeCloud()) || 
+				(!cloud && type.isIncludeServer())) {
+				sb.append(",").append(type.toString());
+			}
+		}
+		sb.append("\nNote: " + PROJECT_COMPONENT + " requires " + PROJECT + " to be dumped together or previously");
+		sb.append("\nNote: " + SPRINT + " requires " + AGILE_BOARD + " to be dumped together or previously");
+		sb.append("\nNote: " + DASHBOARD + " requires " + FILTER + " to be dumped together or previously");
+		return sb.toString().substring(1);
+	}
+	
+	public static MappingType parse(String name) {
+		if (name != null) {
+			for (MappingType type : MappingType.values()) {
+				if (type.toString().equals(name)) {
+					return type;
+				}
+			}
+		}
+		return null;
+	}
+	
 	public static String getFilterProertyCustomFieldId(String name) {
 		if (name != null) {
 			Matcher matcher = PATTERN_CUSTOMFIELD.matcher(name);

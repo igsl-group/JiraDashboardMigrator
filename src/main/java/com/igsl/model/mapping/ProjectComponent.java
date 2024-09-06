@@ -6,6 +6,7 @@ import java.util.Map;
 
 import javax.ws.rs.HttpMethod;
 
+import com.igsl.DashboardMigrator;
 import com.igsl.config.Config;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
@@ -45,14 +46,14 @@ public class ProjectComponent extends JiraObject<ProjectComponent> {
 			Config config, 
 			Class<ProjectComponent> dataClass, 
 			boolean cloud,
-			Map<MappingType, List<? extends JiraObject<?>>> map, 
 			Object... data)
 			throws Exception {
 		List<ProjectComponent> result = new ArrayList<>();
 		RestUtil<ProjectComponent> util = RestUtil.getInstance(dataClass);
 		util.config(config, cloud);
-		@SuppressWarnings("unchecked")
-		List<Project> projectList = (List<Project>) map.get(MappingType.PROJECT);
+		List<Project> projectList = DashboardMigrator.readValuesFromFile(
+				(cloud? MappingType.PROJECT.getCloud() : MappingType.PROJECT.getDC()), 
+				Project.class);
 		for (Project project : projectList) {
 			setupRestUtil(util, cloud, project.getId());
 			List<ProjectComponent> list = util.requestAllPages();

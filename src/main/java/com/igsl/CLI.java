@@ -7,6 +7,8 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
+import com.igsl.model.mapping.MappingType;
+
 /**
  * Houses the members for command line parsing
  */
@@ -54,15 +56,21 @@ public class CLI {
 			.build();
 	
 	public static final Option DUMPDC_OPTION = Option.builder()
-			.desc("Dump objects from Data Center")
+			.desc("Dump objects from Data Center. Optionally specify object types: " + 
+					MappingType.getMappingTypes(false))
 			.option("ddc")
 			.longOpt("dumpDC")
+			.hasArgs()
+			.optionalArg(true)
 			.build();
 	
 	public static final Option DUMPCLOUD_OPTION = Option.builder()
-			.desc("Dump objects from Cloud")
+			.desc("Dump objects from Cloud. Optionally specify object types: " + 
+					MappingType.getMappingTypes(true))
 			.option("dcloud")
 			.longOpt("dumpCloud")
+			.hasArgs()
+			.optionalArg(true)
 			.build();
 	
 	public static final Option MAPOBJECT_OPTION = Option.builder()
