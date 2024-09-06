@@ -18,15 +18,12 @@ public class Sprint extends JiraObject<Sprint> {
 	private String originBoardId;
 	private String originalBoardName;
 	private String originalBoardFilterName;
-	private String startDate;
-	private String endDate;
+	// Note: start and endDate can be different in DC and Cloud after migration
 	
 	@Override
 	public int compareTo(Sprint obj1) {
 		if (obj1 != null) {
 			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) |
-					STRING_COMPARATOR.compare(getStartDate(), obj1.getStartDate()) |
-					STRING_COMPARATOR.compare(getEndDate(), obj1.getEndDate()) |
 					STRING_COMPARATOR.compare(getOriginalBoardName(), obj1.getOriginalBoardName()) | 
 					STRING_COMPARATOR.compare(getOriginalBoardFilterName(), obj1.getOriginalBoardFilterName());
 		}
@@ -62,6 +59,8 @@ public class Sprint extends JiraObject<Sprint> {
 				setupRestUtil(util, cloud, board.getId());
 				List<Sprint> list = util.requestAllPages();
 				for (Sprint sp : list) {
+					sp.setOriginalBoardName(board.getName());
+					sp.setOriginalBoardFilterName(board.getFilterName());
 					result.put(sp.getId(), sp);
 				}
 			}
@@ -109,21 +108,5 @@ public class Sprint extends JiraObject<Sprint> {
 
 	public void setOriginalBoardFilterName(String originalBoardFilterName) {
 		this.originalBoardFilterName = originalBoardFilterName;
-	}
-
-	public String getStartDate() {
-		return startDate;
-	}
-
-	public void setStartDate(String startDate) {
-		this.startDate = startDate;
-	}
-
-	public String getEndDate() {
-		return endDate;
-	}
-
-	public void setEndDate(String endDate) {
-		this.endDate = endDate;
 	}
 }

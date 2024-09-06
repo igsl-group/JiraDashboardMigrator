@@ -704,6 +704,7 @@ public class DashboardMigrator {
 					dataClass = type.getDataClass();
 				}
 				if (dataClass != null) {
+					Log.info(LOGGER, "Processing " + type.getName() + "...");
 					@SuppressWarnings({ "unchecked" })
 					List<? extends JiraObject<?>> list = 
 						(List<? extends JiraObject<?>>) JiraObject.getObjects(conf, dataClass, cloud);
@@ -1485,7 +1486,7 @@ public class DashboardMigrator {
 					}
 					case DUMP_CLOUD:
 						getCredentials(conf, true);
-						dumpObjects(conf, true, parseMappingTypes(cli.getOptionValues(CLI.DUMPDC_OPTION)));
+						dumpObjects(conf, true, parseMappingTypes(cli.getOptionValues(CLI.DUMPCLOUD_OPTION)));
 						break;
 					case MAP_OBJECT:
 						mapObjectsV2();
