@@ -53,7 +53,7 @@
 			pp.fav_count,
 			pp.layout,
 			pp.ppversion,
-			u.user_name,
+			au.user_key as user_name,
 			u.display_name,
 			sp.id as spid,
 			sp.sharetype,
@@ -72,7 +72,8 @@
 		FROM
 			portalpage pp
 			LEFT JOIN sharepermissions sp ON sp.entityid = pp.id AND sp.entitytype = 'PortalPage'
-			LEFT JOIN cwd_user u ON u.user_name = pp.username
+            LEFT JOIN app_user au ON au.user_key = pp.username
+			LEFT JOIN cwd_user u ON u.id = au.id
 			LEFT JOIN portletconfiguration pc 
 				LEFT JOIN gadgetuserpreference gp
 				ON gp.portletconfiguration = pc.id		
@@ -89,7 +90,7 @@
 			pp1.fav_count,
 			pp1.layout,
 			pp1.ppversion,
-			u1.user_name,
+			au1.user_key as user_name,
 			u1.display_name,
 			sp1.id as spid,
 			sp1.sharetype,
@@ -108,7 +109,8 @@
 		FROM
 			portalpage pp1
 			LEFT JOIN sharepermissions sp1 ON sp1.entityid = pp1.id AND sp1.entitytype = 'PortalPage'
-			LEFT JOIN cwd_user u1 ON u1.user_name = pp1.username
+            LEFT JOIN app_user au1 ON au1.user_key = pp1.username
+			LEFT JOIN cwd_user u1 ON u1.id = au1.id
 			LEFT JOIN portletconfiguration pc1 
 				LEFT JOIN entity_property gp1
 				ON gp1.entity_id = pc1.id AND gp1.entity_name = 'DashboardItemProperty'

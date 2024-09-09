@@ -31,6 +31,18 @@ public class CloudDashboard {
 					result.editPermissions.add(CloudPermission.create(permission));
 				}
 			}
+			// If logged in user is in sharePermissions, delete everything else
+			CloudPermission shareAuthenticated = null;
+			for (CloudPermission permission : result.sharePermissions) {
+				if (PermissionType.LOGGED_IN.toString().equals(permission.getType())) {
+					shareAuthenticated = permission;
+					break;
+				}
+			}
+			if (shareAuthenticated != null) {
+				result.sharePermissions.clear();
+				result.sharePermissions.add(shareAuthenticated);
+			}
 		}
 		return result;
 	}

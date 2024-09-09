@@ -1106,9 +1106,32 @@ public class DashboardMigrator {
 		}	// For all types
 	}
 	
+	private static boolean changeDashboardOwner(Config conf, String boardId, String accountId) throws Exception {
+		RestUtil<Dashboard> util = RestUtil.getInstance(Dashboard.class)
+				.config(conf, true);
+		Map<String, Object> payload = new HashMap<>();
+		payload.put("action", "changeOwner");
+		Map<String, Object> details = new HashMap<>();
+		details.put("newOwner", accountId);
+		details.put("autofixName", true);
+		payload.put("changeOwnerDetails", details);
+		payload.put("entityIds", new String[] {boardId});
+		Response resp = util.path("/rest/api/latest/dashboard/bulk/edit")
+			.method(HttpMethod.PUT)
+			.payload(payload)
+			.status(null)
+			.request();
+		if (!checkStatusCode(resp, Status.OK)) {
+			Log.error(LOGGER, "Failed to change board [" + boardId + "] owner to [" + accountId + "]: " + 
+					resp.readEntity(String.class));
+			return false;
+		}
+		return true;
+	}
+	
 	private static void createDashboards(Client cloudClient, Config conf) throws Exception {
 		Log.info(LOGGER, "Creating dashboards...");
-		RestUtil<Object> util = RestUtil.getInstance(Object.class)
+		RestUtil<Dashboard> util = RestUtil.getInstance(Dashboard.class)
 				.config(conf, true);
 		List<DataCenterPortalPage> dashboards = readValuesFromFile(MappingType.DASHBOARD.getRemapped(),
 				DataCenterPortalPage.class);
@@ -1116,17 +1139,37 @@ public class DashboardMigrator {
 		Mapping migratedList = new Mapping(MappingType.DASHBOARD);
 		int migratedCount = 0;
 		for (DataCenterPortalPage dashboard : dashboards) {
-			// Create dashboard
 			CloudDashboard cd = CloudDashboard.create(dashboard);
-			
-			// TODO Remap permissions
-			
 			Log.info(LOGGER, "CloudDashboard: " + OM.writeValueAsString(cd));
-			Response resp = util.path("/rest/api/latest/dashboard")
-					.method(HttpMethod.POST)
-					.payload(cd)
-					.status(null)
-					.request();
+			// Check if exists for current user
+			List<Dashboard> list = util
+					.path("/rest/api/latest/dashboard/search")
+					.query("dashboardName", dashboard.getPageName())
+					.method(HttpMethod.GET)
+					.pagination(new Paged<Dashboard>(Dashboard.class).maxResults(1))
+					.requestAllPages();
+			Response resp;
+			if (list.size() != 0) {
+				String id = list.get(0).getId();
+				Log.info(LOGGER, "Updating dashboard [" + cd.getName() + "]");
+				// Update
+				resp = util.path("/rest/api/latest/dashboard/{boardId}")
+						.pathTemplate("boardId", id)
+						.query("extendAdminPermissions", true)
+						.method(HttpMethod.PUT)
+						.payload(cd)
+						.status(null)
+						.request();
+			} else {
+				Log.info(LOGGER, "Creating dashboard [" + cd.getName() + "]");
+				// Create
+				resp = util.path("/rest/api/latest/dashboard")
+						.query("extendAdminPermissions", true)
+						.method(HttpMethod.POST)
+						.payload(cd)
+						.status(null)
+						.request();
+			}
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				CloudDashboard createdDashboard = resp.readEntity(CloudDashboard.class);
 				// Sort portlets with position
@@ -1204,9 +1247,15 @@ public class DashboardMigrator {
 					}
 				}
 				// Change owner
-				// There's no REST API to change owner?!!
-				Log.warn(LOGGER, "Please change owner of [" + createdDashboard.getName() + "] to ["
-						+ dashboard.getUserDisplayName() + "]");
+				if (changeDashboardOwner(conf, createdDashboard.getId(), dashboard.getAccountId())) {
+					Log.info(LOGGER, "Board [" + createdDashboard.getName() + "](" + createdDashboard.getId() + ") " + 
+							"owner changed from [" + dashboard.getUsername() + "] " + 
+							"to [" + dashboard.getAccountId() + "]");
+				} else {
+					Log.error(LOGGER, "Please change owner of [" + createdDashboard.getName() + "]" + 
+							"(" + createdDashboard.getId() + ") to ["
+							+ dashboard.getAccountId() + "]");
+				}
 				migratedList.getMapped().put(Integer.toString(dashboard.getId()), createdDashboard.getId());
 				migratedCount++;
 			} else {
@@ -1242,21 +1291,20 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "Processing Dashboards...");
 		List<DataCenterPortalPage> dashboards = readValuesFromFile(MappingType.DASHBOARD.getDC(), 
 				DataCenterPortalPage.class);
+		List<DataCenterPortalPage> failed = new ArrayList<>();
 		Map<MappingType, Mapping> mappings = loadMappings(MappingType.DASHBOARD);
 		Mapping userMapping = mappings.get(MappingType.USER);
 		Mapping projectMapping = mappings.get(MappingType.PROJECT);
 		Mapping roleMapping = mappings.get(MappingType.ROLE);
-		// Dashboards uses user KEY instead of name.
-		List<User> userDC = readValuesFromFile(MappingType.USER.getDC(), User.class);
-		int errorCount = 0;
 		for (DataCenterPortalPage dashboard : dashboards) {
+			boolean hasError = false;
 			// Translate owner, if any
 			if (dashboard.getUsername() != null) {
 				if (userMapping.getMapped().containsKey(dashboard.getUsername())) {
 					dashboard.setAccountId(userMapping.getMapped().get(dashboard.getUsername()));
 				} else {
-					errorCount++;
-					Log.warn(LOGGER, "Unable to map owner for dashboard [" + dashboard.getPageName() + "] " + 
+					hasError = true;
+					Log.error(LOGGER, "Unable to map owner for dashboard [" + dashboard.getPageName() + "] " + 
 							"owner [" + dashboard.getUsername() + "]");
 				}
 			}
@@ -1265,28 +1313,45 @@ public class DashboardMigrator {
 				PermissionType type = PermissionType.parse(permission.getShareType());
 				switch (type) {
 				case USER: 
-					// DC Dashboard permission stores user with key instead of name
 					String userKey = permission.getParam1();
-					for (User u : userDC) {
-						if (u.getKey().equals(userKey)) {
-							if (userMapping.getMapped().containsKey(u.getName())) {
-								String accountId = userMapping.getMapped().get(u.getName());
-								permission.setParam1(accountId);
-							}
-							break;
-						}
+					if (userMapping.getMapped().containsKey(userKey)) {
+						String accountId = userMapping.getMapped().get(userKey);
+						permission.setParam1(accountId);
+					} else {
+						hasError = true;
+						Log.error(LOGGER, "Unable to map shared user for " + 
+								"dashboard [" + dashboard.getPageName() + "] " + 
+								"user [" + userKey + "]");
 					}
 					break;
 				case PROJECT:
 					String projectId = permission.getParam1();
 					String projectRoleId = permission.getParam2();
+					if (projectRoleId != null) {
+						permission.setShareType(PermissionType.PROJECT_ROLE.toString());
+					} else {
+						permission.setShareType(PermissionType.PROJECT.toString());
+					}
 					if (projectMapping.getMapped().containsKey(projectId)) {
 						String newId = projectMapping.getMapped().get(projectId);
 						permission.setParam1(newId);
+					} else {
+						hasError = true;
+						Log.error(LOGGER, "Unable to map shared project for " + 
+								"dashboard [" + dashboard.getPageName() + "] " + 
+								"project [" + projectId + "]");
 					}
-					if (roleMapping.getMapped().containsKey(projectRoleId)) {
-						String newId = roleMapping.getMapped().get(projectRoleId);
-						permission.setParam2(newId);
+					if (projectRoleId != null) {
+						if (roleMapping.getMapped().containsKey(projectRoleId)) {
+							String newId = roleMapping.getMapped().get(projectRoleId);
+							permission.setParam2(newId);
+						} else {
+							hasError = true;
+							Log.error(LOGGER, "Unable to map shared project role for " + 
+									"dashboard [" + dashboard.getPageName() + "] " + 
+									"project [" + projectId + "] " + 
+									"role [" + projectRoleId + "]");
+						}
 					}
 					break;
 				default:
@@ -1318,9 +1383,14 @@ public class DashboardMigrator {
 				CloudGadgetConfigurationMapper.mapConfiguration(gadget, mappings);
 			}
 			dashboard.getPortlets().sort(new GadgetOrderComparator(false));
+			// Add to failed if hasError
+			if (hasError) {
+				failed.add(dashboard);
+			}
 		}
+		dashboards.removeAll(failed);
 		saveFile(MappingType.DASHBOARD.getRemapped(), dashboards);
-		Log.printCount(LOGGER, "Dashboards mapped: ", dashboards.size() - errorCount, dashboards.size());
+		Log.printCount(LOGGER, "Dashboards mapped: ", dashboards.size() - failed.size(), dashboards.size());
 		Log.info(LOGGER, "Please manually translate references");
 	}
 	
