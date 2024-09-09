@@ -26,7 +26,7 @@ public class CloudPermission {
 			switch (cpt) {
 			case GLOBAL:
 			case LOGGED_IN:
-			case UNKNOWN:
+			case PROJECT_UNKNOWN:
 				// No other fields required
 				break;
 			case GROUP:
@@ -60,7 +60,7 @@ public class CloudPermission {
 				switch (cpt) {
 				case GLOBAL:
 				case LOGGED_IN:
-				case UNKNOWN:
+				case PROJECT_UNKNOWN:
 					// No other fields required
 					break;
 				case GROUP:

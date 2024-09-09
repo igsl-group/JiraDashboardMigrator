@@ -20,6 +20,7 @@ import javax.ws.rs.HttpMethod;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
 
 import org.antlr.runtime.ANTLRStringStream;
 import org.antlr.runtime.CharStream;
@@ -211,7 +212,7 @@ public class DashboardMigrator {
 		}
 		Log.info(LOGGER, "File " + fileName + " saved");
 	}
-	
+
 	private static SingleValueOperand mapValue(
 			SingleValueOperand src, Mapping map, 
 			String filterName, String propertyName) throws Exception {
@@ -353,18 +354,75 @@ public class DashboardMigrator {
 		return clone;
 	}
 	
+	private static boolean changeFilterOwner(Config conf, Filter filter, String ownerAccountId) throws Exception {
+		// Check if already owns it
+		RestUtil<Filter> util = RestUtil.getInstance(Filter.class).config(conf, true);
+		List<Filter> list = util
+			.path("/rest/api/latest/filter/search")
+			.query("expand", "owner")
+			.query("filterName", "\"" + filter.getName() + "\"")
+			.query("accountId", ownerAccountId)
+			.query("overrideSharePermissions", true)
+			.method(HttpMethod.GET)
+			.pagination(new Paged<Filter>(Filter.class).maxResults(1))
+			.requestAllPages();
+		if (list.size() == 1) {
+			Log.debug(LOGGER, "Filter [" + filter.getName() + "] is already owned by [" + ownerAccountId + "]");
+			return true;
+		}
+		Map<String, Object> payload = new HashMap<>();
+		payload.put("accountId", ownerAccountId);
+		Response resp = util
+				.path("/rest/api/latest/filter/{filterId}/owner")
+				.pathTemplate("filterId", filter.getId())
+				.method(HttpMethod.PUT)
+				.payload(payload)
+				.status(null)
+				.request();
+		if (!checkStatusCode(resp, Status.OK)) {
+			Log.error(LOGGER, 
+					"Unable to change filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
+					"owner from [" + filter.getOwner().getAccountId() + "] to [" + ownerAccountId + "]: " + 
+					resp.readEntity(String.class));
+			return false;
+		}
+		Log.info(LOGGER, "Changed filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
+				"owner from [" + filter.getOwner().getAccountId() + "] to [" + ownerAccountId + "]");
+		return true;
+	}
+	
 	@SuppressWarnings("incomplete-switch")
-	private static void mapFiltersV2(Config conf) throws Exception {
-		String myAccountId = getUserAccountId(conf, conf.getTargetUser());
-		// Results of mapped and failed filters
-		Mapping result = new Mapping(MappingType.FILTER);
-		List<Filter> remappedList = new ArrayList<>();
+	private static void mapFiltersV3(Config conf) throws Exception {
 		// RestUtil 
 		RestUtil<Object> util = RestUtil.getInstance(Object.class).config(conf, true);
-		// Load mappings from files
+		// Note: Current user shouldn't have any filters. 
+		// If a name clash happens, those filters will be overwritten
+		String myAccountId = getUserAccountId(conf, conf.getTargetUser());
+		// Backup original owner information
+		List<Filter> cloudFilterList = JiraObject.getObjects(conf, Filter.class, true);
+		Map<String, String> cloudFilterOwnerMap = new HashMap<>();
+		for (Filter cloudFilter : cloudFilterList) {
+			cloudFilterOwnerMap.put(cloudFilter.getId(), cloudFilter.getOwner().getAccountId());
+		}
+		saveFile(MappingType.FILTER.getOwner(), cloudFilterOwnerMap);
+		// Change all Cloud filter owner to self first.
+		Log.info(LOGGER, "Temporarily changing filter owner to self...");
+		for (Filter cloudFilter : cloudFilterList) {
+			changeFilterOwner(conf, cloudFilter, myAccountId);
+			cloudFilter.getOwner().setAccountId(myAccountId);
+		}
+		// Load object mappings
 		Map<MappingType, Mapping> mappings = loadMappings(MappingType.FILTER, MappingType.DASHBOARD);
+		// Results of mapped and failed filters
+		Mapping result = new Mapping(MappingType.FILTER);
 		// Add filter mapping, to be filled as we go
 		mappings.put(MappingType.FILTER, result);
+		// List of remapped filters (to save their content)
+		List<Filter> remappedList = new ArrayList<>();
+		// Target Owner of remapped filters 
+		Map<Filter, String> remappedOwners = new HashMap<>();
+		// In multiple batches: 
+		// Map DC filter and create/update in Cloud.
 		// Get filters to map
 		List<Filter> filterList = readValuesFromFile(MappingType.FILTER.getDC(), Filter.class);
 		// Process in batches
@@ -392,7 +450,6 @@ public class DashboardMigrator {
 					continue;
 				}
 				newOwner = mappings.get(MappingType.USER).getMapped().get(originalOwner);
-				filter.getOwner().setAccountId(newOwner);
 				// Verify and map share permissions
 				List<DataCenterPermission> newPermissions = new ArrayList<>();
 				for (DataCenterPermission share: filter.getSharePermissions()) {
@@ -403,7 +460,12 @@ public class DashboardMigrator {
 						// Add permission unchanged
 						newPermissions.add(share);
 						break;
-					case UNKNOWN:	
+					case USER_UNKNOWN:
+						Log.warn(LOGGER, "Filter [" + filter.getName() + "] " + 
+								"share permission to inaccessible user [" + OM.writeValueAsString(share) + "] " + 
+								"is excluded");
+						break;
+					case PROJECT_UNKNOWN:	
 						// This happens when you share to a project you cannot access. 
 						// This type of permissions cannot be created via REST.
 						// So this is excluded.
@@ -525,6 +587,289 @@ public class DashboardMigrator {
 					remappedList.add(filter);
 					// Check if filter already exist
 					CloudFilter cloudFilter = CloudFilter.create(filter);
+					Log.info(LOGGER, "Searching for filter [" + filter.getName() + "] " + 
+							"with owner [" + newOwner + "]");
+					List<Filter> foundFilterList = RestUtil.getInstance(Filter.class)
+						.config(conf, true)
+						.path("/rest/api/latest/filter/search")
+						.method(HttpMethod.GET)
+						.query("filterName", "\"" + filter.getName() + "\"")
+						.query("overrideSharePermissions", true)
+						.query("accountId", myAccountId)
+						.pagination(new Paged<Filter>(Filter.class).maxResults(1))
+						.requestAllPages();
+					Response respFilter = null;
+					boolean updateFilter = false;
+					Log.info(LOGGER, "Search filter result: " + foundFilterList.size());
+					if (foundFilterList.size() == 1) {
+						cloudFilter.setId(foundFilterList.get(0).getId());
+						// Update filter
+						updateFilter = true;
+						respFilter = util.path("/rest/api/latest/filter/{filterId}")
+								.pathTemplate("filterId", cloudFilter.getId())
+								.method(HttpMethod.PUT)
+								.query("overrideSharePermissions", true)
+								.payload(cloudFilter)
+								.status(null)
+								.request();
+					} else {
+						// Create filter
+						updateFilter = false;
+						respFilter = util.path("/rest/api/latest/filter")
+								.method(HttpMethod.POST)
+								.query("overrideSharePermissions", true)
+								.payload(cloudFilter)
+								.status(null)
+								.request();
+					}
+					Log.info(LOGGER, "Filter payload: [" + OM.writeValueAsString(cloudFilter) + "]");
+					if (!checkStatusCode(respFilter, Response.Status.OK)) {
+						String msg = respFilter.readEntity(String.class);
+						result.getFailed().put(filter.getId(), msg);
+						continue;
+					} 
+					CloudFilter newFilter = respFilter.readEntity(CloudFilter.class);
+					// Record real owner, to be changed in one batch at the end
+					{
+						Filter f = new Filter();
+						f.setId(newFilter.getId());
+						f.setName(newFilter.getName());
+						PermissionTarget target = new PermissionTarget();
+						target.setAccountId(newFilter.getOwner().getAccountId());
+						f.setOwner(target);
+						remappedOwners.put(f, newOwner);
+					}
+					result.getMapped().put(filter.getId(), newFilter.getId());
+					Log.info(LOGGER, "Filter [" + filter.getName() + "] " + 
+							(updateFilter? "updated" : "created") + ": " + newFilter.getId());
+				} catch (FilterNotMappedException fnmex) {
+					String refId = fnmex.getReferencedFilter();
+					// Detect impossible to map ones and declare them failed
+					if (!currentBatch.containsKey(refId) && 
+						!result.getMapped().containsKey(refId)) {
+						// Filter references non-existent filter
+						String msg = "Filter [" + filter.getName() + "] references non-existing filter [" + refId + "]";
+						Log.error(LOGGER, msg);
+						result.getFailed().put(filter.getId(), msg);
+					} else if (result.getFailed().containsKey(refId)) {
+						// Filter references a filter that failed
+						String msg = "Filter [" + filter.getName() + "] references failed filter [" + refId + "]";
+						Log.error(LOGGER, msg);
+						result.getFailed().put(filter.getId(), msg);
+					} else {					
+						// Add filter to next batch
+						Log.info(LOGGER, "Filter [" + filter.getName() + "] " + 
+								"references filter [" + refId + "] which is not created in Cloud yet, " + 
+								"delaying filter to next batch");
+						filterList.add(filter);
+					}
+					// Note: Circular reference is impossible, so no need to check those
+				} catch (Exception ex) {
+					Log.error(LOGGER, "Failed to map filter [" + filter.getName() + "]", ex);
+					result.getFailed().put(filter.getId(), ex.getMessage());
+					continue;
+				}
+			} // For each filter in currentBatch
+			if (filterList.size() == 0) {
+				// No more filters
+				done = true;
+			}
+			batch++;
+		}
+		// Revert Cloud filter owner, except those in remappedOwners
+		Log.info(LOGGER, "Reverting filter owner...");
+		for (Filter cloudFilter : cloudFilterList) {
+			for (Filter f : remappedOwners.keySet()) {
+				if (cloudFilter.getId().equals(f.getId())) {
+					continue;
+				}
+			}
+			changeFilterOwner(conf, cloudFilter, cloudFilterOwnerMap.get(cloudFilter.getId()));
+		}
+		// Change all migrated filter owner in one batch
+		Log.info(LOGGER, "Setting owner for updated filters...");
+		for (Map.Entry<Filter, String> entry : remappedOwners.entrySet()) {
+			changeFilterOwner(conf, entry.getKey(), entry.getValue());
+		}
+		// Save results
+		saveFile(MappingType.FILTER.getRemapped(), remappedList);
+		saveFile(MappingType.FILTER.getMap(), result);
+	}
+	
+	@SuppressWarnings("incomplete-switch")
+	private static void mapFiltersV2(Config conf) throws Exception {
+		String myAccountId = getUserAccountId(conf, conf.getTargetUser());
+		// Results of mapped and failed filters
+		Mapping result = new Mapping(MappingType.FILTER);
+		List<Filter> remappedList = new ArrayList<>();
+		// RestUtil 
+		RestUtil<Object> util = RestUtil.getInstance(Object.class).config(conf, true);
+		// Load mappings from files
+		Map<MappingType, Mapping> mappings = loadMappings(MappingType.FILTER, MappingType.DASHBOARD);
+		// Add filter mapping, to be filled as we go
+		mappings.put(MappingType.FILTER, result);
+		// Get filters to map
+		List<Filter> filterList = readValuesFromFile(MappingType.FILTER.getDC(), Filter.class);
+		// Process in batches
+		int batch = 0;
+		boolean done = false;
+		while (!done) {
+			Log.info(LOGGER, "Processing filters batch #" + batch);
+			// Put filters into current batch
+			Map<String, Filter> currentBatch = new LinkedHashMap<>();	
+			for (Filter filter : filterList) {
+				currentBatch.put(filter.getId(), filter);
+			}
+			filterList.clear();
+			// Process current batch, put those missing filter references back into filterList
+			for (Filter filter : currentBatch.values()) {
+				Log.info(LOGGER, "Processing filter " + filter.getName());
+				// Verify and map owner
+				String originalOwner = filter.getOwner().getKey();
+				String newOwner = null;
+				if (!mappings.get(MappingType.USER).getMapped().containsKey(originalOwner)) {
+					String msg = "Filter [" + filter.getName() + "] " + 
+							"owned by unmapped user [" + originalOwner + "]";
+					Log.error(LOGGER, msg);
+					result.getFailed().put(filter.getId(), msg);
+					continue;
+				}
+				newOwner = mappings.get(MappingType.USER).getMapped().get(originalOwner);
+				filter.getOwner().setAccountId(newOwner);
+				// Verify and map share permissions
+				List<DataCenterPermission> newPermissions = new ArrayList<>();
+				for (DataCenterPermission share: filter.getSharePermissions()) {
+					PermissionType permissionType = PermissionType.parse(share.getType());
+					switch (permissionType) {
+					case GLOBAL: // Fall-thru
+					case LOGGED_IN:	// Fall-thru
+						// Add permission unchanged
+						newPermissions.add(share);
+						break;
+					case PROJECT_UNKNOWN:	
+						// This happens when you share to a project you cannot access. 
+						// This type of permissions cannot be created via REST.
+						// So this is excluded.
+						Log.warn(LOGGER, "Filter [" + filter.getName() + "] " + 
+								"share permission to inaccessible objects [" + OM.writeValueAsString(share) + "] " + 
+								"is excluded");
+						break;
+					case GROUP:
+						if (mappings.get(MappingType.GROUP).getMapped().containsKey(share.getGroup().getName())) {
+							String newId = mappings.get(MappingType.GROUP).getMapped()
+									.get(share.getGroup().getName());
+							share.getGroup().setName(newId);
+							newPermissions.add(share);
+						} else {
+							String msg = "Filter [" + filter.getName() + "] " + 
+									"is shared to unmapped group [" + share.getGroup().getName() + "]";
+							Log.error(LOGGER, msg);
+							result.getFailed().put(filter.getId(), msg);
+							continue;
+						}
+						break;
+					case PROJECT:
+						if (share.getRole() == null) {
+							// No role, add as project
+							if (mappings.get(MappingType.PROJECT).getMapped().containsKey(share.getProject().getId())) {
+								String newId = mappings.get(MappingType.PROJECT).getMapped()
+										.get(share.getProject().getId());
+								share.getProject().setId(newId);
+								newPermissions.add(share);
+							} else {
+								String msg = "Filter [" + filter.getName() + "] " + 
+										"is shared to unmapped project [" + share.getProject().getId() + "]";
+								Log.error(LOGGER, msg);
+								result.getFailed().put(filter.getId(), msg);
+								continue;
+							}
+						} else if (share.getRole() != null) {
+							// Has role, add as project-role
+							if (mappings.get(MappingType.PROJECT).getMapped().containsKey(share.getProject().getId())) {
+								String newId = mappings.get(MappingType.PROJECT).getMapped()
+										.get(share.getProject().getId());
+								share.getProject().setId(newId);
+							} else {
+								String msg = "Filter [" + filter.getName() + "] " + 
+										"is shared to unmapped project [" + share.getProject().getId() + "]";
+								Log.error(LOGGER, msg);
+								result.getFailed().put(filter.getId(), msg);
+								continue;
+							}
+							if (mappings.get(MappingType.ROLE).getMapped().containsKey(share.getRole().getId())) {
+								String newId = mappings.get(MappingType.ROLE).getMapped()
+										.get(share.getRole().getId());
+								DataCenterPermission newItem = new DataCenterPermission();
+								newItem.setEdit(share.isEdit());
+								newItem.setView(share.isView());
+								newItem.setType(PermissionType.PROJECT_ROLE.toString());
+								newItem.setProject(share.getProject());
+								PermissionTarget newTarget = new PermissionTarget();
+								newTarget.setId(newId);
+								newItem.setRole(newTarget);
+								newPermissions.add(newItem);
+							} else {
+								String msg = "Filter [" + filter.getName() + "] " + 
+										"is shared to unmapped role [" + share.getRole().getId() + "]";
+								Log.error(LOGGER, msg);
+								result.getFailed().put(filter.getId(), msg);
+								continue;
+							}
+						}
+						break;
+					case USER:
+						if (mappings.get(MappingType.USER).getMapped().containsKey(share.getUser().getKey())) {
+							String newId = mappings.get(MappingType.USER).getMapped()
+									.get(share.getUser().getKey());
+							share.getUser().setAccountId(newId);
+							newPermissions.add(share);
+						} else {
+							String msg = "Filter [" + filter.getName() + "] " + 
+									"is shared to unmapped user [" + share.getUser().getKey() + "]";
+							Log.error(LOGGER, msg);
+							result.getFailed().put(filter.getId(), msg);
+							continue;
+						}
+						break;
+					}
+				}
+				filter.setSharePermissions(newPermissions);
+				// Parse and convert JQL
+				JqlLexer lexer = new JqlLexer((CharStream) new ANTLRStringStream(filter.getJql()));
+				CommonTokenStream cts = new CommonTokenStream(lexer);
+				JqlParser parser = new JqlParser(cts);
+				query_return qr = parser.query();
+				try {
+					validateClause(filter.getName(), qr.clause);
+				} catch (Exception ex) {
+					Log.error(LOGGER, "Failed to map filter [" + filter.getName() + "]", ex);
+					result.getFailed().put(filter.getId(), ex.getMessage());
+					continue;
+				}
+				try {
+					Clause clone = mapClause(filter.getName(), mappings, qr.clause);
+					// Handler order clause
+					OrderBy orderClone = null;
+					if (qr.order != null) {
+						Mapping fieldMapping = mappings.get(MappingType.CUSTOM_FIELD);
+						List<SearchSort> sortList = new ArrayList<>();
+						for (SearchSort ss : qr.order.getSearchSorts()) {
+							String newColumn = mapCustomFieldName(fieldMapping.getMapped(), ss.getField());
+							SearchSort newSS = new SearchSort(newColumn, ss.getProperty(), ss.getSortOrder());
+							sortList.add(newSS);
+							Log.warn(LOGGER, "Mapped sort column for filter [" + filter.getName() + "] " + 
+									"column [" + ss.getField() + "] => [" + newColumn + "]");
+						}
+						orderClone = new OrderByImpl(sortList);
+					}
+					Log.info(LOGGER, "Updated JQL for filter [" + filter.getName() + "]: " + 
+							"[" + clone + ((orderClone != null)? " " + orderClone : "") + "]");
+					filter.setJql(clone + ((orderClone != null) ? " " + orderClone : ""));
+					remappedList.add(filter);
+					// Check if filter already exist
+					CloudFilter cloudFilter = CloudFilter.create(filter);
+					Log.info(LOGGER, "Searching for filter [" + filter.getName() + "] " + 
+							"with owner [" + newOwner + "]");
 					List<Filter> foundFilterList = RestUtil.getInstance(Filter.class)
 						.config(conf, true)
 						.path("/rest/api/latest/filter/search")
@@ -532,27 +877,35 @@ public class DashboardMigrator {
 						.query("filterName", "\"" + filter.getName() + "\"")
 						.query("overrideSharePermissions", true)
 						.query("accountId", newOwner)
+						.query("expand", "owner")
 						.pagination(new Paged<Filter>(Filter.class).maxResults(1))
 						.requestAllPages();
 					Response respFilter = null;
 					boolean updateFilter = false;
 					Log.info(LOGGER, "Filter payload: [" + OM.writeValueAsString(cloudFilter) + "]");
+					Log.info(LOGGER, "Search filter result: " + foundFilterList.size());
 					if (foundFilterList.size() == 1) {
-						// Change owner to self so we can update it
-						PermissionTarget owner = new PermissionTarget();
-						owner.setAccountId(myAccountId);
-						Response respOwner = util.path("/rest/api/latest/filter/{filterId}/owner")
-								.pathTemplate("filterId", foundFilterList.get(0).getId())
-								.method(HttpMethod.PUT)
-								.payload(owner)
-								.request();
-						if (!checkStatusCode(respOwner, Response.Status.NO_CONTENT)) {
-							String msg = "Failed to set owner for filter [" + filter.getName() + "] to " + 
-									"[" + myAccountId + "]: " + 
-									respOwner.readEntity(String.class);
-							Log.error(LOGGER, msg);
-							result.getFailed().put(filter.getId(), msg);
-							continue;
+						// Change owner to self (if not already) so we can update it
+						if (!myAccountId.equals(filter.getOwner().getAccountId())) {
+							PermissionTarget owner = new PermissionTarget();
+							owner.setAccountId(myAccountId);
+							Response respOwner = util.path("/rest/api/latest/filter/{filterId}/owner")
+									.pathTemplate("filterId", foundFilterList.get(0).getId())
+									.method(HttpMethod.PUT)
+									.payload(owner)
+									.status(null)
+									.request();
+							if (!checkStatusCode(respOwner, Response.Status.NO_CONTENT)) {
+								String msg = "Failed to set owner for filter [" + filter.getName() + "] to " + 
+										"[" + myAccountId + "]: " + 
+										respOwner.readEntity(String.class);
+								Log.error(LOGGER, msg);
+								result.getFailed().put(filter.getId(), msg);
+								continue;
+							} else {
+								Log.info(LOGGER, "Filter [" + filter.getName() + "] " + 
+										"owner temporarily changed to [" + myAccountId + "] so it can be updated");
+							}
 						}
 						cloudFilter.setId(foundFilterList.get(0).getId());
 						// Update filter
@@ -562,6 +915,7 @@ public class DashboardMigrator {
 								.method(HttpMethod.PUT)
 								.query("overrideSharePermissions", true)
 								.payload(cloudFilter)
+								.status(null)
 								.request();
 					} else {
 						// Create filter
@@ -570,6 +924,7 @@ public class DashboardMigrator {
 								.method(HttpMethod.POST)
 								.query("overrideSharePermissions", true)
 								.payload(cloudFilter)
+								.status(null)
 								.request();
 					}
 					if (!checkStatusCode(respFilter, Response.Status.OK)) {
@@ -581,23 +936,26 @@ public class DashboardMigrator {
 					result.getMapped().put(filter.getId(), newFilter.getId());
 					Log.info(LOGGER, "Filter [" + filter.getName() + "] " + 
 							(updateFilter? "updated" : "created") + ": " + newFilter.getId());
-					// Change owner to real target
-					PermissionTarget owner = new PermissionTarget();
-					owner.setAccountId(newOwner);
-					Response respOwner = util.path("/rest/api/latest/filter/{filterId}/owner")
-						.pathTemplate("filterId", newFilter.getId())
-						.method(HttpMethod.PUT)
-						.payload(owner)
-						.request();
-					if (!checkStatusCode(respOwner, Response.Status.NO_CONTENT)) {
-						String msg = "Failed to set owner for filter [" + filter.getName() + "] to " + 
-								"[" + filter.getOwner().getAccountId() + "]: " + 
-								respOwner.readEntity(String.class);
-						Log.error(LOGGER, msg);
-						result.getFailed().put(filter.getId(), msg);
-						continue;
+					// Change owner to real target (if not self)
+					if (!myAccountId.equals(newOwner)) {
+						PermissionTarget owner = new PermissionTarget();
+						owner.setAccountId(newOwner);
+						Response respOwner = util.path("/rest/api/latest/filter/{filterId}/owner")
+							.pathTemplate("filterId", newFilter.getId())
+							.method(HttpMethod.PUT)
+							.payload(owner)
+							.status(null)
+							.request();
+						if (!checkStatusCode(respOwner, Response.Status.NO_CONTENT)) {
+							String msg = "Failed to set owner for filter [" + filter.getName() + "] to " + 
+									"[" + filter.getOwner().getAccountId() + "]: " + 
+									respOwner.readEntity(String.class);
+							Log.error(LOGGER, msg);
+							result.getFailed().put(filter.getId(), msg);
+							continue;
+						}
+						Log.info(LOGGER, "Filter [" + filter.getName() + "] owner changed: " + newOwner);
 					}
-					Log.info(LOGGER, "Filter [" + filter.getName() + "] owner changed: " + newOwner);
 				} catch (FilterNotMappedException fnmex) {
 					String refId = fnmex.getReferencedFilter();
 					// Detect impossible to map ones and declare them failed
@@ -645,15 +1003,7 @@ public class DashboardMigrator {
 				throw new Exception("Filter [" + filterName + "] Property [" + propertyName + "] " + 
 						"issueFunction is no longer supported");
 			}
-			// TODO Check value?
-			/*
-			Operand originalOperand = tc.getOperand();
-			if (originalOperand instanceof SingleValueOperand) {
-			} else if (originalOperand instanceof MultiValueOperand) {
-				MultiValueOperand mvo = (MultiValueOperand) originalOperand;
-			} else if (originalOperand instanceof FunctionOperand) {
-			}
-			*/
+			// TODO Other checks possible?
 		} 
 		// Check children
 		for (Clause child :	clause.getClauses()) {
@@ -775,6 +1125,7 @@ public class DashboardMigrator {
 			Response resp = util.path("/rest/api/latest/dashboard")
 					.method(HttpMethod.POST)
 					.payload(cd)
+					.status(null)
 					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				CloudDashboard createdDashboard = resp.readEntity(CloudDashboard.class);
@@ -790,6 +1141,7 @@ public class DashboardMigrator {
 							.pathTemplate("boardId", createdDashboard.getId())
 							.method(HttpMethod.POST)
 							.payload(cg)
+							.status(null)
 							.request();
 					if (checkStatusCode(resp1, Response.Status.OK)) {
 						CloudGadget createdGadget = resp1.readEntity(CloudGadget.class);
@@ -812,6 +1164,7 @@ public class DashboardMigrator {
 									.pathTemplate("key", GadgetConfigType.CONFIG.getPropertyKey())
 									.method(HttpMethod.PUT)
 									.payload(cc)
+									.status(null)
 									.request();
 								if (!checkStatusCode(resp2, Response.Status.OK)) {
 									Log.error(LOGGER, "Failed to config for gadget [" + gadget.getGadgetXml() + 
@@ -830,6 +1183,7 @@ public class DashboardMigrator {
 											.pathTemplate("key", entry.getKey())
 											.method(HttpMethod.PUT)
 											.payload(entry.getValue())
+											.status(null)
 											.request();
 									if (!checkStatusCode(resp2, Response.Status.OK)) {
 										Log.error(LOGGER, "Failed to config for gadget [" + gadget.getGadgetXml() + 
@@ -1057,6 +1411,7 @@ public class DashboardMigrator {
 			Response resp = util.path("/rest/api/latest/filter/{filterId}")
 					.pathTemplate("filterId", filter.getValue())
 					.method(HttpMethod.DELETE)
+					.status(null)
 					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				deletedCount++;
@@ -1078,6 +1433,7 @@ public class DashboardMigrator {
 			Response resp = util.path("/rest/api/latest/dashboard/{boardId}")
 					.pathTemplate("boardId", dashboard.getValue())
 					.method(HttpMethod.DELETE)
+					.status(null)
 					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				deletedCount++;
@@ -1291,6 +1647,7 @@ public class DashboardMigrator {
 					.pathTemplate("projectId", project.getId())
 					.method(HttpMethod.GET)
 					.pagination(new SinglePage<Object>(Object.class))
+					.status(null)
 					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				// Parse name and id
@@ -1497,7 +1854,8 @@ public class DashboardMigrator {
 						}
 						break;
 					case CREATE_FILTER: 
-						mapFiltersV2(conf);
+						mapFiltersV3(conf);
+						//mapFiltersV2(conf);
 						break;
 					case MAP_DASHBOARD:
 						mapDashboards();

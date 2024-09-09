@@ -1,5 +1,10 @@
 package com.igsl.model;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.igsl.Log;
+
 public enum PermissionType {
 	USER("user"), 
 	GROUP("group"), 
@@ -7,8 +12,11 @@ public enum PermissionType {
 	PROJECT_ROLE("projectRole"), // Used only to create/update filters. For read, roles get bundled under PROJECT.
 	GLOBAL("global"), 
 	LOGGED_IN("loggedin", "authenticated"), 
-	UNKNOWN("project-unknown");	// This seems to be the result of sharing to a project you cannot access?
-
+	PROJECT_UNKNOWN("project-unknown"), // This seems to be the result of sharing to a project you cannot access
+	USER_UNKNOWN("user-unknown");
+	
+	private static final Logger LOGGER = LogManager.getLogger();
+	
 	private String dataCenterType;
 	private String cloudType;
 
@@ -28,6 +36,7 @@ public enum PermissionType {
 				return t;
 			}
 		}
+		Log.error(LOGGER, "Unrecognized permission type: [" + dataCenterType + "]");
 		return null;
 	}
 

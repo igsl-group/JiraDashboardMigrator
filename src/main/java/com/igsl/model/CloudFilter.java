@@ -14,6 +14,7 @@ public class CloudFilter {
 	private String jql;
 	private List<CloudPermission> sharePermissions;
 	private List<CloudPermission> editPermissions;
+	private PermissionTarget owner;
 
 	public static CloudFilter create(Filter filter) {
 		CloudFilter result = null;
@@ -120,5 +121,13 @@ public class CloudFilter {
 
 	public void setId(String id) {
 		this.id = id;
+	}
+
+	public PermissionTarget getOwner() {
+		return owner;
+	}
+
+	public void setOwner(PermissionTarget owner) {
+		this.owner = owner;
 	}
 }

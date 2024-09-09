@@ -85,6 +85,9 @@ public enum MappingType {
 		return null;
 	}
 	
+	public String getOwner() {
+		return name + ".Owner" + EXTENSION;
+	}
 	public String getMap() {
 		return name + ".Map" + EXTENSION;
 	}

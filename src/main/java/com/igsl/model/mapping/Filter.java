@@ -45,11 +45,15 @@ public class Filter extends JiraObject<Filter> {
 			if (filterId != null) {
 				util.path("/rest/api/latest/filter/{filterId}")
 					.pathTemplate("filterId", filterId)
+					.query("expand", "owner")	// Include owner information
+					.query("overrideSharePermissions", true)	// Override permission
 					.method(HttpMethod.GET)
 					.pagination(new SinglePage<Filter>(Filter.class, null));
 			} else {
 				util.path("/rest/api/latest/filter/search")
 					.method(HttpMethod.GET)
+					.query("expand", "owner")	// Include owner information
+					.query("overrideSharePermissions", true)	// Override permission
 					.pagination(new Paged<Filter>(Filter.class));
 			}
 		} else {
@@ -57,6 +61,8 @@ public class Filter extends JiraObject<Filter> {
 			String filterId = String.valueOf(data[0]);
 			util.path("/rest/api/latest/filter/{filterId}")
 				.pathTemplate("filterId", filterId)
+				.query("expand", "owner")	// Include owner information
+				.query("overrideSharePermissions", true)	// Override permission
 				.method(HttpMethod.GET)
 				.pagination(new SinglePage<Filter>(Filter.class, null));
 		}
