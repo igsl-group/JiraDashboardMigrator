@@ -1,0 +1,15 @@
+[
+	{
+		"description": "Liquid Gauge Gadget", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.akelesconsulting.jira.plugins.GaugeGadget__liquidGauge",
+		"uri": "rest/gadgets/1.0/g/com.akelesconsulting.jira.plugins.GaugeGadget:liquid-gauge-gadget/gadgets/liquid-gauge-gadget/gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": null,
+		"implementationClass": "com.igsl.config.countergadget.LiquidGauge",
+		"config": [
+		]
+	}
+]

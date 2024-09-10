@@ -78,7 +78,6 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.igsl.CLI.CLIOptions;
 import com.igsl.config.Config;
-import com.igsl.config.GadgetConfigType;
 import com.igsl.config.GadgetType;
 import com.igsl.model.CloudDashboard;
 import com.igsl.model.CloudFilter;
@@ -1217,15 +1216,14 @@ public class DashboardMigrator {
 							gadget.getDashboardCompleteKey(), 
 							gadget.getGadgetXml());
 					if (gadgetType != null) {
-						GadgetConfigType configType = gadgetType.getConfigType();
-						switch (configType) {
-						case CONFIG: 
+						String configType = gadgetType.getConfigType();
+						if (configType != null) {
 							// Add all properties under propertyKey as JSON
 							resp2 = util
 								.path("/rest/api/latest/dashboard/{boardId}/items/{gadgetId}/properties/{key}")
 								.pathTemplate("boardId", createdDashboard.getId())
 								.pathTemplate("gadgetId", createdGadget.getId())
-								.pathTemplate("key", GadgetConfigType.CONFIG.getPropertyKey())
+								.pathTemplate("key", configType)
 								.method(HttpMethod.PUT)
 								.payload(cc)
 								.status()
@@ -1235,8 +1233,7 @@ public class DashboardMigrator {
 										"] in dashboard ["
 										+ dashboard.getPageName() + "]: " + resp2.readEntity(String.class));
 							}
-							break;
-						case SEPARATE: 
+						} else {
 							// Add property one by one
 							for (Map.Entry<String, String> entry : cc.entrySet()) {
 								Log.info(LOGGER, "Config: [" + entry.getKey() + "] = [" + entry.getValue() + "]");
@@ -1259,7 +1256,6 @@ public class DashboardMigrator {
 									}
 								}
 							}
-							break;
 						}
 					} else {
 						Log.warn(LOGGER, "Unrecognized gadget [" + gadget.getDashboardCompleteKey() + ", " + 

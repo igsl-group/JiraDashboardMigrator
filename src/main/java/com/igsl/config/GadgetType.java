@@ -39,7 +39,7 @@ public class GadgetType {
 	private String newUri;
 	private String implementationClass;	// Overrides config, instead call this class to process.
 	
-	private GadgetConfigType configType;
+	private String configType;
 	private List<GadgetConfigMapping> config = new ArrayList<>();
 
 	private static final ObjectMapper OM = new ObjectMapper()
@@ -148,10 +148,10 @@ public class GadgetType {
 	public void setNewUri(String newUri) {
 		this.newUri = newUri;
 	}
-	public GadgetConfigType getConfigType() {
+	public String getConfigType() {
 		return configType;
 	}
-	public void setConfigType(GadgetConfigType configType) {
+	public void setConfigType(String configType) {
 		this.configType = configType;
 	}
 	public List<GadgetConfigMapping> getConfig() {

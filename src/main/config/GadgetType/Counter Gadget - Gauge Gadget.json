@@ -1,0 +1,15 @@
+[
+	{
+		"description": "Gauge Gadget", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.akelesconsulting.jira.plugins.GaugeGadget__horseshoeGauge",
+		"uri": "rest/gadgets/1.0/g/com.akelesconsulting.jira.plugins.GaugeGadget:gauge-gadget/gadgets/gauge-gadget/gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": null,
+		"implementationClass": "com.igsl.config.countergadget.LiquidGauge",
+        "config": [
+        ]
+	}
+]

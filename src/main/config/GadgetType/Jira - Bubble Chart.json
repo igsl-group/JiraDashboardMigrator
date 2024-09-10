@@ -7,7 +7,7 @@
 		"uri": null,
 		"uriCompare": "MATCHES",
 		"newUri": null,
-		"configType": "SEPARATE",
+		"configType": null,
 		"config": [
 			{
 				"attributeNameRegex": "id",

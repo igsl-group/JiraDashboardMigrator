@@ -1,0 +1,15 @@
+[
+	{
+		"description": "Counter Gadget", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.akelesconsulting.jira.plugins.GaugeGadget__counterGauge",
+		"uri": "rest/gadgets/1.0/g/com.akelesconsulting.jira.plugins.GaugeGadget:counter-gadget/gadgets/counter-gadget/gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": null,
+		"implementationClass": "com.igsl.config.countergadget.LiquidGauge",
+        "config": [
+        ]
+	}
+]

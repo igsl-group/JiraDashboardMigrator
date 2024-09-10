@@ -7,7 +7,7 @@
 		"uri": "rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-cycle-execution-workflow-time/gadgets/cycle-execution-workflow-time.xml",
 		"uriCompare": "MATCHES",
 		"newUri": "",
-		"configType": "CONFIG",
+		"configType": "config",
 		"config": [
 		]
 	}

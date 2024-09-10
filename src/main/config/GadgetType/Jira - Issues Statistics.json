@@ -7,7 +7,7 @@
         "uri": "rest/gadgets/1.0/g/com.atlassian.jira.gadgets:stats-gadget/gadgets/stats-gadget.xml",
         "uriCompare": "MATCHES",
         "newUri": "",
-        "configType": "CONFIG",
+        "configType": "config",
         "config": [
             {
                 "attributeNameRegex": "statType",

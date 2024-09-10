@@ -7,7 +7,7 @@
 		"uri": "rest/gadgets/1.0/g/net.brokenbuild.velocity-chart:velocity-chart-gadget/gadgets/velocity-chart-gadget.xml",
 		"uriCompare": "MATCHES",
 		"newUri": null,
-		"configType": "SEPARATE",
+		"configType": null,
 		"implementationClass": "com.igsl.config.brokenbuild.VelocityCharts",
         "config": [
         ]

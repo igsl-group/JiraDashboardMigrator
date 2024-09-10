@@ -7,7 +7,7 @@
         "uri": "rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-zql-filter/gadgets/zql-gadget.xml",
         "uriCompare": "MATCHES",
         "newUri": null,
-        "configType": "CONFIG",
+        "configType": "config",
         "config": [
             {
                 "attributeNameRegex": "filterId",

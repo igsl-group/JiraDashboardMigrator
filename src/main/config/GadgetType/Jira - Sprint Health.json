@@ -7,7 +7,7 @@
         "uri": "rest/gadgets/1.0/g/com.pyxis.greenhopper.jira:greenhopper-gadget-sprint-health/gadgets/greenhopper-sprint-health.xml",
         "uriCompare": "MATCHES",
         "newUri": "",
-        "configType": "CONFIG",
+        "configType": "config",
         "config": [
             {
                 "attributeNameRegex": "sprintId",

@@ -7,7 +7,7 @@
         "uri": "rest/gadgets/1.0/g/com.atlassian.jira.ext.calendar:issuescalendar-gadget/templates/plugins/jira/portlets/calendar/gadget/calendar-gadget.xml",
         "uriCompare": "MATCHES",
         "newUri": "",
-        "configType": "CONFIG",
+        "configType": "config",
         "config": [
             {
                 "attributeNameRegex": "projectOrFilterId",
