@@ -268,18 +268,39 @@ public class RestUtil<T> {
 	}
 	
 	/**
-	 * Set valid status codes. These codes with be checked with bitwise AND.
-	 * Default is [HttpStatus.SC_OK]
-	 * Pass null as statuses to bypass status code check. Call .request() and check the response code.
+	 * Disable status checking. Call .request() and check response code yourself.
+	 */
+	public RestUtil<T> status() {
+		return this.status(true, null);
+	}
+	/**
+	 * Set valid status codes. These codes will be checked with bitwise AND.
+	 * Default is [Status.OK]
 	 * @param statuses Valid status codes.
 	 */
 	public RestUtil<T> status(int... statuses) {
 		return this.status(true, statuses);
 	}
+	/**
+	 * Set valid status codes. These codes will be checked with bitwise AND.
+	 * Default is [Status.OK]
+	 * @param statuses Valid status codes.
+	 */
+	public RestUtil<T> status(Status... statuses) {
+		if (statuses != null) {
+			int[] list = new int[statuses.length];
+			for (int i = 0; i < statuses.length; i++) {
+				list[i] = statuses[i].getStatusCode();
+			}
+			return this.status(true, list);
+		} else {
+			return this.status(true, null);
+		}
+	}
 	
 	/**
 	 * Set valid status codes.
-	 * Default is true, [HttpStatus.SC_OK]
+	 * Default is true, [Status.OK]
 	 * Pass null as statuses to bypass status code check. Call .request() and check the response code.
 	 * @param bitwiseAnd If false, status code must match exactly. Otherwise checked with bitwise AND.
 	 * @param statuses Valid status codes.

@@ -8,6 +8,7 @@
 		"uriCompare": "<MATCHES | CONTAINS | BEGINS | ENDS to control how uri is compared>",
 		"newUri": "<New value of uri. Null to set to null, blank to not change value>",
 		"configType": "<CONFIG or SEPARATE. If CONFIG, the whole Data Center configuration is added to cloud as JSON under 'config' attribute. If SEPARATE, each configuration is added as a separate map entry>",
+		"implementationClass": "<Class name of CustomGadgetMapper subclass, overrides config>",
 		"config": [
 			{
 				"attributeNameRegex": "<Regular expression of attribute name, always matches whole string. Note the order of items defines priority>",

@@ -7,26 +7,9 @@
 		"uri": "rest/gadgets/1.0/g/net.brokenbuild.velocity-chart:enterprise-velocity-gadget/gadgets/enterprise-velocity-gadget.xml",
 		"uriCompare": "MATCHES",
 		"newUri": null,
-		"configType": "CONFIG",
+		"configType": "SEPARATE",
+		"implementationClass": "com.igsl.config.brokenbuild.VelocityCharts",
 		"config": [
-			{
-				"attributeNameRegex": "boardId",
-				"mappingType": "DASHBOARD",
-				"pattern": "([0-9]+)",
-				"targetGroup": 1,
-				"replacement": "$1",
-				"prefix": null,
-				"suffix": null
-			},
-			{
-				"attributeNameRegex": "estimationField",
-				"mappingType": "CUSTOM_FIELD",
-				"pattern": "([0-9]+)",
-				"targetGroup": 1,
-				"replacement": "$1",
-				"prefix": null,
-				"suffix": null
-			}
 		]
 	}
 ]

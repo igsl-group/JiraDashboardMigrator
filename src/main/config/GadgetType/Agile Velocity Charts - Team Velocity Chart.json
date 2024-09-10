@@ -1,0 +1,15 @@
+[
+	{
+		"description": "Team Velocity Chart", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:net.brokenbuild.velocity-chart__velocity-gadget",
+		"uri": "rest/gadgets/1.0/g/net.brokenbuild.velocity-chart:velocity-chart-gadget/gadgets/velocity-chart-gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": "SEPARATE",
+		"implementationClass": "com.igsl.config.brokenbuild.VelocityCharts",
+        "config": [
+        ]
+	}
+]

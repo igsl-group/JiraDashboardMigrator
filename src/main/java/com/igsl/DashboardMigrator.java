@@ -70,6 +70,7 @@ import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
@@ -90,6 +91,7 @@ import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.PermissionTarget;
 import com.igsl.model.PermissionType;
 import com.igsl.model.mapping.Dashboard;
+import com.igsl.model.mapping.DashboardGadget;
 import com.igsl.model.mapping.Filter;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
@@ -377,7 +379,7 @@ public class DashboardMigrator {
 				.pathTemplate("filterId", filter.getId())
 				.method(HttpMethod.PUT)
 				.payload(payload)
-				.status(null)
+				.status()
 				.request();
 		if (!checkStatusCode(resp, Status.OK)) {
 			Log.error(LOGGER, 
@@ -610,7 +612,7 @@ public class DashboardMigrator {
 								.method(HttpMethod.PUT)
 								.query("overrideSharePermissions", true)
 								.payload(cloudFilter)
-								.status(null)
+								.status()
 								.request();
 					} else {
 						// Create filter
@@ -619,7 +621,7 @@ public class DashboardMigrator {
 								.method(HttpMethod.POST)
 								.query("overrideSharePermissions", true)
 								.payload(cloudFilter)
-								.status(null)
+								.status()
 								.request();
 					}
 					Log.info(LOGGER, "Filter payload: [" + OM.writeValueAsString(cloudFilter) + "]");
@@ -893,7 +895,7 @@ public class DashboardMigrator {
 									.pathTemplate("filterId", foundFilterList.get(0).getId())
 									.method(HttpMethod.PUT)
 									.payload(owner)
-									.status(null)
+									.status()
 									.request();
 							if (!checkStatusCode(respOwner, Response.Status.NO_CONTENT)) {
 								String msg = "Failed to set owner for filter [" + filter.getName() + "] to " + 
@@ -915,7 +917,7 @@ public class DashboardMigrator {
 								.method(HttpMethod.PUT)
 								.query("overrideSharePermissions", true)
 								.payload(cloudFilter)
-								.status(null)
+								.status()
 								.request();
 					} else {
 						// Create filter
@@ -924,7 +926,7 @@ public class DashboardMigrator {
 								.method(HttpMethod.POST)
 								.query("overrideSharePermissions", true)
 								.payload(cloudFilter)
-								.status(null)
+								.status()
 								.request();
 					}
 					if (!checkStatusCode(respFilter, Response.Status.OK)) {
@@ -944,7 +946,7 @@ public class DashboardMigrator {
 							.pathTemplate("filterId", newFilter.getId())
 							.method(HttpMethod.PUT)
 							.payload(owner)
-							.status(null)
+							.status()
 							.request();
 						if (!checkStatusCode(respOwner, Response.Status.NO_CONTENT)) {
 							String msg = "Failed to set owner for filter [" + filter.getName() + "] to " + 
@@ -1113,13 +1115,13 @@ public class DashboardMigrator {
 		payload.put("action", "changeOwner");
 		Map<String, Object> details = new HashMap<>();
 		details.put("newOwner", accountId);
-		details.put("autofixName", true);
+		details.put("autofixName", true); // API will append timestamp if a dashboard of same name already exist
 		payload.put("changeOwnerDetails", details);
 		payload.put("entityIds", new String[] {boardId});
 		Response resp = util.path("/rest/api/latest/dashboard/bulk/edit")
 			.method(HttpMethod.PUT)
 			.payload(payload)
-			.status(null)
+			.status()
 			.request();
 		if (!checkStatusCode(resp, Status.OK)) {
 			Log.error(LOGGER, "Failed to change board [" + boardId + "] owner to [" + accountId + "]: " + 
@@ -1131,7 +1133,9 @@ public class DashboardMigrator {
 	
 	private static void createDashboards(Client cloudClient, Config conf) throws Exception {
 		Log.info(LOGGER, "Creating dashboards...");
-		RestUtil<Dashboard> util = RestUtil.getInstance(Dashboard.class)
+		RestUtil<Object> util = RestUtil.getInstance(Object.class)
+				.config(conf, true);
+		RestUtil<CloudDashboard> dashboardUtil = RestUtil.getInstance(CloudDashboard.class)
 				.config(conf, true);
 		List<DataCenterPortalPage> dashboards = readValuesFromFile(MappingType.DASHBOARD.getRemapped(),
 				DataCenterPortalPage.class);
@@ -1142,91 +1146,111 @@ public class DashboardMigrator {
 			CloudDashboard cd = CloudDashboard.create(dashboard);
 			Log.info(LOGGER, "CloudDashboard: " + OM.writeValueAsString(cd));
 			// Check if exists for current user
-			List<Dashboard> list = util
+			List<CloudDashboard> list = dashboardUtil
 					.path("/rest/api/latest/dashboard/search")
 					.query("dashboardName", dashboard.getPageName())
 					.method(HttpMethod.GET)
-					.pagination(new Paged<Dashboard>(Dashboard.class).maxResults(1))
+					.pagination(new Paged<CloudDashboard>(CloudDashboard.class).maxResults(1))
 					.requestAllPages();
-			Response resp;
+			CloudDashboard createdDashboard;
 			if (list.size() != 0) {
 				String id = list.get(0).getId();
 				Log.info(LOGGER, "Updating dashboard [" + cd.getName() + "]");
-				// Update
-				resp = util.path("/rest/api/latest/dashboard/{boardId}")
+				// Delete all gadgets
+				List<DashboardGadget> gadgetList = JiraObject.getObjects(conf, DashboardGadget.class, true, id);
+				for (DashboardGadget gadget : gadgetList) {
+					Response respDeleteGadget = util
+						.path("/rest/api/latest/dashboard/{boardId}/gadget/{gadgetId}")
 						.pathTemplate("boardId", id)
-						.query("extendAdminPermissions", true)
-						.method(HttpMethod.PUT)
-						.payload(cd)
-						.status(null)
+						.pathTemplate("gadgetId", Integer.toString(gadget.getId()))
+						.method(HttpMethod.DELETE)
 						.request();
+					if (checkStatusCode(respDeleteGadget, Status.NO_CONTENT)) {
+						Log.info(LOGGER, "Dashboard [" + cd.getName() + "] gadget [" + gadget.getId() + "] removed");
+					} else {
+						Log.error(LOGGER, "Unable to remove dashboard [" + cd.getName() + "] " + 
+								"gadget [" + gadget.getId() + "]: " + 
+								respDeleteGadget.readEntity(String.class));
+					}
+				}
+				createdDashboard = list.get(0);
 			} else {
 				Log.info(LOGGER, "Creating dashboard [" + cd.getName() + "]");
 				// Create
-				resp = util.path("/rest/api/latest/dashboard")
+				Response resp = util
+						.path("/rest/api/latest/dashboard")
 						.query("extendAdminPermissions", true)
 						.method(HttpMethod.POST)
 						.payload(cd)
-						.status(null)
+						.status()
 						.request();
+				if (checkStatusCode(resp, Response.Status.OK)) {
+					createdDashboard = resp.readEntity(CloudDashboard.class);
+				} else {
+					String msg = resp.readEntity(String.class);
+					migratedList.getFailed().put(Integer.toString(dashboard.getId()), msg);
+					Log.error(LOGGER, "Failed to create dashboard [" + dashboard.getPageName() + "]: " + msg);
+					continue;
+				}
 			}
-			if (checkStatusCode(resp, Response.Status.OK)) {
-				CloudDashboard createdDashboard = resp.readEntity(CloudDashboard.class);
-				// Sort portlets with position
-				dashboard.getPortlets().sort(new GadgetOrderComparator(true));
-				// Impossible to change layout via REST?
-				for (DataCenterPortletConfiguration gadget : dashboard.getPortlets()) {
-					// Add gadgets
-					CloudGadget cg = CloudGadget.create(gadget);
-					Log.info(LOGGER, "DC Gadget: " + OM.writeValueAsString(gadget));
-					Log.info(LOGGER, "Cloud Gadget: " + OM.writeValueAsString(cg));
-					Response resp1 = util.path("/rest/api/latest/dashboard/{boardId}/gadget")
-							.pathTemplate("boardId", createdDashboard.getId())
-							.method(HttpMethod.POST)
-							.payload(cg)
-							.status(null)
-							.request();
-					if (checkStatusCode(resp1, Response.Status.OK)) {
-						CloudGadget createdGadget = resp1.readEntity(CloudGadget.class);
-						// Gadget configuration
-						CloudGadgetConfiguration cc = CloudGadgetConfiguration.create(
-								gadget.getGadgetConfigurations());
-						Response resp2;
-						GadgetType gadgetType = GadgetType.parse(
-								gadget.getDashboardCompleteKey(), 
-								gadget.getGadgetXml());
-						if (gadgetType != null) {
-							GadgetConfigType configType = gadgetType.getConfigType();
-							switch (configType) {
-							case CONFIG: 
-								// Add all properties under propertyKey as JSON
-								resp2 = util
-									.path("/rest/api/latest/dashboard/{boardId}/items/{gadgetId}/properties/{key}")
-									.pathTemplate("boardId", createdDashboard.getId())
-									.pathTemplate("gadgetId", createdGadget.getId())
-									.pathTemplate("key", GadgetConfigType.CONFIG.getPropertyKey())
-									.method(HttpMethod.PUT)
-									.payload(cc)
-									.status(null)
-									.request();
-								if (!checkStatusCode(resp2, Response.Status.OK)) {
-									Log.error(LOGGER, "Failed to config for gadget [" + gadget.getGadgetXml() + 
-											"] in dashboard ["
-											+ dashboard.getPageName() + "]: " + resp2.readEntity(String.class));
-								}
-								break;
-							case SEPARATE: 
-								// Add property one by one
-								for (Map.Entry<String, String> entry : cc.entrySet()) {
-									Log.info(LOGGER, "Config: [" + entry.getKey() + "] = [" + entry.getValue() + "]");
+			// Sort portlets with position
+			dashboard.getPortlets().sort(new GadgetOrderComparator(true));
+			// Impossible to change layout via REST?
+			for (DataCenterPortletConfiguration gadget : dashboard.getPortlets()) {
+				// Add gadgets
+				CloudGadget cg = CloudGadget.create(gadget);
+				Log.info(LOGGER, "DC Gadget: " + OM.writeValueAsString(gadget));
+				Log.info(LOGGER, "Cloud Gadget: " + OM.writeValueAsString(cg));
+				Response resp1 = util.path("/rest/api/latest/dashboard/{boardId}/gadget")
+						.pathTemplate("boardId", createdDashboard.getId())
+						.method(HttpMethod.POST)
+						.payload(cg)
+						.status()
+						.request();
+				if (checkStatusCode(resp1, Response.Status.OK)) {
+					CloudGadget createdGadget = resp1.readEntity(CloudGadget.class);
+					// Gadget configuration
+					CloudGadgetConfiguration cc = CloudGadgetConfiguration.create(
+							gadget.getGadgetConfigurations());
+					Response resp2;
+					GadgetType gadgetType = GadgetType.parse(
+							gadget.getDashboardCompleteKey(), 
+							gadget.getGadgetXml());
+					if (gadgetType != null) {
+						GadgetConfigType configType = gadgetType.getConfigType();
+						switch (configType) {
+						case CONFIG: 
+							// Add all properties under propertyKey as JSON
+							resp2 = util
+								.path("/rest/api/latest/dashboard/{boardId}/items/{gadgetId}/properties/{key}")
+								.pathTemplate("boardId", createdDashboard.getId())
+								.pathTemplate("gadgetId", createdGadget.getId())
+								.pathTemplate("key", GadgetConfigType.CONFIG.getPropertyKey())
+								.method(HttpMethod.PUT)
+								.payload(cc)
+								.status()
+								.request();
+							if (!checkStatusCode(resp2, Response.Status.OK)) {
+								Log.error(LOGGER, "Failed to config for gadget [" + gadget.getGadgetXml() + 
+										"] in dashboard ["
+										+ dashboard.getPageName() + "]: " + resp2.readEntity(String.class));
+							}
+							break;
+						case SEPARATE: 
+							// Add property one by one
+							for (Map.Entry<String, String> entry : cc.entrySet()) {
+								Log.info(LOGGER, "Config: [" + entry.getKey() + "] = [" + entry.getValue() + "]");
+								if (entry.getValue() != null && 
+									!entry.getValue().isBlank()) {
+									JsonNode json = OM.readTree(entry.getValue());
 									resp2 = util
 											.path("/rest/api/latest/dashboard/{boardId}/items/{gadgetId}/properties/{key}")
 											.pathTemplate("boardId", createdDashboard.getId())
 											.pathTemplate("gadgetId", createdGadget.getId())
 											.pathTemplate("key", entry.getKey())
 											.method(HttpMethod.PUT)
-											.payload(entry.getValue())
-											.status(null)
+											.payload(json)
+											.status()
 											.request();
 									if (!checkStatusCode(resp2, Response.Status.OK)) {
 										Log.error(LOGGER, "Failed to config for gadget [" + gadget.getGadgetXml() + 
@@ -1234,35 +1258,31 @@ public class DashboardMigrator {
 												+ dashboard.getPageName() + "]: " + resp2.readEntity(String.class));
 									}
 								}
-								break;
 							}
-						} else {
-							Log.warn(LOGGER, "Unrecognized gadget [" + gadget.getDashboardCompleteKey() + ", " + 
-									gadget.getGadgetXml() + "] in dashboard [" + 
-									dashboard.getPageName() + "]");
+							break;
 						}
 					} else {
-						Log.error(LOGGER, "Failed to add gadget [" + gadget.getGadgetXml() + "] to dashboard ["
-								+ dashboard.getPageName() + "]: " + resp1.readEntity(String.class));
+						Log.warn(LOGGER, "Unrecognized gadget [" + gadget.getDashboardCompleteKey() + ", " + 
+								gadget.getGadgetXml() + "] in dashboard [" + 
+								dashboard.getPageName() + "]");
 					}
-				}
-				// Change owner
-				if (changeDashboardOwner(conf, createdDashboard.getId(), dashboard.getAccountId())) {
-					Log.info(LOGGER, "Board [" + createdDashboard.getName() + "](" + createdDashboard.getId() + ") " + 
-							"owner changed from [" + dashboard.getUsername() + "] " + 
-							"to [" + dashboard.getAccountId() + "]");
 				} else {
-					Log.error(LOGGER, "Please change owner of [" + createdDashboard.getName() + "]" + 
-							"(" + createdDashboard.getId() + ") to ["
-							+ dashboard.getAccountId() + "]");
+					Log.error(LOGGER, "Failed to add gadget [" + gadget.getGadgetXml() + "] to dashboard ["
+							+ dashboard.getPageName() + "]: " + resp1.readEntity(String.class));
 				}
-				migratedList.getMapped().put(Integer.toString(dashboard.getId()), createdDashboard.getId());
-				migratedCount++;
-			} else {
-				String msg = resp.readEntity(String.class);
-				migratedList.getFailed().put(Integer.toString(dashboard.getId()), msg);
-				Log.error(LOGGER, "Failed to create dashboard [" + dashboard.getPageName() + "]: " + msg);
 			}
+			// Change owner
+			if (changeDashboardOwner(conf, createdDashboard.getId(), dashboard.getAccountId())) {
+				Log.info(LOGGER, "Board [" + createdDashboard.getName() + "](" + createdDashboard.getId() + ") " + 
+						"owner changed from [" + dashboard.getUsername() + "] " + 
+						"to [" + dashboard.getAccountId() + "]");
+			} else {
+				Log.warn(LOGGER, "Please change owner of [" + createdDashboard.getName() + "]" + 
+						"(" + createdDashboard.getId() + ") to ["
+						+ dashboard.getAccountId() + "]");
+			}
+			migratedList.getMapped().put(Integer.toString(dashboard.getId()), createdDashboard.getId());
+			migratedCount++;
 		}
 		saveFile(MappingType.DASHBOARD.getMap(), migratedList);
 		Log.printCount(LOGGER, "Dashboards migrated: ", migratedCount, dashboards.size());
@@ -1481,7 +1501,7 @@ public class DashboardMigrator {
 			Response resp = util.path("/rest/api/latest/filter/{filterId}")
 					.pathTemplate("filterId", filter.getValue())
 					.method(HttpMethod.DELETE)
-					.status(null)
+					.status()
 					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				deletedCount++;
@@ -1503,7 +1523,7 @@ public class DashboardMigrator {
 			Response resp = util.path("/rest/api/latest/dashboard/{boardId}")
 					.pathTemplate("boardId", dashboard.getValue())
 					.method(HttpMethod.DELETE)
-					.status(null)
+					.status()
 					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				deletedCount++;
@@ -1717,7 +1737,7 @@ public class DashboardMigrator {
 					.pathTemplate("projectId", project.getId())
 					.method(HttpMethod.GET)
 					.pagination(new SinglePage<Object>(Object.class))
-					.status(null)
+					.status()
 					.request();
 			if (checkStatusCode(resp, Response.Status.OK)) {
 				// Parse name and id
@@ -1756,7 +1776,7 @@ public class DashboardMigrator {
 								.method((grant? HttpMethod.POST : HttpMethod.DELETE))
 								.query((grant? null : query))
 								.payload((grant? payload : null))
-								.status(null)
+								.status()
 								.request();
 						if (grant) {
 							// Grant result

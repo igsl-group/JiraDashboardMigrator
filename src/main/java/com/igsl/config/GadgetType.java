@@ -3,7 +3,6 @@ package com.igsl.config;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,6 +37,7 @@ public class GadgetType {
 	private StringCompareType uriCompare;
 	private String newModuleKey;
 	private String newUri;
+	private String implementationClass;	// Overrides config, instead call this class to process.
 	
 	private GadgetConfigType configType;
 	private List<GadgetConfigMapping> config = new ArrayList<>();
@@ -77,8 +77,14 @@ public class GadgetType {
 
 	public static GadgetType parse(String moduleKey, String uri) {
 		for (GadgetType type : LIST) {
+			// If match old values
 			if (stringComparator.compare(moduleKey, type.moduleKey) == 0 && 
 				stringComparator.compare(uri, type.uri) == 0) {
+				return type;
+			}
+			// If match new values
+			if (stringComparator.compare(moduleKey, type.newModuleKey) == 0 && 
+				stringComparator.compare(uri, type.newUri) == 0) {
 				return type;
 			}
 		}
@@ -153,5 +159,11 @@ public class GadgetType {
 	}
 	public void setConfig(List<GadgetConfigMapping> config) {
 		this.config = config;
+	}
+	public String getImplementationClass() {
+		return implementationClass;
+	}
+	public void setImplementationClass(String implementationClass) {
+		this.implementationClass = implementationClass;
 	}
 }
