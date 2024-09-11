@@ -8,6 +8,7 @@ public enum MappingType {
 	PROJECT("Project", Project.class, true, true, "project"), 
 	PROJECT_CATEGORY("ProjectCategory", ProjectCategory.class, true, true, "category"),
 	PROJECT_COMPONENT("ProjectComponent", ProjectComponent.class, true, true, "component"),
+	PROJECT_VERSION("ProjectVersion", ProjectVersion.class, true, true, "version"),
 	ROLE("Role", Role.class, true, true, null), 
 	USER("User", User.class, true, true, null), 
 	GROUP("Group", Group.class, true, true, null), 

@@ -7,14 +7,8 @@
         "uri": null,
         "uriCompare": "MATCHES",
         "newUri": null,
-        "configType": "config",
+        "configType": null,
         "config": [
-            
-        ],
-        "notes": [
-            "checklistIds: \"#\" cannot be mapped, not sure what it is for, Plike license expired",
-            "Some has no configuration",
-            "Cloud does not offer configuration"
         ]
     }
 ]

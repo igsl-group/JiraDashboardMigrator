@@ -492,7 +492,10 @@ public class RestUtil<T> {
 			this.pagination.setup(this);
 			Response response = request();
 			this.pagination.setResponse(response, OM);
-			result.addAll(this.pagination.getObjects());
+			List<T> list = this.pagination.getObjects();
+			if (list != null) {
+				result.addAll(list);
+			}
 			if (!this.pagination.hasMore()) {
 				break;
 			}
