@@ -1,0 +1,15 @@
+[
+	{
+		"description": "Test Execution Distribution", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.thed.zephyr.je__test-execution-components-cycle-gadget",
+		"uri": "rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-execution-status/gadgets/execution-status.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": "config",
+        "implementationClass": "com.igsl.config.zephyrsquad.ZephyrSquad",
+        "config": [
+        ]
+	}
+]

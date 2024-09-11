@@ -1,0 +1,15 @@
+[
+	{
+		"description": "Test Distribution", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.thed.zephyr.je__test-distribution-gadget",
+		"uri": "rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-testcase-creation/gadgets/testcase-creation.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": "itemkey",
+		"implementationClass": "com.igsl.config.zephyrsquad.ZephyrSquad",
+		"config": [
+		]
+	}
+]
