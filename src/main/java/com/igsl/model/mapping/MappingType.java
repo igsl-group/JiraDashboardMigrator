@@ -7,17 +7,17 @@ public enum MappingType {
 	STATUS("Status", Status.class, true, true, "status"), 
 	PROJECT("Project", Project.class, true, true, "project"), 
 	PROJECT_CATEGORY("ProjectCategory", ProjectCategory.class, true, true, "category"),
-	PROJECT_COMPONENT("ProjectComponent", ProjectComponent.class, true, true, "component"),
-	PROJECT_VERSION("ProjectVersion", ProjectVersion.class, true, true, "version"),
+	PROJECT_COMPONENT("ProjectComponent", ProjectComponent.class, true, true, "component", PROJECT),
+	PROJECT_VERSION("ProjectVersion", ProjectVersion.class, true, true, "version", PROJECT),
 	ROLE("Role", Role.class, true, true, null), 
 	USER("User", User.class, true, true, null), 
 	GROUP("Group", Group.class, true, true, null), 
 	CUSTOM_FIELD("CustomField", CustomField.class, true, true, null), 
 	AGILE_BOARD("AgileBoard", AgileBoard.class, true, true, null), 
-	SPRINT("Sprint", Sprint.class, true, true, "sprint"),
+	SPRINT("Sprint", Sprint.class, true, true, "sprint", AGILE_BOARD),
 	ISSUE_TYPE("IssueType", IssueType.class, true, true, "issuetype"),
 	FILTER("Filter", Filter.class, false, false, "filter"), 
-	DASHBOARD("Dashboard", Dashboard.class, false, false, null);
+	DASHBOARD("Dashboard", Dashboard.class, false, false, null, FILTER);
 	
 	private static final String EXTENSION = ".json";
 	private static final Pattern PATTERN_CUSTOMFIELD = Pattern.compile("^(?:customfield_([0-9]+)|cf\\[([0-9]+)\\])$");
@@ -27,29 +27,37 @@ public enum MappingType {
 	private boolean includeCloud;	// This type is exported from Cloud 
 	private String nameInJQL;	// Left hand side in filter. Null if not applicable.
 	private String name;	// Display name for logging purpose
+	private MappingType[] dependencies;
 	
 	private MappingType(
 			String name, Class<?> dataClass, 
 			boolean includeServer, boolean includeCloud, 
-			String nameInFilter) {
+			String nameInFilter, 
+			MappingType... dependencies) {
 		this.name = name;
 		this.dataClass = dataClass;
 		this.includeServer = includeServer;
 		this.includeCloud = includeCloud;
 		this.nameInJQL = nameInFilter;
+		this.dependencies = dependencies;
 	}	
 	
 	public static String getMappingTypes(boolean cloud) {
 		StringBuilder sb = new StringBuilder();
+		StringBuilder dependencies = new StringBuilder();
 		for (MappingType type : MappingType.values()) {
 			if ((cloud && type.isIncludeCloud()) || 
 				(!cloud && type.isIncludeServer())) {
 				sb.append(",").append(type.toString());
 			}
+			if (type.dependencies != null && type.dependencies.length != 0) {
+				dependencies.append("\nNote: ").append(type).append(" depends on ");
+				for (MappingType depend : type.dependencies) {
+					dependencies.append(depend).append(" ");
+				}
+			}
 		}
-		sb.append("\nNote: " + PROJECT_COMPONENT + " requires " + PROJECT + " to be dumped together or previously");
-		sb.append("\nNote: " + SPRINT + " requires " + AGILE_BOARD + " to be dumped together or previously");
-		sb.append("\nNote: " + DASHBOARD + " requires " + FILTER + " to be dumped together or previously");
+		sb.append(dependencies.toString());
 		return sb.toString().substring(1);
 	}
 	

@@ -61,6 +61,7 @@ public class CLI {
 			.option("ddc")
 			.longOpt("dumpDC")
 			.hasArgs()
+			.numberOfArgs(2)
 			.optionalArg(true)
 			.build();
 	
