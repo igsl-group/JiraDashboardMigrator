@@ -10,9 +10,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -750,6 +752,12 @@ public class DashboardMigrator {
 		for (MappingType type : MappingType.values()) {
 			if (requestedTypes.contains(type)) {
 				Class<?> dataClass = null;
+				// Always exclude filter and dashboard
+				// For cloud they are not exported
+				// For server they require database
+				if (type == MappingType.DASHBOARD || type == MappingType.FILTER) {
+					continue;
+				}
 				if (cloud && type.isIncludeCloud()) {
 					dataClass = type.getDataClass();
 				} else if (!cloud && type.isIncludeServer()) {
@@ -1561,24 +1569,52 @@ public class DashboardMigrator {
 		}
 	}
 	
-	private static List<MappingType> parseMappingTypes(String... objectTypes) {
-		List<MappingType> requestedTypes = new ArrayList<>();
+	private static List<MappingType> parseMappingTypes(boolean cloud, String... objectTypes) {
+		List<MappingType> result = new ArrayList<>();
 		if (objectTypes != null) {
+			Set<MappingType> requestedTypes = new HashSet<>();
 			for (String s : objectTypes) {
 				MappingType type = MappingType.parse(s);
-				if (type != null) {
+				if (type != null && 
+					(	(cloud && type.isIncludeCloud()) || 
+						(!cloud && type.isIncludeServer())
+					)) {
 					requestedTypes.add(type);
+					if (type.getDependencies() != null) {
+						for (MappingType depend : type.getDependencies()) {
+							requestedTypes.add(depend);
+							Log.info(LOGGER, 
+									"Object type [" + depend + "] added " + 
+									"as it is required by [" + type + "]");
+						}
+					}
 				} else {
 					Log.error(LOGGER, "Invalid object type [" + s + "] ignored");
+				}
+			}
+			// Sort
+			for (MappingType type : MappingType.values()) {
+				if (requestedTypes.contains(type)) {
+					result.add(type);
 				}
 			}
 		} else {
 			// Add all
 			for (MappingType type : MappingType.values()) {
-				requestedTypes.add(type);
+				if ((cloud && type.isIncludeCloud()) || (!cloud && type.isIncludeServer())) {
+					result.add(type);
+				}
 			}
 		}
-		return requestedTypes;
+		StringBuilder sb = new StringBuilder();
+		for (MappingType type : result) {
+			sb.append(",").append(type);
+		}
+		if (sb.length() != 0) {
+			sb.delete(0, 1);
+		}
+		Log.info(LOGGER, "Object types to export: " + sb.toString());
+		return result;
 	}
 	
 	@SuppressWarnings("incomplete-switch")
@@ -1621,7 +1657,7 @@ public class DashboardMigrator {
 					switch (opt) {
 					case DUMP_DC: {
 						getCredentials(conf, false);
-						List<MappingType> types = parseMappingTypes(cli.getOptionValues(CLI.DUMPDC_OPTION));
+						List<MappingType> types = parseMappingTypes(false, cli.getOptionValues(CLI.DUMPDC_OPTION));
 						dumpObjects(conf, false, types);
 						if (types.contains(MappingType.FILTER) && types.contains(MappingType.DASHBOARD)) {
 							dumpDashboard(conf);
@@ -1630,7 +1666,7 @@ public class DashboardMigrator {
 					}
 					case DUMP_CLOUD:
 						getCredentials(conf, true);
-						dumpObjects(conf, true, parseMappingTypes(cli.getOptionValues(CLI.DUMPCLOUD_OPTION)));
+						dumpObjects(conf, true, parseMappingTypes(true, cli.getOptionValues(CLI.DUMPCLOUD_OPTION)));
 						break;
 					case MAP_OBJECT:
 						mapObjectsV2();

@@ -16,8 +16,8 @@ public enum MappingType {
 	AGILE_BOARD("AgileBoard", AgileBoard.class, true, true, null), 
 	SPRINT("Sprint", Sprint.class, true, true, "sprint", AGILE_BOARD),
 	ISSUE_TYPE("IssueType", IssueType.class, true, true, "issuetype"),
-	FILTER("Filter", Filter.class, false, false, "filter"), 
-	DASHBOARD("Dashboard", Dashboard.class, false, false, null, FILTER);
+	FILTER("Filter", Filter.class, true, false, "filter"), 
+	DASHBOARD("Dashboard", Dashboard.class, true, false, null, FILTER);
 	
 	private static final String EXTENSION = ".json";
 	private static final Pattern PATTERN_CUSTOMFIELD = Pattern.compile("^(?:customfield_([0-9]+)|cf\\[([0-9]+)\\])$");
@@ -44,20 +44,12 @@ public enum MappingType {
 	
 	public static String getMappingTypes(boolean cloud) {
 		StringBuilder sb = new StringBuilder();
-		StringBuilder dependencies = new StringBuilder();
 		for (MappingType type : MappingType.values()) {
 			if ((cloud && type.isIncludeCloud()) || 
 				(!cloud && type.isIncludeServer())) {
 				sb.append(",").append(type.toString());
 			}
-			if (type.dependencies != null && type.dependencies.length != 0) {
-				dependencies.append("\nNote: ").append(type).append(" depends on ");
-				for (MappingType depend : type.dependencies) {
-					dependencies.append(depend).append(" ");
-				}
-			}
 		}
-		sb.append(dependencies.toString());
 		return sb.toString().substring(1);
 	}
 	
@@ -137,5 +129,9 @@ public enum MappingType {
 
 	public String getNameInJQL() {
 		return nameInJQL;
+	}
+
+	public MappingType[] getDependencies() {
+		return dependencies;
 	}
 }
