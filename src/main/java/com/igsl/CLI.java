@@ -89,11 +89,23 @@ public class CLI {
 			.build();
 	
 	public static final Option CREATEFILTER_OPTION = Option.builder()
-			.desc("Create filters in Cloud")
+			.desc(	"Create filters in Cloud. " + 
+					"Optionally specify true/false to call/disable REST API calls. Default true." + 
+					"When REST API calls are disabled, filters get remapped to file in a single batch.")
 			.option("cf")
 			.longOpt("createFilter")
+			.hasArg()
+			.optionalArg(true)
 			.build();
-
+	
+	public static final Option OVERWRITEFILTER_OPTION = Option.builder()
+			.desc(	"Modifier to createFilter, only applicable when REST API calls are not disabled. " + 
+					"If specificed, overwrites filters that already exist in Cloud. " + 
+					"Default is to not overwrite.")
+			.option("of")
+			.longOpt("overwriteFilter")
+			.build();
+	
 	public static final Option DELETEFILTER_OPTION = Option.builder()
 			.desc("Delete filters created in Cloud")
 			.option("df")
@@ -136,6 +148,7 @@ public class CLI {
 			.addOption(DUMPCLOUD_OPTION)
 			.addOption(MAPOBJECT_OPTION)
 			.addOption(CREATEFILTER_OPTION)
+			.addOption(OVERWRITEFILTER_OPTION)
 			.addOption(DELETEFILTER_OPTION)
 			.addOption(LISTFILTER_OPTION)
 			.addOption(MAPDASHBOARD_OPTION)

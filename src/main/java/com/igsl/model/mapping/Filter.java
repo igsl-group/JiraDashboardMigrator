@@ -7,6 +7,7 @@ import javax.ws.rs.HttpMethod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.igsl.model.DataCenterPermission;
 import com.igsl.model.PermissionTarget;
 import com.igsl.rest.Paged;
@@ -25,7 +26,9 @@ public class Filter extends JiraObject<Filter> {
 	private String jql;
 	private String originalJql;
 	private PermissionTarget owner;
+	private PermissionTarget originalOwner;
 	private List<DataCenterPermission> sharePermissions;
+	private String originalName;	// Used to rename filter and back
 	
 	@Override
 	public int compareTo(Filter obj1) {
@@ -122,5 +125,21 @@ public class Filter extends JiraObject<Filter> {
 
 	public void setSharePermissions(List<DataCenterPermission> sharePermissions) {
 		this.sharePermissions = sharePermissions;
+	}
+
+	public String getOriginalName() {
+		return originalName;
+	}
+
+	public void setOriginalName(String originalName) {
+		this.originalName = originalName;
+	}
+
+	public PermissionTarget getOriginalOwner() {
+		return originalOwner;
+	}
+
+	public void setOriginalOwner(PermissionTarget originalOwner) {
+		this.originalOwner = originalOwner;
 	}
 }

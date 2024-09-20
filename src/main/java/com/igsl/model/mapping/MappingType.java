@@ -86,6 +86,9 @@ public enum MappingType {
 		return null;
 	}
 	
+	public String getCSV() {
+		return name + ".csv";
+	}
 	public String getOwner() {
 		return name + ".Owner" + EXTENSION;
 	}
