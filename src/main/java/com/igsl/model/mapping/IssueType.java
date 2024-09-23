@@ -1,7 +1,5 @@
 package com.igsl.model.mapping;
 
-import java.util.Map;
-
 import javax.ws.rs.HttpMethod;
 
 import com.igsl.rest.RestUtil;
@@ -16,7 +14,7 @@ public class IssueType extends JiraObject<IssueType> {
 	@Override
 	public int compareTo(IssueType obj1) {
 		if (obj1 != null) {
-			return STRING_COMPARATOR.compare(getName(), obj1.getName());
+			return compareName(getName(), obj1.getName());
 		}
 		return 1;
 	}

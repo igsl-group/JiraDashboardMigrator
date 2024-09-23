@@ -14,7 +14,10 @@ public class CustomField extends JiraObject<CustomField> {
 	@Override
 	public int compareTo(CustomField obj1) {
 		if (obj1 != null) {
-			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) | 
+			if (obj1.getName().contains("Pending Reason") && getName().contains("Pending Reason")) {
+				int i = 0;
+			}
+			return 	compareName(getName(), obj1.getName()) | 
 					Schema.COMPARATOR.compare(getSchema(), obj1.getSchema());
 		}
 		return 1;

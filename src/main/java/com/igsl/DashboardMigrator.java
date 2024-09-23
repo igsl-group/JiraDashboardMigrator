@@ -95,13 +95,21 @@ import com.igsl.model.DataCenterPortalPermission;
 import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.PermissionTarget;
 import com.igsl.model.PermissionType;
+import com.igsl.model.mapping.CustomField;
 import com.igsl.model.mapping.Dashboard;
 import com.igsl.model.mapping.DashboardGadget;
 import com.igsl.model.mapping.Filter;
+import com.igsl.model.mapping.Group;
+import com.igsl.model.mapping.IssueType;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
 import com.igsl.model.mapping.Project;
+import com.igsl.model.mapping.ProjectCategory;
+import com.igsl.model.mapping.ProjectComponent;
+import com.igsl.model.mapping.ProjectVersion;
+import com.igsl.model.mapping.Role;
+import com.igsl.model.mapping.Sprint;
 import com.igsl.model.mapping.User;
 import com.igsl.mybatis.FilterMapper;
 import com.igsl.rest.Paged;
@@ -221,7 +229,7 @@ public class DashboardMigrator {
 	}
 
 	private static SingleValueOperand mapValue(
-			SingleValueOperand src, Mapping map, 
+			SingleValueOperand src, Map<MappingType, List<?>> data, Mapping map, 
 			String filterName, String propertyName, boolean ignoreFilter) throws Exception {
 		SingleValueOperand result = null;
 		if (src != null) {
@@ -255,10 +263,190 @@ public class DashboardMigrator {
 						}
 					}
 				} else {
-					// String values not remapped
-					Log.info(LOGGER, "Value unchanged for filter [" + filterName + "] type [" +
-							propertyName + "] value [" + originalValue + "]");
-					result = new SingleValueOperand(originalValue);
+					// Validate string values if type is known
+					String newValue = null;
+					boolean validated = false;
+					boolean mapped = false;
+					List<?> dataList = data.get(map.getType());
+					switch (map.getType()) {
+					case FILTER:
+						for (Object obj : dataList) {
+							Filter o = (Filter) obj;
+							if (o.getId().equalsIgnoreCase(originalValue) || 
+								o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getId())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getId());
+								}
+								break;
+							}
+						}
+						break;
+					case GROUP:
+						for (Object obj : dataList) {
+							Group o = (Group) obj;
+							if (o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getName())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getName());
+								}
+								break;
+							}
+						}
+						break;
+					case ISSUE_TYPE:
+						for (Object obj : dataList) {
+							IssueType o = (IssueType) obj;
+							if (o.getId().equalsIgnoreCase(originalValue) || 
+								o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getId())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getId());
+								}
+								break;
+							}
+						}
+						break;
+					case PROJECT:
+						for (Object obj : dataList) {
+							Project o = (Project) obj;
+							if (o.getId().equalsIgnoreCase(originalValue) || 
+								o.getKey().equalsIgnoreCase(originalValue) || 
+								o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getId())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getId());
+								}
+								break;
+							}
+						}
+						break;
+					case PROJECT_CATEGORY:
+						for (Object obj : dataList) {
+							ProjectCategory o = (ProjectCategory) obj;
+							if (o.getId().equalsIgnoreCase(originalValue) || 
+								o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getId())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getId());
+								}
+								break;
+							}
+						}
+						break;
+					case PROJECT_COMPONENT:
+						for (Object obj : dataList) {
+							ProjectComponent o = (ProjectComponent) obj;
+							if (o.getId().equalsIgnoreCase(originalValue) || 
+								o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getId())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getId());
+								}
+								break;
+							}
+						}
+						break;
+					case PROJECT_VERSION:
+						for (Object obj : dataList) {
+							ProjectVersion o = (ProjectVersion) obj;
+							if (o.getId().equalsIgnoreCase(originalValue) || 
+								o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getId())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getId());
+								}
+								break;
+							}
+						}
+						break;
+					case ROLE:
+						for (Object obj : dataList) {
+							Role o = (Role) obj;
+							if (o.getId().equalsIgnoreCase(originalValue) || 
+								o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getId())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getId());
+								}
+								break;
+							}
+						}
+						break;
+					case SPRINT:
+						for (Object obj : dataList) {
+							Sprint o = (Sprint) obj;
+							if (o.getId().equalsIgnoreCase(originalValue) || 
+								o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getId())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getId());
+								}
+								break;
+							}
+						}
+						break;
+					case STATUS:
+						for (Object obj : dataList) {
+							com.igsl.model.mapping.Status o = (com.igsl.model.mapping.Status) obj;
+							if (o.getId().equalsIgnoreCase(originalValue) || 
+								o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getId())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getId());
+								}
+								break;
+							}
+						}
+						break;
+					case USER:
+						for (Object obj : dataList) {
+							User o = (User) obj;
+							if (o.getKey().equalsIgnoreCase(originalValue) || 
+								o.getDisplayName().equalsIgnoreCase(originalValue) || 
+								o.getName().equalsIgnoreCase(originalValue)) {
+								validated = true;
+								if (map.getMapped().containsKey(o.getKey())) {
+									mapped = true;
+									newValue = map.getMapped().get(o.getKey());
+								}
+								break;
+							}
+						}
+						break;
+					default: 
+						break;
+					}
+					if (!validated) {
+						String msg = "Value not validated for filter [" + filterName + "] " + 
+								"type [" + propertyName + "] value [" + originalValue + "]";
+						Log.info(LOGGER, msg);
+						throw new Exception(msg);
+					} else if (!mapped) {
+						String msg = "Value not mapped for filter [" + filterName + "] " + 
+								"type [" + propertyName + "] value [" + originalValue + "]";
+						Log.info(LOGGER, msg);
+						if (map.getType() == MappingType.FILTER) {
+							throw new FilterNotMappedException(msg);
+						} else {
+							throw new Exception(msg);
+						}
+					} else {
+						Log.info(LOGGER, "Value validated and mapped for filter [" + filterName + "] " + 
+								"type [" + propertyName + "] " + 
+								"value [" + originalValue + "] -> [" + newValue + "]");
+						result = new SingleValueOperand(newValue);
+					}
 				}
 			} else {
 				if (isLong) {
@@ -276,7 +464,10 @@ public class DashboardMigrator {
 	}
 
 	private static Clause mapClause(
-			String filterName, Map<MappingType, Mapping> maps, Clause c, boolean ignoreFilter) 
+			String filterName, 
+			Map<MappingType, List<?>> data,
+			Map<MappingType, Mapping> maps, 
+			Clause c, boolean ignoreFilter) 
 			throws Exception {
 		Clause clone = null;
 		List<Clause> clonedChildren = new ArrayList<>();
@@ -295,7 +486,7 @@ public class DashboardMigrator {
 			}
 			for (Clause sc : c.getClauses()) {
 				// Recursively process children
-				Clause clonedChild = mapClause(filterName, maps, sc, ignoreFilter);
+				Clause clonedChild = mapClause(filterName, data, maps, sc, ignoreFilter);
 				clonedChildren.add(clonedChild);
 			}
 			if (c instanceof AndClause) {
@@ -314,7 +505,7 @@ public class DashboardMigrator {
 					if (originalOperand instanceof SingleValueOperand) {
 						SingleValueOperand svo = (SingleValueOperand) originalOperand;
 						// Change value
-						clonedOperand = mapValue(svo, map, filterName, tc.getName(), ignoreFilter);
+						clonedOperand = mapValue(svo, data, map, filterName, tc.getName(), ignoreFilter);
 					} else if (originalOperand instanceof MultiValueOperand) {
 						MultiValueOperand mvo = (MultiValueOperand) originalOperand;
 						List<Operand> list = new ArrayList<>();
@@ -322,7 +513,7 @@ public class DashboardMigrator {
 							if (item instanceof SingleValueOperand) {
 								// Change value
 								SingleValueOperand svo = (SingleValueOperand) item;
-								list.add(mapValue(svo, map, filterName, tc.getName(), ignoreFilter));
+								list.add(mapValue(svo, data, map, filterName, tc.getName(), ignoreFilter));
 							} else {
 								list.add(item);
 							}
@@ -568,6 +759,14 @@ public class DashboardMigrator {
 			}
 			// Load object mappings
 			Map<MappingType, Mapping> mappings = loadMappings(MappingType.FILTER, MappingType.DASHBOARD);
+			// Load object data
+			Map<MappingType, List<?>> data = new HashMap<>();
+			for (MappingType type : MappingType.values()) {
+				if (type.isIncludeServer()) {
+					List<?> list = readValuesFromFile(type.getDC(), type.getDataClass());
+					data.put(type, list);
+				}
+			}
 			// Results of mapped and failed filters
 			Mapping result = new Mapping(MappingType.FILTER);
 			// Add filter mapping, to be filled as we go
@@ -604,6 +803,7 @@ public class DashboardMigrator {
 						result.getFailed().put(filter.getId(), msg);
 						csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
 						continue;
+						// TODO Add option for surrogate owner and not count as error
 					}
 					newOwner = mappings.get(MappingType.USER).getMapped().get(originalOwner);
 					// Verify and map share permissions
@@ -637,11 +837,9 @@ public class DashboardMigrator {
 								newPermissions.add(share);
 							} else {
 								String msg = "Filter [" + filter.getName() + "] " + 
-										"is shared to unmapped group [" + share.getGroup().getName() + "]";
-								Log.error(LOGGER, msg);
-								result.getFailed().put(filter.getId(), msg);
-								csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
-								continue;
+										"is shared to unmapped group [" + share.getGroup().getName() + "] " + 
+										"This share is excluded";
+								Log.warn(LOGGER, msg);
 							}
 							break;
 						case PROJECT:
@@ -654,11 +852,9 @@ public class DashboardMigrator {
 									newPermissions.add(share);
 								} else {
 									String msg = "Filter [" + filter.getName() + "] " + 
-											"is shared to unmapped project [" + share.getProject().getId() + "]";
-									Log.error(LOGGER, msg);
-									result.getFailed().put(filter.getId(), msg);
-									csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
-									continue;
+											"is shared to unmapped project [" + share.getProject().getId() + "] " + 
+											"This share is excluded";
+									Log.warn(LOGGER, msg);
 								}
 							} else if (share.getRole() != null) {
 								// Has role, add as project-role
@@ -668,11 +864,9 @@ public class DashboardMigrator {
 									share.getProject().setId(newId);
 								} else {
 									String msg = "Filter [" + filter.getName() + "] " + 
-											"is shared to unmapped project [" + share.getProject().getId() + "]";
-									Log.error(LOGGER, msg);
-									result.getFailed().put(filter.getId(), msg);
-									csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
-									continue;
+											"is shared to unmapped project [" + share.getProject().getId() + "] " + 
+											"This share is excluded";
+									Log.warn(LOGGER, msg);
 								}
 								if (mappings.get(MappingType.ROLE).getMapped().containsKey(share.getRole().getId())) {
 									String newId = mappings.get(MappingType.ROLE).getMapped()
@@ -688,11 +882,9 @@ public class DashboardMigrator {
 									newPermissions.add(newItem);
 								} else {
 									String msg = "Filter [" + filter.getName() + "] " + 
-											"is shared to unmapped role [" + share.getRole().getId() + "]";
-									Log.error(LOGGER, msg);
-									result.getFailed().put(filter.getId(), msg);
-									csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
-									continue;
+											"is shared to unmapped role [" + share.getRole().getId() + "] " + 
+											"This share is excluded";
+									Log.warn(LOGGER, msg);
 								}
 							}
 							break;
@@ -704,11 +896,9 @@ public class DashboardMigrator {
 								newPermissions.add(share);
 							} else {
 								String msg = "Filter [" + filter.getName() + "] " + 
-										"is shared to unmapped user [" + share.getUser().getKey() + "]";
-								Log.error(LOGGER, msg);
-								result.getFailed().put(filter.getId(), msg);
-								csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
-								continue;
+										"is shared to unmapped user [" + share.getUser().getKey() + "] " + 
+										"This share is excluded";
+								Log.warn(LOGGER, msg);
 							}
 							break;
 						}
@@ -728,7 +918,7 @@ public class DashboardMigrator {
 						continue;
 					}
 					try {
-						Clause clone = mapClause(filter.getName(), mappings, qr.clause, !callApi);
+						Clause clone = mapClause(filter.getName(), data, mappings, qr.clause, !callApi);
 						// Handler order clause
 						OrderBy orderClone = null;
 						if (qr.order != null) {
@@ -975,10 +1165,10 @@ public class DashboardMigrator {
 				List<U> cloudObjects =
 						(List<U>) readValuesFromFile(type.getCloud(), type.getDataClass());
 				for (U server : serverObjects) {
-					List<String> targets = new ArrayList<>();
+					List<U> targets = new ArrayList<>();
 					for (U cloud : cloudObjects) {
 						if (server.compareTo(cloud) == 0) {
-							targets.add(cloud.getUniqueName());
+							targets.add(cloud);
 						}
 					}
 					switch (targets.size()) {
@@ -987,11 +1177,33 @@ public class DashboardMigrator {
 						Log.warn(LOGGER, type + " [" + server.getUniqueName() + "] is not mapped");
 						break;
 					case 1: 
-						mapping.getMapped().put(server.getUniqueName(), targets.get(0));
+						mapping.getMapped().put(server.getUniqueName(), targets.get(0).getUniqueName());
 						mappedCount++;
 						break;
+					case 2:
+						// Problem: target stores uniqueName only
+						// If only 2 matches and only one has (migrated), map to it
+						int migratedCount = 0;
+						U mappedObject = null;
+						for (U obj : targets) {
+							if (obj.isMigrated()) {
+								migratedCount++;
+								mappedObject = obj;
+								break;
+							}
+						}
+						if (migratedCount == 1 && mappedObject != null) {
+							mapping.getMapped().put(server.getUniqueName(), mappedObject.getUniqueName());
+							mappedCount++;
+							break;
+						}
+						// Fall-through to default
 					default:
-						mapping.getConflict().put(server.getUniqueName(), targets);
+						List<String> conflicts = new ArrayList<>();
+						for (U item : targets) {
+							conflicts.add(item.getUniqueName());
+						}
+						mapping.getConflict().put(server.getUniqueName(), conflicts);
 						Log.warn(LOGGER, 
 								type + " [" + server.getUniqueName() + "] is mapped to multiple Cloud objects");
 						break;

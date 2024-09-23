@@ -4,7 +4,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,6 +18,76 @@ public abstract class JiraObject<T> implements Comparable<T> {
 
 	private static final Logger LOGGER = LogManager.getLogger();
 	protected static final Comparator<String> STRING_COMPARATOR = Comparator.nullsFirst(String::compareTo);
+	
+	protected static final Pattern PATTERN = Pattern.compile("(.+?)( \\(migrated( [0-9]+)?\\))?");	
+
+	/**
+	 * Checks if name matches (migrated #)
+	 */
+	public final boolean isMigrated() {
+		try {
+			Matcher matcher = PATTERN.matcher(getDisplay());
+			if (matcher.matches()) {
+				return (null != matcher.group(2));
+			}
+		} catch (Exception ex) {
+			// Ignore
+		}
+		return false;
+	}
+	
+	// Compare names with option to allow (migrated #)
+	protected final int compareName(String name1, String name2) {
+		if (name1 != null && name2 != null) {
+			Matcher matcher1 = PATTERN.matcher(name1);
+			if (matcher1.matches()) {
+				name1 = matcher1.group(1);
+			}
+			Matcher matcher2 = PATTERN.matcher(name2);
+			if (matcher2.matches()) {
+				name2 = matcher2.group(1);
+			}
+			return STRING_COMPARATOR.compare(name1, name2);
+		}
+		return -1;
+	}
+	
+	/**
+	 * Get display name for the implementation.
+	 * Default is to call .getName() or .getDisplayName() or getUniqueName().
+	 * @return
+	 * @throws Exception
+	 */
+	@JsonIgnore
+	public String getDisplay() throws Exception {
+		String result = null;
+		Method m = null;
+		String methodName = null;
+		try {
+			m = this.getClass().getDeclaredMethod("getName");
+			methodName = "getName()";
+		} catch (Exception ex) {
+			// Ignore
+		}
+		if (m == null) {
+			try {
+				m = this.getClass().getDeclaredMethod("getDisplayName");
+				methodName = "getDisplayName()";
+			} catch (Exception ex) {
+				// Ignore
+			}
+		}
+		if (m == null) {
+			return getUniqueName();
+		}
+		try {
+			result = String.valueOf(m.invoke(this));
+		} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+			throw new Exception("Unable to invoke " + this.getClass().getCanonicalName() + 
+					"." + methodName, e);
+		}
+		return result;
+	}
 	
 	/**
 	 * Get unique name for the implementation. 
@@ -52,7 +123,8 @@ public abstract class JiraObject<T> implements Comparable<T> {
 		try {
 			result = String.valueOf(m.invoke(this));
 		} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-			throw new Exception("Unable to invoke " + this.getClass().getCanonicalName() + "." + methodName, e);
+			throw new Exception("Unable to invoke " + this.getClass().getCanonicalName() + 
+					"." + methodName, e);
 		}
 		return result;
 	}

@@ -13,7 +13,7 @@ public class Status extends JiraObject<Status> {
 	@Override
 	public int compareTo(Status obj1) {
 		if (obj1 != null) {
-			return STRING_COMPARATOR.compare(getName(), obj1.getName());
+			return compareName(getName(), obj1.getName());
 		}
 		return 1;
 	}

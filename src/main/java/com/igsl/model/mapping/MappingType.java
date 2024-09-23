@@ -1,22 +1,36 @@
 package com.igsl.model.mapping;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public enum MappingType {
-	STATUS("Status", Status.class, true, true, "status"), 
-	PROJECT("Project", Project.class, true, true, "project"), 
-	PROJECT_CATEGORY("ProjectCategory", ProjectCategory.class, true, true, "category"),
-	PROJECT_COMPONENT("ProjectComponent", ProjectComponent.class, true, true, "component", PROJECT),
-	PROJECT_VERSION("ProjectVersion", ProjectVersion.class, true, true, "version", PROJECT),
+	STATUS("Status", Status.class, true, true, 
+			Arrays.asList("status")), 
+	PROJECT("Project", Project.class, true, true, 
+			Arrays.asList("project")), 
+	PROJECT_CATEGORY("ProjectCategory", ProjectCategory.class, true, true, 
+			Arrays.asList("category")),
+	PROJECT_COMPONENT("ProjectComponent", ProjectComponent.class, true, true, 
+			Arrays.asList("component"), 
+			PROJECT),
+	PROJECT_VERSION("ProjectVersion", ProjectVersion.class, true, true, 
+			Arrays.asList("version"), 
+			PROJECT),
 	ROLE("Role", Role.class, true, true, null), 
-	USER("User", User.class, true, true, null), 
+	USER("User", User.class, true, true, 
+			Arrays.asList("assignee", "reporter")), 
 	GROUP("Group", Group.class, true, true, null), 
 	CUSTOM_FIELD("CustomField", CustomField.class, true, true, null), 
 	AGILE_BOARD("AgileBoard", AgileBoard.class, true, true, null), 
-	SPRINT("Sprint", Sprint.class, true, true, "sprint", AGILE_BOARD),
-	ISSUE_TYPE("IssueType", IssueType.class, true, true, "issuetype"),
-	FILTER("Filter", Filter.class, true, false, "filter"), 
+	SPRINT("Sprint", Sprint.class, true, true, 
+			Arrays.asList("sprint"), 
+			AGILE_BOARD),
+	ISSUE_TYPE("IssueType", IssueType.class, true, true, 
+			Arrays.asList("issuetype")),
+	FILTER("Filter", Filter.class, true, false, 
+			Arrays.asList("filter")), 
 	DASHBOARD("Dashboard", Dashboard.class, true, false, null, FILTER);
 	
 	private static final String EXTENSION = ".json";
@@ -25,20 +39,20 @@ public enum MappingType {
 	private Class<?> dataClass;	// JiraObject subclass
 	private boolean includeServer;	// This type is exported from Server
 	private boolean includeCloud;	// This type is exported from Cloud 
-	private String nameInJQL;	// Left hand side in filter. Null if not applicable.
+	private List<String> namesInJQL;	// Left hand side in filter, null if not applicable.
 	private String name;	// Display name for logging purpose
 	private MappingType[] dependencies;
 	
 	private MappingType(
 			String name, Class<?> dataClass, 
 			boolean includeServer, boolean includeCloud, 
-			String nameInFilter, 
+			List<String> nameInFilter, 
 			MappingType... dependencies) {
 		this.name = name;
 		this.dataClass = dataClass;
 		this.includeServer = includeServer;
 		this.includeCloud = includeCloud;
-		this.nameInJQL = nameInFilter;
+		this.namesInJQL = nameInFilter;
 		this.dependencies = dependencies;
 	}	
 	
@@ -77,9 +91,13 @@ public enum MappingType {
 	public static MappingType parseFilterProperty(String name) {
 		if (name != null) {
 			for (MappingType type : MappingType.values()) {
-				if (type.getNameInJQL() != null && 
-					type.getNameInJQL().toLowerCase().equals(name.toLowerCase())) {
-					return type;
+				List<String> jqlNames = type.getNamesInJQL();
+				if (jqlNames != null) {
+					for (String jqlName : jqlNames) {
+						if (jqlName.toLowerCase().equals(name.toLowerCase())) {
+							return type;
+						}
+					}
 				}
 			}
 		}
@@ -130,8 +148,8 @@ public enum MappingType {
 		return includeCloud;
 	}
 
-	public String getNameInJQL() {
-		return nameInJQL;
+	public List<String> getNamesInJQL() {
+		return namesInJQL;
 	}
 
 	public MappingType[] getDependencies() {

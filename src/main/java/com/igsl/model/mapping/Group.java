@@ -1,7 +1,5 @@
 package com.igsl.model.mapping;
 
-import java.util.Map;
-
 import javax.ws.rs.HttpMethod;
 
 import com.igsl.rest.Paged;
@@ -16,7 +14,7 @@ public class Group extends JiraObject<Group> {
 	@Override
 	public int compareTo(Group obj1) {
 		if (obj1 != null) {
-			return STRING_COMPARATOR.compare(getName(), obj1.getName());
+			return compareName(getName(), obj1.getName());
 		}
 		return 1;
 	}

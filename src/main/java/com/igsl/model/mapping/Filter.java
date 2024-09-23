@@ -7,7 +7,6 @@ import javax.ws.rs.HttpMethod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.igsl.model.DataCenterPermission;
 import com.igsl.model.PermissionTarget;
 import com.igsl.rest.Paged;
