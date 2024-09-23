@@ -90,7 +90,7 @@ public class CLI {
 	
 	public static final Option CREATEFILTER_OPTION = Option.builder()
 			.desc(	"Create filters in Cloud. " + 
-					"Optionally specify true/false to call/disable REST API calls. Default true." + 
+					"Optionally specify true/false to call/disable REST API calls. Default false." + 
 					"When REST API calls are disabled, filters get remapped to file in a single batch.")
 			.option("cf")
 			.longOpt("createFilter")

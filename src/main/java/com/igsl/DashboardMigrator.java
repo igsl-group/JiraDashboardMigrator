@@ -729,10 +729,49 @@ public class DashboardMigrator {
 		return src;
 	}
 	
+	private static void printFilterMappingResult(CSVPrinter printer, Filter filter, String message) 
+			throws IOException {
+		// Automatically calculate category and resolution
+		String category = "";
+		String resolution = "";
+		String notes = "";
+		if (message.contains("issueFunction")) {
+			category = "Issue Function";
+			resolution = "Won't fix";
+			notes = "IssueFunction is no longer supported in Cloud";
+		} else if (message.contains("cannot be mapped")) {
+			category = "Object Mapping";
+			resolution = "Won't fix";
+			notes = "Object is not present in Cloud";
+		} else if (message.contains("Value not mapped for filter")) {
+			category = "Filter";
+			resolution = "Won't fix";
+			notes = "Filter references object not present in Cloud";
+		} else if (message.contains("Value not validated for filter")) {
+			category = "Filter";
+			resolution = "Won't fix";
+			notes = "Filter references non-existing object in Server";
+		} else if (message.contains("Unable to map value for filter")) {
+			category = "Filter";
+			resolution = "Won't fix";
+			notes = "Filter references id of object not present in Cloud";
+		} else if (message.contains("references non-existing filter")) {
+			category = "Filter";
+			resolution = "Won't fix";
+			notes = "Filter refernces another filter that is not present in Cloud";
+		} else if (message.contains("owned by unmapped user")) {
+			category = "Owner";
+			resolution = "Won't fix";
+			notes = "Filter owned by user not in Cloud";
+		} 
+		CSV.printRecord(printer, filter.getName(), filter.getId(), message, category, resolution, notes);
+	}
+	
 	@SuppressWarnings("incomplete-switch")
 	private static void mapFiltersV3(Config conf, boolean callApi, boolean overwriteFilter) 
 			throws Exception {
-		CSVFormat csvFormat = CSV.getCSVWriteFormat(Arrays.asList("FilterName", "FilterID", "Error"));
+		CSVFormat csvFormat = CSV.getCSVWriteFormat(
+				Arrays.asList("FilterName", "FilterID", "Error", "Category", "Resolution", "Notes"));
 		try (	FileWriter fw = new FileWriter(MappingType.FILTER.getCSV()); 
 				CSVPrinter csvPrinter = new CSVPrinter(fw, csvFormat)) {
 			if (!callApi) {
@@ -801,7 +840,7 @@ public class DashboardMigrator {
 								"owned by unmapped user [" + originalOwner + "]";
 						Log.error(LOGGER, msg);
 						result.getFailed().put(filter.getId(), msg);
-						csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
+						printFilterMappingResult(csvPrinter, filter, msg);
 						continue;
 						// TODO Add option for surrogate owner and not count as error
 					}
@@ -914,7 +953,7 @@ public class DashboardMigrator {
 					} catch (Exception ex) {
 						Log.error(LOGGER, "Failed to map filter [" + filter.getName() + "]", ex);
 						result.getFailed().put(filter.getId(), ex.getMessage());
-						csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), ex.getMessage()));
+						printFilterMappingResult(csvPrinter, filter, ex.getMessage());
 						continue;
 					}
 					try {
@@ -978,7 +1017,7 @@ public class DashboardMigrator {
 													"filter is not modified";
 									Log.warn(LOGGER, msg);
 									result.getMapped().put(filter.getId(), id);
-									csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
+									printFilterMappingResult(csvPrinter, filter, msg);
 									continue;
 								}
 							} else {
@@ -997,7 +1036,7 @@ public class DashboardMigrator {
 								String msg = respFilter.readEntity(String.class);
 								Log.error(LOGGER, msg);
 								result.getFailed().put(filter.getId(), msg);
-								csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
+								printFilterMappingResult(csvPrinter, filter, msg);
 								continue;
 							} 
 							CloudFilter newFilter = respFilter.readEntity(CloudFilter.class);
@@ -1016,13 +1055,13 @@ public class DashboardMigrator {
 							Log.error(LOGGER, msg);
 							result.getFailed().put(filter.getId(), msg);
 							// Write errors as CSV for easier handling
-							csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
+							printFilterMappingResult(csvPrinter, filter, msg);
 						} else if (result.getFailed().containsKey(refId)) {
 							// Filter references a filter that failed
 							String msg = "Filter [" + filter.getName() + "] references failed filter [" + refId + "]";
 							Log.error(LOGGER, msg);
 							result.getFailed().put(filter.getId(), msg);
-							csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), msg));
+							printFilterMappingResult(csvPrinter, filter, msg);
 						} else {					
 							// Add filter to next batch
 							Log.info(LOGGER, "Filter [" + filter.getName() + "] " + 
@@ -1035,7 +1074,7 @@ public class DashboardMigrator {
 						Log.error(LOGGER, "Failed to map filter [" + filter.getName() + "]", ex);
 						result.getFailed().put(filter.getId(), ex.getMessage());
 						// Write errors as CSV for easier handling
-						csvPrinter.printRecord(Arrays.asList(filter.getName(), filter.getId(), ex.getMessage()));
+						printFilterMappingResult(csvPrinter, filter, ex.getMessage());
 						continue;
 					}
 				} // For each filter in currentBatch
@@ -2078,7 +2117,7 @@ public class DashboardMigrator {
 					case CREATE_FILTER: 
 						boolean overwriteFilter = cli.hasOption(CLI.OVERWRITEFILTER_OPTION);
 						String callApiString = cli.getOptionValue(CLI.CREATEFILTER_OPTION);
-						boolean callApi = true;
+						boolean callApi = false;
 						if (callApiString != null) {
 							callApi = Boolean.parseBoolean(callApiString);
 						}
