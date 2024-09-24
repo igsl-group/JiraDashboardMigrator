@@ -62,6 +62,7 @@ import com.atlassian.query.clause.TerminalClause;
 import com.atlassian.query.clause.TerminalClauseImpl;
 import com.atlassian.query.clause.WasClause;
 import com.atlassian.query.clause.WasClauseImpl;
+import com.atlassian.query.history.HistoryPredicate;
 import com.atlassian.query.operand.EmptyOperand;
 import com.atlassian.query.operand.FunctionOperand;
 import com.atlassian.query.operand.MultiValueOperand;
@@ -275,9 +276,14 @@ public class DashboardMigrator {
 							if (o.getId().equalsIgnoreCase(originalValue) || 
 								o.getName().equalsIgnoreCase(originalValue)) {
 								validated = true;
-								if (map.getMapped().containsKey(o.getId())) {
+								if (!ignoreFilter) {
+									if (map.getMapped().containsKey(o.getId())) {
+										mapped = true;
+										newValue = map.getMapped().get(o.getId());
+									}
+								} else {
 									mapped = true;
-									newValue = map.getMapped().get(o.getId());
+									newValue = originalValue;
 								}
 								break;
 							}
@@ -550,7 +556,7 @@ public class DashboardMigrator {
 				clone = new WasClauseImpl(newPropertyName, wc.getOperator(), wc.getOperand(), wc.getPredicate());
 			} else if (c instanceof ChangedClause) {
 				ChangedClause cc = (ChangedClause) c;
-				clone = new ChangedClauseImpl(newPropertyName, cc.getOperator(), cc.getPredicate());
+				clone = new MyChangedClause(cc.getField(), cc.getOperator(), cc.getPredicate());
 			} else {
 				Log.warn(LOGGER, "Unrecognized Clause class for filter [" + filterName + "] class [" + c.getClass()
 						+ "], reusing reference");
@@ -729,32 +735,38 @@ public class DashboardMigrator {
 		return src;
 	}
 	
+	private static Pattern FILTER_ERROR_TYPE = Pattern.compile("type \\[(.+?)\\]");
 	private static void printFilterMappingResult(CSVPrinter printer, Filter filter, String message) 
 			throws IOException {
 		// Automatically calculate category and resolution
 		String category = "";
 		String resolution = "";
 		String notes = "";
+		String type = null;
+		Matcher m = FILTER_ERROR_TYPE.matcher(message);
+		if (m.find()) {
+			type = m.group(1);
+		}
 		if (message.contains("issueFunction")) {
 			category = "Issue Function";
 			resolution = "Won't fix";
 			notes = "IssueFunction is no longer supported in Cloud";
 		} else if (message.contains("cannot be mapped")) {
-			category = "Object Mapping";
+			category = "Custom Field";
 			resolution = "Won't fix";
-			notes = "Object is not present in Cloud";
+			notes = "Custom field is not present in Cloud";
 		} else if (message.contains("Value not mapped for filter")) {
 			category = "Filter";
 			resolution = "Won't fix";
-			notes = "Filter references object not present in Cloud";
+			notes = "Filter references object [" + type + "] not present in Cloud";
 		} else if (message.contains("Value not validated for filter")) {
 			category = "Filter";
 			resolution = "Won't fix";
-			notes = "Filter references non-existing object in Server";
+			notes = "Filter references non-existing object [" + type + "] in Server";
 		} else if (message.contains("Unable to map value for filter")) {
 			category = "Filter";
 			resolution = "Won't fix";
-			notes = "Filter references id of object not present in Cloud";
+			notes = "Filter references id of object [" + type + "] not present in Cloud";
 		} else if (message.contains("references non-existing filter")) {
 			category = "Filter";
 			resolution = "Won't fix";
@@ -764,21 +776,23 @@ public class DashboardMigrator {
 			resolution = "Won't fix";
 			notes = "Filter owned by user not in Cloud";
 		} 
-		CSV.printRecord(printer, filter.getName(), filter.getId(), message, category, resolution, notes);
+		CSV.printRecord(printer, filter.getName(), filter.getId(), filter.getJql(), 
+				message, category, resolution, notes);
 	}
 	
 	@SuppressWarnings("incomplete-switch")
 	private static void mapFiltersV3(Config conf, boolean callApi, boolean overwriteFilter) 
 			throws Exception {
 		CSVFormat csvFormat = CSV.getCSVWriteFormat(
-				Arrays.asList("FilterName", "FilterID", "Error", "Category", "Resolution", "Notes"));
-		try (	FileWriter fw = new FileWriter(MappingType.FILTER.getCSV()); 
+				Arrays.asList("FilterName", "FilterID", "JQL", "Error", "Category", "Resolution", "Notes"));
+		Date now = new Date();
+		try (	FileWriter fw = new FileWriter(MappingType.FILTER.getCSV(now)); 
 				CSVPrinter csvPrinter = new CSVPrinter(fw, csvFormat)) {
 			if (!callApi) {
 				Log.info(LOGGER, "NOTE: REST API disabled, filter references will not be resolved");
 			}
 			// Directories for filter output
-			String dirName = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date());
+			String dirName = new SimpleDateFormat("yyyyMMdd-HHmmss").format(now);
 			Path originalDir = Files.createDirectory(Paths.get(dirName + "-OriginalFilter"));
 			Path newDir = Files.createDirectory(Paths.get(dirName + "-NewFilter"));
 			// RestUtil 
@@ -806,6 +820,26 @@ public class DashboardMigrator {
 					data.put(type, list);
 				}
 			}
+			// Modify MappingType namesInJQL
+			// Get User and Group custom fields, add their names/ids
+			final Map<String, MappingType> TARGET_TYPES = new HashMap<>();
+			TARGET_TYPES.put("com.atlassian.jira.plugin.system.customfieldtypes:userpicker", MappingType.USER);
+			TARGET_TYPES.put("com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker", MappingType.USER);
+			TARGET_TYPES.put("com.atlassian.jira.plugin.system.customfieldtypes:grouppicker", MappingType.GROUP);
+			TARGET_TYPES.put("com.atlassian.jira.plugin.system.customfieldtypes:multigrouppicker", MappingType.GROUP);
+			for (Object obj : data.get(MappingType.CUSTOM_FIELD)) {
+				CustomField cf = (CustomField) obj;
+				if (cf.getSchema() != null) {
+					String type = cf.getSchema().getCustom();
+					if (TARGET_TYPES.containsKey(type)) {
+						MappingType mt = TARGET_TYPES.get(type);
+						// Custom field name
+						mt.getNamesInJQL().add(cf.getName());
+						// cf[xxx]
+						mt.getNamesInJQL().add("cf[" + cf.getId() + "]");
+					}
+				}
+			}
 			// Results of mapped and failed filters
 			Mapping result = new Mapping(MappingType.FILTER);
 			// Add filter mapping, to be filled as we go
@@ -829,7 +863,7 @@ public class DashboardMigrator {
 				filterList.clear();
 				// Process current batch, put those missing filter references back into filterList
 				for (Filter filter : currentBatch.values()) {
-					Log.info(LOGGER, "Processing filter " + filter.getName());
+					Log.info(LOGGER, "Processing filter " + filter.getName() + " [" + filter.getJql() + "]");
 					// Save original filter as individual file
 					saveFile(originalDir.resolve(getSafeFileName(filter.getName()) + "-" + filter.getId()).toString(), filter);
 					// Verify and map owner
@@ -842,7 +876,6 @@ public class DashboardMigrator {
 						result.getFailed().put(filter.getId(), msg);
 						printFilterMappingResult(csvPrinter, filter, msg);
 						continue;
-						// TODO Add option for surrogate owner and not count as error
 					}
 					newOwner = mappings.get(MappingType.USER).getMapped().get(originalOwner);
 					// Verify and map share permissions
@@ -976,8 +1009,6 @@ public class DashboardMigrator {
 								"[" + clone + ((orderClone != null)? " " + orderClone : "") + "]");
 						filter.setJql(clone + ((orderClone != null) ? " " + orderClone : ""));
 						remappedList.add(filter);
-						// Save new filter as individual file, before renaming and changing owner
-						saveFile(newDir.resolve(getSafeFileName(filter.getName()) + "-" + filter.getId()).toString(), filter);
 						// Change owner (as if already changed)
 						PermissionTarget currentOwner = new PermissionTarget();
 						currentOwner.setAccountId(myAccountId);
@@ -985,6 +1016,8 @@ public class DashboardMigrator {
 						PermissionTarget actualOwner = new PermissionTarget();
 						actualOwner.setAccountId(newOwner);
 						filter.setOriginalOwner(actualOwner);
+						// Save new filter as individual file, before renaming and after changing owner
+						saveFile(newDir.resolve(getSafeFileName(filter.getName()) + "-" + filter.getId()).toString(), filter);
 						// Rename filter (as if already renamed)
 						filter.setOriginalName(filter.getName());
 						filter.setName(getFilterNewName(filter));
@@ -1691,6 +1724,28 @@ public class DashboardMigrator {
 		public String toString() {
 			String s = super.toString();
 			// Remove curly brackets added by TerminalClauseImpl
+			if (s.startsWith("{") && s.endsWith("}")) {
+				return s.substring(1, s.length() - 1);
+			}
+			return s;
+		}
+	}
+	
+	/**
+	 * A subclass to remove curly brackets added by ChangedClauseImpl.toString().
+	 */
+	public static class MyChangedClause extends ChangedClauseImpl {
+		private static final long serialVersionUID = 1L;
+		public MyChangedClause(ChangedClause clause) {
+			super(clause);
+		}
+		public MyChangedClause(String field, Operator operator, HistoryPredicate historyPredicate) {
+			super(field, operator, historyPredicate);
+		}
+		@Override
+		public String toString() {
+			String s = super.toString();
+			// Remove curly brackets added by ChangedClauseImpl
 			if (s.startsWith("{") && s.endsWith("}")) {
 				return s.substring(1, s.length() - 1);
 			}

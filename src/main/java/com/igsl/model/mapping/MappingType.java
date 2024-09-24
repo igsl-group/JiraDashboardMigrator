@@ -1,6 +1,9 @@
 package com.igsl.model.mapping;
 
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,7 +23,7 @@ public enum MappingType {
 			PROJECT),
 	ROLE("Role", Role.class, true, true, null), 
 	USER("User", User.class, true, true, 
-			Arrays.asList("assignee", "reporter")), 
+			Arrays.asList("assignee", "reporter")), 	
 	GROUP("Group", Group.class, true, true, null), 
 	CUSTOM_FIELD("CustomField", CustomField.class, true, true, null), 
 	AGILE_BOARD("AgileBoard", AgileBoard.class, true, true, null), 
@@ -35,6 +38,8 @@ public enum MappingType {
 	
 	private static final String EXTENSION = ".json";
 	private static final Pattern PATTERN_CUSTOMFIELD = Pattern.compile("^(?:customfield_([0-9]+)|cf\\[([0-9]+)\\])$");
+	
+	private static final SimpleDateFormat SDF = new SimpleDateFormat("yyyyMMdd-HHmmss");
 	
 	private Class<?> dataClass;	// JiraObject subclass
 	private boolean includeServer;	// This type is exported from Server
@@ -52,7 +57,10 @@ public enum MappingType {
 		this.dataClass = dataClass;
 		this.includeServer = includeServer;
 		this.includeCloud = includeCloud;
-		this.namesInJQL = nameInFilter;
+		this.namesInJQL = new ArrayList<>();
+		if (nameInFilter != null) {
+			this.namesInJQL.addAll(nameInFilter);
+		}
 		this.dependencies = dependencies;
 	}	
 	
@@ -104,8 +112,8 @@ public enum MappingType {
 		return null;
 	}
 	
-	public String getCSV() {
-		return name + ".csv";
+	public String getCSV(Date date) {
+		return name + "." + SDF.format(date) + ".csv";
 	}
 	public String getOwner() {
 		return name + ".Owner" + EXTENSION;
