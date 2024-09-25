@@ -496,7 +496,8 @@ public class DashboardMigrator {
 			String filterName, 
 			Map<MappingType, List<?>> data,
 			Map<MappingType, Mapping> maps, 
-			Clause c, boolean ignoreFilter) 
+			Clause c, 
+			boolean ignoreFilter) 
 			throws Exception {
 		Clause clone = null;
 		List<Clause> clonedChildren = new ArrayList<>();
@@ -515,7 +516,8 @@ public class DashboardMigrator {
 			}
 			for (Clause sc : c.getClauses()) {
 				// Recursively process children
-				Clause clonedChild = mapClause(filterName, data, maps, sc, ignoreFilter);
+				Clause clonedChild = mapClause(
+						filterName, data, maps, sc, ignoreFilter);
 				clonedChildren.add(clonedChild);
 			}
 			if (c instanceof AndClause) {
@@ -528,6 +530,7 @@ public class DashboardMigrator {
 				TerminalClause tc = (TerminalClause) c;
 				Operand originalOperand = tc.getOperand();
 				Operand clonedOperand = null;
+				List<String> unmappedValues = new ArrayList<>();
 				if (mappingType != null) {
 					// Modify value
 					Mapping map = maps.get(mappingType);
@@ -542,12 +545,24 @@ public class DashboardMigrator {
 							if (item instanceof SingleValueOperand) {
 								// Change value
 								SingleValueOperand svo = (SingleValueOperand) item;
-								list.add(mapValue(svo, data, map, filterName, tc.getName(), ignoreFilter));
+								try {
+									SingleValueOperand result = mapValue(
+											svo, data, map, filterName, tc.getName(), ignoreFilter);
+									list.add(result);
+								} catch (Exception ex) {
+									unmappedValues.add((svo.getLongValue() != null)? 
+											Long.toString(svo.getLongValue()) : 
+											svo.getStringValue());
+								}
 							} else {
 								list.add(item);
 							}
 						}
-						clonedOperand = new MultiValueOperand(list);
+						if (list.size() != 0) {
+							clonedOperand = new MultiValueOperand(list);
+						} else {
+							throw new Exception("All values in MultiValueOperand cannot be mapped");
+						}
 					} else if (originalOperand instanceof FunctionOperand) {
 						// TODO Throw error for unsupported function?
 						// TODO Remap arguments?
@@ -574,6 +589,10 @@ public class DashboardMigrator {
 				}
 				// Create clone
 				clone = new MyTerminalClause(newPropertyName, tc.getOperator(), clonedOperand);
+				if (unmappedValues.size() != 0) {
+					// Throw clone as NotAllValuesMappedException
+					throw new NotAllValuesMappedException(clone, unmappedValues);
+				}
 			} else if (c instanceof WasClause) {
 				WasClause wc = (WasClause) c;
 				clone = new WasClauseImpl(newPropertyName, wc.getOperator(), wc.getOperand(), wc.getPredicate());
@@ -798,13 +817,22 @@ public class DashboardMigrator {
 			category = "Owner";
 			resolution = "Won't fix";
 			notes = "Filter owned by user not in Cloud";
-		} 
+		} else if (message.contains("Unable to map the following values")) {
+			category = "Filter Warning";
+			resolution = "No action";
+			notes = "Filter mapped partially and created successfully";
+		} else if (message.contains("Not all values mapped")) {
+			category = "Filter";
+			resolution = "Won't fix";
+			notes = "Not all values can be mapped";
+		}
 		CSV.printRecord(printer, filter.getName(), filter.getId(), filter.getJql(), 
 				message, category, resolution, notes);
 	}
 	
 	@SuppressWarnings("incomplete-switch")
-	private static void mapFiltersV3(Config conf, boolean callApi, boolean overwriteFilter) 
+	private static void mapFiltersV3(
+			Config conf, boolean callApi, boolean overwriteFilter, boolean allValuesMapped) 
 			throws Exception {
 		CSVFormat csvFormat = CSV.getCSVWriteFormat(
 				Arrays.asList("FilterName", "FilterID", "JQL", "Error", "Category", "Resolution", "Notes"));
@@ -1019,7 +1047,31 @@ public class DashboardMigrator {
 						continue;
 					}
 					try {
-						Clause clone = mapClause(filter.getName(), data, mappings, qr.clause, !callApi);
+						Clause clone = null;
+						try {
+							clone = mapClause(
+								filter.getName(), data, mappings, qr.clause, !callApi);
+						} catch (NotAllValuesMappedException navmex) {
+							if (allValuesMapped) {
+								StringBuilder msg = new StringBuilder();
+								msg	.append("Failed to map filter [")
+									.append(filter.getName())
+									.append("] Not all values mapped: ");
+								for (String s : navmex.getUnmappedValues()) {
+									msg	.append("[")
+										.append(s)
+										.append("] ");
+								}
+								Log.error(LOGGER, msg.toString());
+								result.getFailed().put(filter.getId(), msg.toString());
+								printFilterMappingResult(csvPrinter, filter, msg.toString());
+								continue;
+							} else {
+								clone = navmex.getClause();
+								// Log in mapping result CSV but don't count this as error
+								printFilterMappingResult(csvPrinter, filter, navmex.getMessage());
+							}
+						}
 						// Handler order clause
 						OrderBy orderClone = null;
 						if (qr.order != null) {
@@ -1628,7 +1680,6 @@ public class DashboardMigrator {
 		dashboards.removeAll(failed);
 		saveFile(MappingType.DASHBOARD.getRemapped(), dashboards);
 		Log.printCount(LOGGER, "Dashboards mapped: ", dashboards.size() - failed.size(), dashboards.size());
-		Log.info(LOGGER, "Please manually translate references");
 	}
 	
 	private static void mapUsersWithCSV(String csvFile) throws Exception {
@@ -2219,13 +2270,14 @@ public class DashboardMigrator {
 						}
 						break;
 					case CREATE_FILTER: 
+						boolean allValuesMapped = cli.hasOption(CLI.ALLVALUESMAPPED_OPTION);
 						boolean overwriteFilter = cli.hasOption(CLI.OVERWRITEFILTER_OPTION);
 						String callApiString = cli.getOptionValue(CLI.CREATEFILTER_OPTION);
 						boolean callApi = false;
 						if (callApiString != null) {
 							callApi = Boolean.parseBoolean(callApiString);
 						}
-						mapFiltersV3(conf, callApi, overwriteFilter);
+						mapFiltersV3(conf, callApi, overwriteFilter, allValuesMapped);
 						break;
 					case MAP_DASHBOARD:
 						mapDashboards();

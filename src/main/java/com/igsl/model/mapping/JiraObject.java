@@ -33,6 +33,7 @@ public abstract class JiraObject<T> implements Comparable<T> {
 	/**
 	 * Checks if name matches (migrated #)
 	 */
+	@JsonIgnore
 	public final boolean isMigrated() {
 		try {
 			Matcher matcher = PATTERN.matcher(getDisplay());

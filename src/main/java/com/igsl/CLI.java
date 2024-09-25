@@ -98,6 +98,15 @@ public class CLI {
 			.optionalArg(true)
 			.build();
 	
+	public static final Option ALLVALUESMAPPED_OPTION = Option.builder()
+			.desc(	"Modifier to createFilter. " + 
+					"If specified, all values in a multi-value operand must be mapped. " + 
+					"Default is to allow some of the multi-value operands to fail. " + 
+					"Still count as error if all multi-value operands failed.")
+			.option("avm")
+			.longOpt("allValuesMapped")
+			.build();
+	
 	public static final Option OVERWRITEFILTER_OPTION = Option.builder()
 			.desc(	"Modifier to createFilter, only applicable when REST API calls are not disabled. " + 
 					"If specificed, overwrites filters that already exist in Cloud. " + 
@@ -149,6 +158,7 @@ public class CLI {
 			.addOption(MAPOBJECT_OPTION)
 			.addOption(EXACTMATCH_OPTION)
 			.addOption(CREATEFILTER_OPTION)
+			.addOption(ALLVALUESMAPPED_OPTION)
 			.addOption(OVERWRITEFILTER_OPTION)
 			.addOption(DELETEFILTER_OPTION)
 			.addOption(LISTFILTER_OPTION)
