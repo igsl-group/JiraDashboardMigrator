@@ -13,7 +13,22 @@ public class Project extends JiraObject<Project> {
 	private String projectTypeKey;
 
 	@Override
-	public int compareTo(Project obj1) {
+	public String getDisplay() {
+		return name;
+	}
+	
+	@Override
+	public String getInternalId() {
+		return id;
+	}
+
+	@Override
+	public String getJQLName() {
+		return key;
+	}
+	
+	@Override
+	public int compareTo(Project obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) |
 					STRING_COMPARATOR.compare(getKey(), obj1.getKey());

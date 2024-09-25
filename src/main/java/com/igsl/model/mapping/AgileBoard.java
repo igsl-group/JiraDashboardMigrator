@@ -4,6 +4,7 @@ import java.util.List;
 
 import javax.ws.rs.HttpMethod;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.igsl.config.Config;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
@@ -18,7 +19,22 @@ public class AgileBoard extends JiraObject<AgileBoard> {
 	private String filterName;
 
 	@Override
-	public int compareTo(AgileBoard obj1) {
+	public String getDisplay() {
+		return name;
+	}
+	
+	@Override
+	public String getInternalId() {
+		return id;
+	}
+
+	@Override
+	public String getJQLName() {
+		return name;
+	}
+	
+	@Override
+	public int compareTo(AgileBoard obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) |
 					STRING_COMPARATOR.compare(getFilterName(), obj1.getFilterName());

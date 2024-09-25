@@ -6,8 +6,9 @@ import java.util.List;
 import java.util.Map;
 
 public class Mapping {
+	
 	private MappingType type;
-	private Map<String, String> mapped = new LinkedHashMap<>();
+	private Map<String, JiraObject<?>> mapped = new LinkedHashMap<>();
 	private Map<String, List<String>> conflict = new LinkedHashMap<>();
 	private List<Object> unmapped = new ArrayList<>();
 	private Map<String, String> failed = new LinkedHashMap<>();
@@ -35,11 +36,11 @@ public class Mapping {
 		this.conflict = conflict;
 	}
 
-	public Map<String, String> getMapped() {
+	public Map<String, JiraObject<?>> getMapped() {
 		return mapped;
 	}
 
-	public void setMapped(Map<String, String> mapped) {
+	public void setMapped(Map<String, JiraObject<?>> mapped) {
 		this.mapped = mapped;
 	}
 

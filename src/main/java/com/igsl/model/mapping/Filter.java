@@ -30,9 +30,32 @@ public class Filter extends JiraObject<Filter> {
 	private String originalName;	// Used to rename filter and back
 	
 	@Override
-	public int compareTo(Filter obj1) {
+	public String getDisplay() {
+		return name;
+	}
+	
+	@Override
+	public String getInternalId() {
+		return id;
+	}
+
+	@Override
+	public String getJQLName() {
+		return id;
+	}
+	
+	@Override
+	public int compareTo(Filter obj1, boolean exactMatch) {
 		if (obj1 != null) {
-			return STRING_COMPARATOR.compare(getName(), obj1.getName());
+			int result = STRING_COMPARATOR.compare(getName(), obj1.getName());
+			String owner = (getOwner().getAccountId() != null)? 
+					getOwner().getAccountId() : 
+					getOwner().getName();
+			String obj1Owner = (obj1.getOwner().getAccountId() != null)? 
+					obj1.getOwner().getAccountId() : 
+					obj1.getOwner().getName();
+			result |= STRING_COMPARATOR.compare(owner, obj1Owner);
+			return result;
 		}
 		return 1;
 	}

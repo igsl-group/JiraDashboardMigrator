@@ -81,13 +81,13 @@ public class CLI {
 			.optionalArg(true)
 			.build();
 	
-	public static final Option MAPUSER_OPTION = Option.builder()
-			.desc("Map user using CSV exported from Cloud User Management")
-			.option("mu")
-			.longOpt("mapUser")
-			.hasArg()
+	public static final Option EXACTMATCH_OPTION = Option.builder()
+			.desc(	"Modifier for mapObject. " + 
+					"If specified, only map objects with identical names. Default is to allow (migrated #).")
+			.option("em")
+			.longOpt("exactMatch")
 			.build();
-	
+			
 	public static final Option CREATEFILTER_OPTION = Option.builder()
 			.desc(	"Create filters in Cloud. " + 
 					"Optionally specify true/false to call/disable REST API calls. Default false." + 
@@ -147,6 +147,7 @@ public class CLI {
 			.addOption(DUMPDC_OPTION)
 			.addOption(DUMPCLOUD_OPTION)
 			.addOption(MAPOBJECT_OPTION)
+			.addOption(EXACTMATCH_OPTION)
 			.addOption(CREATEFILTER_OPTION)
 			.addOption(OVERWRITEFILTER_OPTION)
 			.addOption(DELETEFILTER_OPTION)
@@ -154,9 +155,8 @@ public class CLI {
 			.addOption(MAPDASHBOARD_OPTION)
 			.addOption(CREATEDASHBOARD_OPTION)
 			.addOption(DELETEDASHBOARD_OPTION)
-			.addOption(LISTDASHBOARD_OPTION)
-			.addOption(MAPUSER_OPTION);
-	
+			.addOption(LISTDASHBOARD_OPTION);
+			
 	public static final Option ROLE_OPTION = Option.builder()
 			.desc("Role name(s)")
 			.option("r")

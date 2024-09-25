@@ -17,6 +17,8 @@ import com.igsl.config.GadgetConfigMapping;
 import com.igsl.config.GadgetType;
 import com.igsl.model.DataCenterGadgetConfiguration;
 import com.igsl.model.DataCenterPortletConfiguration;
+import com.igsl.model.mapping.Group;
+import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
 
@@ -165,7 +167,8 @@ public class CloudGadgetConfigurationMapper {
 								String newValue = groupValues.get(targetGroup);
 								if (map != null) {
 									if (map.getMapped().containsKey(newValue)) {
-										newValue = map.getMapped().get(newValue);
+										JiraObject<?> o = map.getMapped().get(newValue);
+										newValue = o.getInternalId();
 										// Update map
 										groupValues.put(conf.getTargetGroup(), newValue);
 									} else {

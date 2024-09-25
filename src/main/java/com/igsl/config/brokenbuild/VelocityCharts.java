@@ -13,8 +13,11 @@ import com.igsl.Log;
 import com.igsl.config.CustomGadgetConfigMapper;
 import com.igsl.model.DataCenterGadgetConfiguration;
 import com.igsl.model.DataCenterPortletConfiguration;
+import com.igsl.model.mapping.AgileBoard;
+import com.igsl.model.mapping.CustomField;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
+import com.igsl.model.mapping.Status;
 
 /**
  * Velocity charts by Broken Build
@@ -38,35 +41,40 @@ public class VelocityCharts extends CustomGadgetConfigMapper {
 				// estimationField
 				String estimationField = config.getEstimationField();
 				if (mappings.get(MappingType.CUSTOM_FIELD).getMapped().containsKey(estimationField)) {
-					config.setEstimationField(
-							mappings.get(MappingType.CUSTOM_FIELD).getMapped().get(estimationField));
+					CustomField cf = (CustomField) mappings.get(MappingType.CUSTOM_FIELD).getMapped()
+							.get(estimationField);
+					config.setEstimationField(cf.getId());
 				}
 				// sprintDateField
 				String sprintDateField = config.getSprintDateField();
 				if (mappings.get(MappingType.CUSTOM_FIELD).getMapped().containsKey(sprintDateField)) {
-					config.setSprintDateField(
-							mappings.get(MappingType.CUSTOM_FIELD).getMapped().get(sprintDateField));
+					CustomField cf = (CustomField) mappings.get(MappingType.CUSTOM_FIELD).getMapped()
+							.get(sprintDateField);
+					config.setSprintDateField(cf.getId());
 				}
 				// boardId
 				String boardId = String.valueOf(config.getBoardId());
 				if (mappings.get(MappingType.AGILE_BOARD).getMapped().containsKey(boardId)) {
-					config.setBoardId(
-							Integer.parseInt(
-									mappings.get(MappingType.AGILE_BOARD).getMapped().get(boardId)));
+					AgileBoard b = (AgileBoard) mappings.get(MappingType.AGILE_BOARD).getMapped()
+							.get(boardId);
+					config.setBoardId(Integer.parseInt(b.getId()));
 				}
 				// boards
 				for (Board b : config.getBoards()) {
 					// estimationField
 					estimationField = b.getEstimationField();
 					if (mappings.get(MappingType.CUSTOM_FIELD).getMapped().containsKey(estimationField)) {
-						b.setEstimationField(
-								mappings.get(MappingType.CUSTOM_FIELD).getMapped().get(estimationField));
+						CustomField cf = (CustomField)
+								mappings.get(MappingType.CUSTOM_FIELD).getMapped().get(estimationField);
+						b.setEstimationField(cf.getId());
 					}	
 					// customDoneStatuses
 					List<String> statuses = new ArrayList<>();
 					for (String status : b.getCustomDoneStatuses()) {
 						if (mappings.get(MappingType.STATUS).getMapped().containsKey(status)) {
-							statuses.add(mappings.get(MappingType.STATUS).getMapped().get(status));
+							Status s = (Status)
+									mappings.get(MappingType.STATUS).getMapped().get(status);
+							statuses.add(s.getId());
 						} else {
 							statuses.add(status);
 						}
@@ -75,9 +83,9 @@ public class VelocityCharts extends CustomGadgetConfigMapper {
 					// boardId
 					boardId = String.valueOf(b.getBoardId());
 					if (mappings.get(MappingType.AGILE_BOARD).getMapped().containsKey(boardId)) {
-						b.setBoardId(
-								Integer.parseInt(
-										mappings.get(MappingType.AGILE_BOARD).getMapped().get(boardId)));
+						AgileBoard ab = (AgileBoard)
+								mappings.get(MappingType.AGILE_BOARD).getMapped().get(boardId);
+						b.setBoardId(Integer.parseInt(ab.getId()));
 					}
 				}
 				// Update value

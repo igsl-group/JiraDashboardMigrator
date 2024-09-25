@@ -15,15 +15,25 @@ public class User extends JiraObject<User> {
 	private String emailAddress;
 
 	@Override
-	public String getUniqueName() {
+	public String getDisplay() {
+		return displayName;
+	}
+	
+	@Override
+	public String getInternalId() {
 		if (accountId != null) {
 			return accountId;
 		}
 		return name;
 	}
+
+	@Override
+	public String getJQLName() {
+		return accountId;
+	}
 	
 	@Override
-	public int compareTo(User obj1) {
+	public int compareTo(User obj1, boolean exactMatch) {
 		// Note: User can only be compared using CSV exported from Cloud User Management
 		// As via REST API all emailAddress except yourself will be null
 		if (obj1 != null) {

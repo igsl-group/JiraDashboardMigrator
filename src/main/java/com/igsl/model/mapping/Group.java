@@ -12,9 +12,27 @@ public class Group extends JiraObject<Group> {
 	private String html;
 
 	@Override
-	public int compareTo(Group obj1) {
+	public String getDisplay() {
+		return name;
+	}
+	
+	@Override
+	public String getInternalId() {
+		if (groupId != null) {
+			return groupId;
+		}
+		return name;
+	}
+
+	@Override
+	public String getJQLName() {
+		return name;
+	}
+	
+	@Override
+	public int compareTo(Group obj1, boolean exactMatch) {
 		if (obj1 != null) {
-			return compareName(getName(), obj1.getName());
+			return compareName(getName(), obj1.getName(), exactMatch);
 		}
 		return 1;
 	}

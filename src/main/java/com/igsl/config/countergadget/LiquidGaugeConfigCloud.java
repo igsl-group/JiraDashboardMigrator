@@ -6,6 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.igsl.model.mapping.Filter;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
 
@@ -32,7 +33,9 @@ public class LiquidGaugeConfigCloud {
 				if (m.matches()) {
 					String filterId = m.group(1);
 					if (mappings.get(MappingType.FILTER).getMapped().containsKey(filterId)) {
-						filterId = mappings.get(MappingType.FILTER).getMapped().get(filterId);
+						Filter f = (Filter)
+								mappings.get(MappingType.FILTER).getMapped().get(filterId);
+						filterId = f.getId();
 					}
 					result.values.put(CHANGED_TARGET_CONFIG, filterId);
 				} else {

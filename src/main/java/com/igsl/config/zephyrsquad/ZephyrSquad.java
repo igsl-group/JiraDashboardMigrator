@@ -20,6 +20,7 @@ import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
 import com.igsl.model.mapping.ProjectVersion;
+import com.igsl.model.mapping.Status;
 
 /**
  * Velocity charts by Broken Build
@@ -47,7 +48,8 @@ public class ZephyrSquad extends CustomGadgetConfigMapper {
 			while (matcher.matches()) {
 				String statusId = matcher.group(1);
 				if (mappings.get(MappingType.STATUS).getMapped().containsKey(statusId)) {
-					String newStatusId = mappings.get(MappingType.STATUS).getMapped().get(statusId);
+					Status s = (Status) mappings.get(MappingType.STATUS).getMapped().get(statusId);
+					String newStatusId = s.getId();
 					matcher.appendReplacement(replacement, newStatusId);
 				}
 			}
@@ -64,7 +66,9 @@ public class ZephyrSquad extends CustomGadgetConfigMapper {
 				List<ProjectVersion> versionList = DashboardMigrator.readValuesFromFile(
 						MappingType.PROJECT_VERSION.getDC(), ProjectVersion.class);
 				if (mappings.get(MappingType.PROJECT_VERSION).getMapped().containsKey(version)) {
-					newVersion = mappings.get(MappingType.PROJECT_VERSION).getMapped().get(version);
+					ProjectVersion v = (ProjectVersion) 
+							mappings.get(MappingType.PROJECT_VERSION).getMapped().get(version);
+					newVersion = v.getId();
 					// Find versionName
 					for (ProjectVersion projectVersion : versionList) {
 						if (version.equals(projectVersion.getId())) {
@@ -89,7 +93,9 @@ public class ZephyrSquad extends CustomGadgetConfigMapper {
 				List<Project> projectList = DashboardMigrator.readValuesFromFile(
 						MappingType.PROJECT.getDC(), Project.class);
 				if (mappings.get(MappingType.PROJECT_VERSION).getMapped().containsKey(projectId)) {
-					project = mappings.get(MappingType.PROJECT_VERSION).getMapped().get(projectId);
+					com.igsl.model.mapping.Project p = (com.igsl.model.mapping.Project)
+							mappings.get(MappingType.PROJECT_VERSION).getMapped().get(projectId);
+					project = p.getId();
 					// Find versionName
 					for (Project projectItem : projectList) {
 						if (projectId.equals(projectItem.getId())) {

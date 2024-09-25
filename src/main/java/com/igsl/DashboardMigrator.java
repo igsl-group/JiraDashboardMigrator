@@ -83,6 +83,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.igsl.CLI.CLIOptions;
 import com.igsl.config.Config;
 import com.igsl.config.GadgetType;
@@ -103,6 +104,7 @@ import com.igsl.model.mapping.Filter;
 import com.igsl.model.mapping.Group;
 import com.igsl.model.mapping.IssueType;
 import com.igsl.model.mapping.JiraObject;
+import com.igsl.model.mapping.JiraObjectDeserializer;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
 import com.igsl.model.mapping.Project;
@@ -135,9 +137,14 @@ public class DashboardMigrator {
 	private static final Logger LOGGER = LogManager.getLogger(DashboardMigrator.class);
 	
 	private static final ObjectMapper OM = new ObjectMapper()
-			.configure(Feature.ALLOW_COMMENTS, true)	// Allow comments
-			.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) // Allow attributes missing in POJO
-			.enable(SerializationFeature.INDENT_OUTPUT);
+			.enable(SerializationFeature.INDENT_OUTPUT)
+			// Allow comments
+			.configure(Feature.ALLOW_COMMENTS, true)	
+			// Allow attributes missing in POJO
+			.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) 
+			// Add custom deserializer for JiraObject
+			.registerModule(new SimpleModule()
+					.addDeserializer(JiraObject.class, new JiraObjectDeserializer()));
 	
 	private static SqlSessionFactory setupMyBatis(Config conf) throws Exception {
 		PooledDataSource ds = new PooledDataSource();
@@ -247,7 +254,8 @@ public class DashboardMigrator {
 				if (isLong) {
 					if (map.getMapped().containsKey(originalValue)) {
 						// Remap numerical values
-						Long newValue = Long.valueOf(map.getMapped().get(originalValue));
+						JiraObject<?> obj = map.getMapped().get(originalValue);
+						Long newValue = Long.valueOf(obj.getInternalId());
 						Log.info(LOGGER, "Mapped value for filter [" + filterName + "] type [" +
 								propertyName + "] value [" + originalValue + "] => [" + newValue + "]");
 						result = new SingleValueOperand(newValue);
@@ -279,7 +287,8 @@ public class DashboardMigrator {
 								if (!ignoreFilter) {
 									if (map.getMapped().containsKey(o.getId())) {
 										mapped = true;
-										newValue = map.getMapped().get(o.getId());
+										Filter f = (Filter) map.getMapped().get(o.getId());
+										newValue = f.getId();
 									}
 								} else {
 									mapped = true;
@@ -296,7 +305,8 @@ public class DashboardMigrator {
 								validated = true;
 								if (map.getMapped().containsKey(o.getName())) {
 									mapped = true;
-									newValue = map.getMapped().get(o.getName());
+									Group grp = (Group) map.getMapped().get(o.getName());
+									newValue = grp.getName();
 								}
 								break;
 							}
@@ -310,7 +320,8 @@ public class DashboardMigrator {
 								validated = true;
 								if (map.getMapped().containsKey(o.getId())) {
 									mapped = true;
-									newValue = map.getMapped().get(o.getId());
+									IssueType it = (IssueType) map.getMapped().get(o.getId());
+									newValue = it.getName();
 								}
 								break;
 							}
@@ -325,7 +336,8 @@ public class DashboardMigrator {
 								validated = true;
 								if (map.getMapped().containsKey(o.getId())) {
 									mapped = true;
-									newValue = map.getMapped().get(o.getId());
+									Project p = (Project) map.getMapped().get(o.getId());
+									newValue = p.getKey();
 								}
 								break;
 							}
@@ -339,7 +351,9 @@ public class DashboardMigrator {
 								validated = true;
 								if (map.getMapped().containsKey(o.getId())) {
 									mapped = true;
-									newValue = map.getMapped().get(o.getId());
+									ProjectCategory cat = (ProjectCategory)
+											 map.getMapped().get(o.getId());
+									newValue = cat.getName();
 								}
 								break;
 							}
@@ -353,7 +367,9 @@ public class DashboardMigrator {
 								validated = true;
 								if (map.getMapped().containsKey(o.getId())) {
 									mapped = true;
-									newValue = map.getMapped().get(o.getId());
+									ProjectComponent comp = (ProjectComponent)
+											map.getMapped().get(o.getId());
+									newValue = comp.getName();
 								}
 								break;
 							}
@@ -367,7 +383,9 @@ public class DashboardMigrator {
 								validated = true;
 								if (map.getMapped().containsKey(o.getId())) {
 									mapped = true;
-									newValue = map.getMapped().get(o.getId());
+									ProjectVersion v = (ProjectVersion) 
+											map.getMapped().get(o.getId());
+									newValue = v.getName();
 								}
 								break;
 							}
@@ -381,7 +399,8 @@ public class DashboardMigrator {
 								validated = true;
 								if (map.getMapped().containsKey(o.getId())) {
 									mapped = true;
-									newValue = map.getMapped().get(o.getId());
+									Role r = (Role) map.getMapped().get(o.getId());
+									newValue = r.getName();
 								}
 								break;
 							}
@@ -395,7 +414,8 @@ public class DashboardMigrator {
 								validated = true;
 								if (map.getMapped().containsKey(o.getId())) {
 									mapped = true;
-									newValue = map.getMapped().get(o.getId());
+									Sprint sp = (Sprint) map.getMapped().get(o.getId());
+									newValue = sp.getName();
 								}
 								break;
 							}
@@ -409,7 +429,9 @@ public class DashboardMigrator {
 								validated = true;
 								if (map.getMapped().containsKey(o.getId())) {
 									mapped = true;
-									newValue = map.getMapped().get(o.getId());
+									com.igsl.model.mapping.Status s = (com.igsl.model.mapping.Status) 
+											map.getMapped().get(o.getId());
+									newValue = s.getName();
 								}
 								break;
 							}
@@ -424,7 +446,8 @@ public class DashboardMigrator {
 								validated = true;
 								if (map.getMapped().containsKey(o.getKey())) {
 									mapped = true;
-									newValue = map.getMapped().get(o.getKey());
+									User u = (User) map.getMapped().get(o.getKey());
+									newValue = u.getAccountId();
 								}
 								break;
 							}
@@ -877,7 +900,8 @@ public class DashboardMigrator {
 						printFilterMappingResult(csvPrinter, filter, msg);
 						continue;
 					}
-					newOwner = mappings.get(MappingType.USER).getMapped().get(originalOwner);
+					User newUser = (User) mappings.get(MappingType.USER).getMapped().get(originalOwner);
+					newOwner = newUser.getAccountId();
 					// Verify and map share permissions
 					List<DataCenterPermission> newPermissions = new ArrayList<>();
 					for (DataCenterPermission share: filter.getSharePermissions()) {
@@ -903,8 +927,9 @@ public class DashboardMigrator {
 							break;
 						case GROUP:
 							if (mappings.get(MappingType.GROUP).getMapped().containsKey(share.getGroup().getName())) {
-								String newId = mappings.get(MappingType.GROUP).getMapped()
+								Group grp = (Group) mappings.get(MappingType.GROUP).getMapped()
 										.get(share.getGroup().getName());
+								String newId = grp.getName();
 								share.getGroup().setName(newId);
 								newPermissions.add(share);
 							} else {
@@ -918,8 +943,9 @@ public class DashboardMigrator {
 							if (share.getRole() == null) {
 								// No role, add as project
 								if (mappings.get(MappingType.PROJECT).getMapped().containsKey(share.getProject().getId())) {
-									String newId = mappings.get(MappingType.PROJECT).getMapped()
+									Project p = (Project) mappings.get(MappingType.PROJECT).getMapped()
 											.get(share.getProject().getId());
+									String newId = p.getId();
 									share.getProject().setId(newId);
 									newPermissions.add(share);
 								} else {
@@ -931,8 +957,9 @@ public class DashboardMigrator {
 							} else if (share.getRole() != null) {
 								// Has role, add as project-role
 								if (mappings.get(MappingType.PROJECT).getMapped().containsKey(share.getProject().getId())) {
-									String newId = mappings.get(MappingType.PROJECT).getMapped()
+									Project r = (Project) mappings.get(MappingType.PROJECT).getMapped()
 											.get(share.getProject().getId());
+									String newId = r.getId();
 									share.getProject().setId(newId);
 								} else {
 									String msg = "Filter [" + filter.getName() + "] " + 
@@ -941,8 +968,9 @@ public class DashboardMigrator {
 									Log.warn(LOGGER, msg);
 								}
 								if (mappings.get(MappingType.ROLE).getMapped().containsKey(share.getRole().getId())) {
-									String newId = mappings.get(MappingType.ROLE).getMapped()
+									Role r = (Role) mappings.get(MappingType.ROLE).getMapped()
 											.get(share.getRole().getId());
+									String newId = r.getId();
 									DataCenterPermission newItem = new DataCenterPermission();
 									newItem.setEdit(share.isEdit());
 									newItem.setView(share.isView());
@@ -962,8 +990,9 @@ public class DashboardMigrator {
 							break;
 						case USER:
 							if (mappings.get(MappingType.USER).getMapped().containsKey(share.getUser().getKey())) {
-								String newId = mappings.get(MappingType.USER).getMapped()
+								User u = (User) mappings.get(MappingType.USER).getMapped()
 										.get(share.getUser().getKey());
+								String newId = u.getAccountId();
 								share.getUser().setAccountId(newId);
 								newPermissions.add(share);
 							} else {
@@ -1049,8 +1078,12 @@ public class DashboardMigrator {
 													"(" + filter.getId() + ") already exists, " + 
 													"filter is not modified";
 									Log.warn(LOGGER, msg);
-									result.getMapped().put(filter.getId(), id);
+									Filter f = new Filter();
+									f.setId(id);
+									result.getMapped().put(filter.getId(), f);
 									printFilterMappingResult(csvPrinter, filter, msg);
+									// Update filter's id from DC's to Cloud's
+									filter.setId(id);
 									continue;
 								}
 							} else {
@@ -1073,7 +1106,9 @@ public class DashboardMigrator {
 								continue;
 							} 
 							CloudFilter newFilter = respFilter.readEntity(CloudFilter.class);
-							result.getMapped().put(filter.getId(), newFilter.getId());
+							Filter newF = new Filter();
+							newF.setId(newFilter.getId());
+							result.getMapped().put(filter.getId(), newF);
 							filter.setId(newFilter.getId());
 							Log.info(LOGGER, "Filter [" + filter.getName() + "] " + 
 									(updateFilter? "updated" : "created") + ": " + newFilter.getId());
@@ -1119,18 +1154,18 @@ public class DashboardMigrator {
 			}
 			Log.info(LOGGER, "Processed all batches");
 			if (callApi) {
-				// Exclude filters already in cloudFilterList from remappedList
+				// Exclude filters already in remappedList from cloudFilterList  
 				List<Filter> excludeList = new ArrayList<>();
-				for (Filter filter : remappedList) {
-					for (Filter cloudFilter : cloudFilterList) {
-						if (filter.getName().equals(cloudFilter.getName()) && 
-							filter.getOwner().getAccountId().equals(cloudFilter.getOwner().getAccountId())) {
-							excludeList.add(filter);
+				for (Filter cloudFilter : cloudFilterList) {
+					for (Filter remapFilter : remappedList) {
+						// Both lists are already renamed, so comparing just the name is sufficient
+						if (cloudFilter.getName().equals(remapFilter.getName())) {
+							excludeList.add(cloudFilter);
 							break;
 						}
 					}
-				}	
-				remappedList.removeAll(excludeList);				
+				}
+				cloudFilterList.removeAll(excludeList);				
 				// Un-possess filters
 				Log.info(LOGGER, "Reverting cloud filter names and owners...");
 				for (Filter cloudFilter : cloudFilterList) {
@@ -1225,7 +1260,7 @@ public class DashboardMigrator {
 	}
 
 	@SuppressWarnings("unchecked")
-	private static <U extends JiraObject<U>> void mapObjectsV2() throws Exception {
+	private static <U extends JiraObject<U>> void mapObjectsV2(boolean exactMatch) throws Exception {
 		Log.info(LOGGER, "Mapping objects between Data Center and Cloud...");
 		for (MappingType type : MappingType.values()) {
 			Log.info(LOGGER, "Processing mapping for " + type);
@@ -1239,17 +1274,17 @@ public class DashboardMigrator {
 				for (U server : serverObjects) {
 					List<U> targets = new ArrayList<>();
 					for (U cloud : cloudObjects) {
-						if (server.compareTo(cloud) == 0) {
+						if (server.compareTo(cloud, exactMatch) == 0) {
 							targets.add(cloud);
 						}
 					}
 					switch (targets.size()) {
 					case 0:
 						mapping.getUnmapped().add(server);
-						Log.warn(LOGGER, type + " [" + server.getUniqueName() + "] is not mapped");
+						Log.warn(LOGGER, type + " [" + server.getInternalId() + "] is not mapped");
 						break;
 					case 1: 
-						mapping.getMapped().put(server.getUniqueName(), targets.get(0).getUniqueName());
+						mapping.getMapped().put(server.getInternalId(), targets.get(0));
 						mappedCount++;
 						break;
 					case 2:
@@ -1265,7 +1300,7 @@ public class DashboardMigrator {
 							}
 						}
 						if (migratedCount == 1 && mappedObject != null) {
-							mapping.getMapped().put(server.getUniqueName(), mappedObject.getUniqueName());
+							mapping.getMapped().put(server.getInternalId(), mappedObject);
 							mappedCount++;
 							break;
 						}
@@ -1273,11 +1308,11 @@ public class DashboardMigrator {
 					default:
 						List<String> conflicts = new ArrayList<>();
 						for (U item : targets) {
-							conflicts.add(item.getUniqueName());
+							conflicts.add(item.getInternalId());
 						}
-						mapping.getConflict().put(server.getUniqueName(), conflicts);
+						mapping.getConflict().put(server.getInternalId(), conflicts);
 						Log.warn(LOGGER, 
-								type + " [" + server.getUniqueName() + "] is mapped to multiple Cloud objects");
+								type + " [" + server.getInternalId() + "] is mapped to multiple Cloud objects");
 						break;
 					}
 				}
@@ -1457,7 +1492,9 @@ public class DashboardMigrator {
 						"(" + createdDashboard.getId() + ") to ["
 						+ dashboard.getAccountId() + "]");
 			}
-			migratedList.getMapped().put(Integer.toString(dashboard.getId()), createdDashboard.getId());
+			Dashboard db = new Dashboard();
+			db.setId(createdDashboard.getId());
+			migratedList.getMapped().put(Integer.toString(dashboard.getId()), db);
 			migratedCount++;
 		}
 		saveFile(MappingType.DASHBOARD.getMap(), migratedList);
@@ -1497,7 +1534,8 @@ public class DashboardMigrator {
 			// Translate owner, if any
 			if (dashboard.getUsername() != null) {
 				if (userMapping.getMapped().containsKey(dashboard.getUsername())) {
-					dashboard.setAccountId(userMapping.getMapped().get(dashboard.getUsername()));
+					User user = (User) userMapping.getMapped().get(dashboard.getUsername());
+					dashboard.setAccountId(user.getAccountId());
 				} else {
 					hasError = true;
 					Log.error(LOGGER, "Unable to map owner for dashboard [" + dashboard.getPageName() + "] " + 
@@ -1511,7 +1549,8 @@ public class DashboardMigrator {
 				case USER: 
 					String userKey = permission.getParam1();
 					if (userMapping.getMapped().containsKey(userKey)) {
-						String accountId = userMapping.getMapped().get(userKey);
+						User u = (User) userMapping.getMapped().get(userKey);
+						String accountId = u.getAccountId();
 						permission.setParam1(accountId);
 					} else {
 						hasError = true;
@@ -1529,7 +1568,8 @@ public class DashboardMigrator {
 						permission.setShareType(PermissionType.PROJECT.toString());
 					}
 					if (projectMapping.getMapped().containsKey(projectId)) {
-						String newId = projectMapping.getMapped().get(projectId);
+						Project p = (Project) projectMapping.getMapped().get(projectId);
+						String newId = p.getId();
 						permission.setParam1(newId);
 					} else {
 						hasError = true;
@@ -1539,7 +1579,8 @@ public class DashboardMigrator {
 					}
 					if (projectRoleId != null) {
 						if (roleMapping.getMapped().containsKey(projectRoleId)) {
-							String newId = roleMapping.getMapped().get(projectRoleId);
+							Role r = (Role) roleMapping.getMapped().get(projectRoleId);
+							String newId = r.getId();
 							permission.setParam2(newId);
 						} else {
 							hasError = true;
@@ -1630,7 +1671,10 @@ public class DashboardMigrator {
 		int mappedUserCount = 0;
 		for (User src : serverUsers) {
 			if (csvUsers.containsKey(src.getEmailAddress())) {
-				userMapping.getMapped().put(src.getKey(), csvUsers.get(src.getEmailAddress()));
+				String accountId = csvUsers.get(src.getEmailAddress());
+				User u = new User();
+				u.setAccountId(accountId);
+				userMapping.getMapped().put(src.getKey(), u);
 				mappedUserCount++;
 			} else {
 				userMapping.getUnmapped().add(src);
@@ -1673,9 +1717,10 @@ public class DashboardMigrator {
 		Mapping filters = readFile(MappingType.FILTER.getMap(), Mapping.class);
 		int deletedCount = 0;
 		RestUtil<Object> util = RestUtil.getInstance(Object.class).config(conf, true);
-		for (Map.Entry<String, String> filter : filters.getMapped().entrySet()) {
+		for (Map.Entry<String, JiraObject<?>> filter : filters.getMapped().entrySet()) {
+			Filter f = (Filter) filter.getValue();
 			Response resp = util.path("/rest/api/latest/filter/{filterId}")
-					.pathTemplate("filterId", filter.getValue())
+					.pathTemplate("filterId", f.getId())
 					.method(HttpMethod.DELETE)
 					.status()
 					.request();
@@ -1695,9 +1740,10 @@ public class DashboardMigrator {
 		Mapping dashboards = readFile(MappingType.DASHBOARD.getMap(), Mapping.class);
 		int deletedCount = 0;
 		RestUtil<Object> util = RestUtil.getInstance(Object.class).config(conf, true);
-		for (Map.Entry<String, String> dashboard : dashboards.getMapped().entrySet()) {
+		for (Map.Entry<String, JiraObject<?>> dashboard : dashboards.getMapped().entrySet()) {
+			Dashboard db = (Dashboard) dashboard.getValue();
 			Response resp = util.path("/rest/api/latest/dashboard/{boardId}")
-					.pathTemplate("boardId", dashboard.getValue())
+					.pathTemplate("boardId", db.getId())
 					.method(HttpMethod.DELETE)
 					.status()
 					.request();
@@ -1795,16 +1841,18 @@ public class DashboardMigrator {
 
 	private static final Pattern CUSTOM_FIELD_CF = Pattern.compile("^cf\\[([0-9]+)\\]$");
 	private static final String CUSTOM_FIELD = "customfield_";
-	private static String mapCustomFieldName(Map<String, String> map, String data) throws Exception {
+	private static String mapCustomFieldName(Map<String, JiraObject<?>> map, String data) throws Exception {
 		// If data is customfield_#
 		if (map.containsKey(data)) {
-			return map.get(data);
+			CustomField cf = (CustomField) map.get(data);
+			return cf.getId();
 		}
 		// If data is cf[#]
 		Matcher m = CUSTOM_FIELD_CF.matcher(data);
 		if (m.matches()) {
 			if (map.containsKey(CUSTOM_FIELD + m.group(1))) {
-				String s = map.get(CUSTOM_FIELD + m.group(1));
+				CustomField cf = (CustomField) map.get(CUSTOM_FIELD + m.group(1));
+				String s = cf.getId();
 				s = s.substring(CUSTOM_FIELD.length());
 				return "cf[" + s + "]";
 			} else {
@@ -2162,7 +2210,8 @@ public class DashboardMigrator {
 						dumpObjects(conf, true, parseMappingTypes(true, cli.getOptionValues(CLI.DUMPCLOUD_OPTION)));
 						break;
 					case MAP_OBJECT:
-						mapObjectsV2();
+						boolean exactMatch = cli.hasOption(CLI.EXACTMATCH_OPTION);
+						mapObjectsV2(exactMatch);
 						String csvFile = cli.getOptionValue(CLI.MAPOBJECT_OPTION);
 						if (csvFile != null) {
 							// Override user mapping with CSV file exported from Cloud User Management

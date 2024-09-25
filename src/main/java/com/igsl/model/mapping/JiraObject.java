@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.igsl.Log;
 import com.igsl.config.Config;
 import com.igsl.rest.RestUtil;
 
@@ -21,6 +22,14 @@ public abstract class JiraObject<T> implements Comparable<T> {
 	
 	protected static final Pattern PATTERN = Pattern.compile("(.+?)( \\(migrated( [0-9]+)?\\))?");	
 
+	/**
+	 * Returns class name of implementation.
+	 * This information is used to deserialize JiraObject from file.
+	 */
+	public final String getObjectType() {
+		return this.getClass().getCanonicalName();
+	}
+	
 	/**
 	 * Checks if name matches (migrated #)
 	 */
@@ -37,15 +46,17 @@ public abstract class JiraObject<T> implements Comparable<T> {
 	}
 	
 	// Compare names with option to allow (migrated #)
-	protected final int compareName(String name1, String name2) {
+	protected final int compareName(String name1, String name2, boolean exactMatch) {
 		if (name1 != null && name2 != null) {
-			Matcher matcher1 = PATTERN.matcher(name1);
-			if (matcher1.matches()) {
-				name1 = matcher1.group(1);
-			}
-			Matcher matcher2 = PATTERN.matcher(name2);
-			if (matcher2.matches()) {
-				name2 = matcher2.group(1);
+			if (!exactMatch) {
+				Matcher matcher1 = PATTERN.matcher(name1);
+				if (matcher1.matches()) {
+					name1 = matcher1.group(1);
+				}
+				Matcher matcher2 = PATTERN.matcher(name2);
+				if (matcher2.matches()) {
+					name2 = matcher2.group(1);
+				}
 			}
 			return STRING_COMPARATOR.compare(name1, name2);
 		}
@@ -53,87 +64,43 @@ public abstract class JiraObject<T> implements Comparable<T> {
 	}
 	
 	/**
-	 * Get display name for the implementation.
-	 * Default is to call .getName() or .getDisplayName() or getUniqueName().
-	 * @return
-	 * @throws Exception
+	 * Return display name of this object. 
+	 * Usually this is .getName().
 	 */
 	@JsonIgnore
-	public String getDisplay() throws Exception {
-		String result = null;
-		Method m = null;
-		String methodName = null;
-		try {
-			m = this.getClass().getDeclaredMethod("getName");
-			methodName = "getName()";
-		} catch (Exception ex) {
-			// Ignore
-		}
-		if (m == null) {
-			try {
-				m = this.getClass().getDeclaredMethod("getDisplayName");
-				methodName = "getDisplayName()";
-			} catch (Exception ex) {
-				// Ignore
-			}
-		}
-		if (m == null) {
-			return getUniqueName();
-		}
-		try {
-			result = String.valueOf(m.invoke(this));
-		} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-			throw new Exception("Unable to invoke " + this.getClass().getCanonicalName() + 
-					"." + methodName, e);
-		}
-		return result;
-	}
+	public abstract String getDisplay();
 	
 	/**
-	 * Get unique name for the implementation. 
-	 * Default is to call .getId(), if not present, .getName().
-	 * Override if it isn't either of those.
-	 * @return String
+	 * Return internal id of this object.
+	 * Usually this is .getId(), but can be .getName() as well.
+	 * @return
 	 */
 	@JsonIgnore
-	public String getUniqueName() throws Exception {
-		String result = null;
-		Method m = null;
-		String methodName = null;
-		Method[] list = this.getClass().getDeclaredMethods();
-		try {
-			m = this.getClass().getDeclaredMethod("getId");
-			methodName = "getId()";
-		} catch (Exception ex) {
-			// Ignore
-		}
-		if (m == null) {
-			try {
-				m = this.getClass().getDeclaredMethod("getName");
-				methodName = "getName()";
-			} catch (Exception ex) {
-				// Ignore
-			}
-		}
-		if (m == null) {
-			throw new NoSuchMethodException(
-					"Class " + this.getClass().getCanonicalName() + 
-					" does not contain .getId() or .getName(), it must override .getUniqueName()");
-		}
-		try {
-			result = String.valueOf(m.invoke(this));
-		} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-			throw new Exception("Unable to invoke " + this.getClass().getCanonicalName() + 
-					"." + methodName, e);
-		}
-		return result;
-	}
+	public abstract String getInternalId();
+
+	/**
+	 * Return identifier to be used in JQL.
+	 * Usually this is .getId(), but can be .getKey() or .getName() as well.
+	 * @return
+	 */
+	@JsonIgnore
+	public abstract String getJQLName();
 	
 	/**
 	 * Compare objects. 
 	 * STRING_COMPARATOR can be used to perform null first string comparison.
 	 */
-	public abstract int compareTo(T obj1);
+	public final int compareTo(T obj1) {
+		return compareTo(obj1, true);
+	}
+	
+	/**
+	 * Compare objects. 
+	 * STRING_COMPARATOR can be used to perform null first string comparison.
+	 * exactMatch controls if (migrated #) is accpeted as a match.
+	 * Implementations can ignore exactMatch if name must be identical.
+	 */
+	public abstract int compareTo(T obj1, boolean exactMatch);
 	
 	/**
 	 * Setup RestUtil for API calls. 

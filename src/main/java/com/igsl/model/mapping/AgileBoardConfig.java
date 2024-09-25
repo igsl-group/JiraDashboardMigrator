@@ -12,7 +12,22 @@ public class AgileBoardConfig extends JiraObject<AgileBoardConfig> {
 	private Filter filter;
 
 	@Override
-	public int compareTo(AgileBoardConfig obj1) {
+	public String getDisplay() {
+		return filter.getDisplay();
+	}
+	
+	@Override
+	public String getInternalId() {
+		return filter.getInternalId();
+	}
+
+	@Override
+	public String getJQLName() {
+		return filter.getJQLName();
+	}
+	
+	@Override
+	public int compareTo(AgileBoardConfig obj1, boolean exactMatch) {
 		if (obj1 != null && obj1.getFilter() != null && getFilter() != null) {
 			return getFilter().compareTo(obj1.getFilter());
 		}

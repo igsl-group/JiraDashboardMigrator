@@ -19,7 +19,22 @@ public class ProjectVersion extends JiraObject<ProjectVersion> {
 	private String projectKey;
 
 	@Override
-	public int compareTo(ProjectVersion obj1) {
+	public String getDisplay() {
+		return name;
+	}
+	
+	@Override
+	public String getInternalId() {
+		return id;
+	}
+
+	@Override
+	public String getJQLName() {
+		return name;
+	}
+	
+	@Override
+	public int compareTo(ProjectVersion obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) | 
 					STRING_COMPARATOR.compare(getProjectKey(), obj1.getProjectKey());

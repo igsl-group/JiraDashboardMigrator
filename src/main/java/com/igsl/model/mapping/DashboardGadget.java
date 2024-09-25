@@ -11,7 +11,22 @@ public class DashboardGadget extends JiraObject<DashboardGadget> {
 	private String moduleKey;
 	
 	@Override
-	public int compareTo(DashboardGadget obj1) {
+	public String getDisplay() {
+		return moduleKey;
+	}
+	
+	@Override
+	public String getInternalId() {
+		return moduleKey;
+	}
+
+	@Override
+	public String getJQLName() {
+		return moduleKey;
+	}
+	
+	@Override
+	public int compareTo(DashboardGadget obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return Integer.compare(getId(), obj1.getId());
 		}

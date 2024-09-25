@@ -12,12 +12,24 @@ public class CustomField extends JiraObject<CustomField> {
 	private Schema schema;
 
 	@Override
-	public int compareTo(CustomField obj1) {
+	public String getDisplay() {
+		return name;
+	}
+	
+	@Override
+	public String getInternalId() {
+		return id;
+	}
+
+	@Override
+	public String getJQLName() {
+		return name;
+	}
+	
+	@Override
+	public int compareTo(CustomField obj1, boolean exactMatch) {
 		if (obj1 != null) {
-			if (obj1.getName().contains("Pending Reason") && getName().contains("Pending Reason")) {
-				int i = 0;
-			}
-			return 	compareName(getName(), obj1.getName()) | 
+			return 	compareName(getName(), obj1.getName(), exactMatch) | 
 					Schema.COMPARATOR.compare(getSchema(), obj1.getSchema());
 		}
 		return 1;

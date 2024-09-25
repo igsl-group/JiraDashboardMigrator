@@ -21,7 +21,22 @@ public class Sprint extends JiraObject<Sprint> {
 	// Note: start and endDate can be different in DC and Cloud after migration
 	
 	@Override
-	public int compareTo(Sprint obj1) {
+	public String getDisplay() {
+		return name;
+	}
+	
+	@Override
+	public String getInternalId() {
+		return id;
+	}
+
+	@Override
+	public String getJQLName() {
+		return id;
+	}
+	
+	@Override
+	public int compareTo(Sprint obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) |
 					STRING_COMPARATOR.compare(getOriginalBoardName(), obj1.getOriginalBoardName()) | 
