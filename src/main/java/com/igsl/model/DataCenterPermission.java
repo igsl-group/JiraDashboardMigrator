@@ -6,8 +6,28 @@ public class DataCenterPermission {
 	private PermissionTarget group;
 	private PermissionTarget role;
 	private PermissionTarget user;
-	private boolean view;
-	private boolean edit;
+	private boolean view;	// Used by Server only
+	private boolean edit;	// Used by Server only
+	
+	public DataCenterPermission clone() {
+		DataCenterPermission result = new DataCenterPermission();
+		result.setType(this.getType());
+		if (this.getProject() != null) {
+			result.setProject(this.getProject().clone());
+		}
+		if (this.getGroup() != null) {
+			result.setGroup(this.getGroup().clone());
+		}
+		if (this.getRole() != null) {
+			result.setRole(this.getRole().clone());
+		}
+		if (this.getUser() != null) {
+			result.setUser(this.getUser().clone());
+		}
+		result.setEdit(this.isEdit());
+		result.setView(this.isView());
+		return result;
+	}
 
 	public String getType() {
 		return type;

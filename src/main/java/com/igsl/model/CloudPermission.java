@@ -72,6 +72,11 @@ public class CloudPermission {
 					break;
 				case PROJECT:
 					result.project = PermissionTarget.create(cpt, permission);
+					// PROJECT may include role as well
+					if (permission.getRole() != null) {
+						result.setType(PermissionType.PROJECT_ROLE.toString());
+						result.role = PermissionTarget.create(PermissionType.PROJECT_ROLE, permission);
+					}
 					break;
 				case USER:
 					result.user = PermissionTarget.create(cpt, permission);

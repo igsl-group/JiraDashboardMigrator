@@ -9,7 +9,6 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.atlassian.jira.project.Project;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igsl.DashboardMigrator;
 import com.igsl.Log;
@@ -19,6 +18,7 @@ import com.igsl.model.DataCenterGadgetConfiguration;
 import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
+import com.igsl.model.mapping.Project;
 import com.igsl.model.mapping.ProjectVersion;
 import com.igsl.model.mapping.Status;
 
@@ -45,7 +45,7 @@ public class ZephyrSquad extends CustomGadgetConfigMapper {
 		if (statuses != null) {
 			Matcher matcher = PATTERN.matcher(statuses);
 			StringBuilder replacement = new StringBuilder();
-			while (matcher.matches()) {
+			while (matcher.find()) {
 				String statusId = matcher.group(1);
 				if (mappings.get(MappingType.STATUS).getMapped().containsKey(statusId)) {
 					Status s = (Status) mappings.get(MappingType.STATUS).getMapped().get(statusId);
@@ -92,9 +92,9 @@ public class ZephyrSquad extends CustomGadgetConfigMapper {
 				String project = projectId;
 				List<Project> projectList = DashboardMigrator.readValuesFromFile(
 						MappingType.PROJECT.getDC(), Project.class);
-				if (mappings.get(MappingType.PROJECT_VERSION).getMapped().containsKey(projectId)) {
-					com.igsl.model.mapping.Project p = (com.igsl.model.mapping.Project)
-							mappings.get(MappingType.PROJECT_VERSION).getMapped().get(projectId);
+				if (mappings.get(MappingType.PROJECT).getMapped().containsKey(projectId)) {
+					Project p = (Project)
+							mappings.get(MappingType.PROJECT).getMapped().get(projectId);
 					project = p.getId();
 					// Find versionName
 					for (Project projectItem : projectList) {

@@ -9,7 +9,7 @@ public class Mapping {
 	
 	private MappingType type;
 	private Map<String, JiraObject<?>> mapped = new LinkedHashMap<>();
-	private Map<String, List<String>> conflict = new LinkedHashMap<>();
+	private Map<String, List<JiraObject<?>>> conflict = new LinkedHashMap<>();
 	private List<Object> unmapped = new ArrayList<>();
 	private Map<String, String> failed = new LinkedHashMap<>();
 
@@ -28,11 +28,11 @@ public class Mapping {
 		this.unmapped = unmapped;
 	}
 
-	public Map<String, List<String>> getConflict() {
+	public Map<String, List<JiraObject<?>>> getConflict() {
 		return conflict;
 	}
 
-	public void setConflict(Map<String, List<String>> conflict) {
+	public void setConflict(Map<String, List<JiraObject<?>>> conflict) {
 		this.conflict = conflict;
 	}
 

@@ -1,7 +1,10 @@
 package com.igsl;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -9,6 +12,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -18,6 +25,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -77,6 +92,7 @@ import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -91,6 +107,7 @@ import com.igsl.model.CloudDashboard;
 import com.igsl.model.CloudFilter;
 import com.igsl.model.CloudGadget;
 import com.igsl.model.CloudGadgetConfiguration;
+import com.igsl.model.CloudPermission;
 import com.igsl.model.DataCenterPermission;
 import com.igsl.model.DataCenterPortalPage;
 import com.igsl.model.DataCenterPortalPermission;
@@ -115,9 +132,14 @@ import com.igsl.model.mapping.Role;
 import com.igsl.model.mapping.Sprint;
 import com.igsl.model.mapping.User;
 import com.igsl.mybatis.FilterMapper;
+import com.igsl.rest.ClientPool;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
+import com.igsl.rest.RestUtil2;
 import com.igsl.rest.SinglePage;
+import com.igsl.thread.EditFilterPermission;
+import com.igsl.thread.MapFilter;
+import com.igsl.thread.MapFilterResult;
 
 /**
  * Migrate dashboard and filter from Jira Data Center 8.14.1 to Jira Cloud. The
@@ -133,6 +155,8 @@ public class DashboardMigrator {
 
 	private static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
 	
+	private static final SimpleDateFormat SDF = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+	
 	private static final String NEWLINE = "\r\n";
 	private static final Logger LOGGER = LogManager.getLogger(DashboardMigrator.class);
 	
@@ -146,7 +170,7 @@ public class DashboardMigrator {
 			.registerModule(new SimpleModule()
 					.addDeserializer(JiraObject.class, new JiraObjectDeserializer()));
 	
-	private static SqlSessionFactory setupMyBatis(Config conf) throws Exception {
+	public static SqlSessionFactory setupMyBatis(Config conf) throws Exception {
 		PooledDataSource ds = new PooledDataSource();
 		ds.setDriver(Driver.class.getCanonicalName());
 		ds.setUrl(conf.getSourceDatabaseURL());
@@ -213,20 +237,24 @@ public class DashboardMigrator {
 
 	public static <T> List<T> readValuesFromFile(String fileName, Class<? extends T> cls) 
 			throws IOException, JsonParseException {
-		ObjectReader reader = OM.readerFor(cls);
-		StringBuilder sb = new StringBuilder();
-		for (String line : Files.readAllLines(Paths.get(fileName), DEFAULT_CHARSET)) {
-			sb.append(line).append(NEWLINE);
-		}
 		List<T> result = new ArrayList<>();
-		MappingIterator<T> list = reader.readValues(sb.toString());
-		while (list.hasNext()) {
-			result.add(list.next());
+		try {
+			ObjectReader reader = OM.readerFor(cls);
+			StringBuilder sb = new StringBuilder();
+			for (String line : Files.readAllLines(Paths.get(fileName), DEFAULT_CHARSET)) {
+				sb.append(line).append(NEWLINE);
+			}
+			MappingIterator<T> list = reader.readValues(sb.toString());
+			while (list.hasNext()) {
+				result.add(list.next());
+			}
+		} catch (Exception ex) {
+			throw new IOException("Failed to read JSON from file: [" + fileName + "]", ex);
 		}
 		return result;
 	}
 
-	private static void saveFile(String fileName, Object content) throws IOException {
+	public static void saveFile(String fileName, Object content) throws IOException {
 		try (FileWriter fw = new FileWriter(fileName, DEFAULT_CHARSET)) {
 			ObjectWriter writer = OM.writer(new DefaultPrettyPrinter()
 						.withObjectIndenter(
@@ -237,7 +265,11 @@ public class DashboardMigrator {
 	}
 
 	private static SingleValueOperand mapValue(
-			SingleValueOperand src, Map<MappingType, List<?>> data, Mapping map, 
+			SingleValueOperand src, 
+			MappingType mappingType,
+			CustomField mappedCustomField, 
+			Map<MappingType, List<JiraObject<?>>> data, 
+			Map<MappingType, Mapping> maps,
 			String filterName, String propertyName, boolean ignoreFilter) throws Exception {
 		SingleValueOperand result = null;
 		if (src != null) {
@@ -250,7 +282,8 @@ public class DashboardMigrator {
 				originalValue = src.getStringValue();
 				isLong = false;
 			}
-			if (map != null) {
+			if (mappingType != null) {
+				Mapping map = maps.get(mappingType);
 				if (isLong) {
 					if (map.getMapped().containsKey(originalValue)) {
 						// Remap numerical values
@@ -477,15 +510,35 @@ public class DashboardMigrator {
 						result = new SingleValueOperand(newValue);
 					}
 				}
+			} else if (mappedCustomField != null) {
+				// Find associated CustomFieldOption
+				Mapping mapping = maps.get(MappingType.CUSTOM_FIELD_OPTION);
+				if (isLong) {
+					// Id
+					if (mapping.getMapped().containsKey(originalValue)) {
+						JiraObject<?> obj = mapping.getMapped().get(originalValue);
+						result = new SingleValueOperand(obj.getJQLName());
+					} else {
+						String msg = "Value not validated for filter [" + filterName + "] " + 
+								"type [" + propertyName + "] value [" + originalValue + "]";
+						Log.info(LOGGER, msg);
+						throw new Exception(msg);
+					}
+				} else {
+					// Text
+					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] " + 
+							"type [" + propertyName + "] value [" + originalValue + "]");
+					result = new SingleValueOperand(originalValue);
+				}
 			} else {
 				if (isLong) {
-					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] type [" + propertyName
-							+ "] value [" + originalValue + "]");
-					result = new SingleValueOperand(src.getLongValue());
+					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] " + 
+							"type [" + propertyName + "] value [" + originalValue + "]");
+					result = new SingleValueOperand(originalValue);
 				} else {
-					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] type [" + propertyName
-							+ "] value [" + originalValue + "]");
-					result = new SingleValueOperand(src.getStringValue());
+					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] " + 
+							"type [" + propertyName + "] value [" + originalValue + "]");
+					result = new SingleValueOperand(originalValue);
 				}
 			}
 		}
@@ -494,7 +547,7 @@ public class DashboardMigrator {
 
 	private static Clause mapClause(
 			String filterName, 
-			Map<MappingType, List<?>> data,
+			Map<MappingType, List<JiraObject<?>>> data,
 			Map<MappingType, Mapping> maps, 
 			Clause c, 
 			boolean ignoreFilter) 
@@ -506,12 +559,20 @@ public class DashboardMigrator {
 			String propertyName = c.getName();
 			String newPropertyName = propertyName;
 			MappingType mappingType = null;
+			CustomField mappedCustomField = null;
 			if (propertyName != null) {
 				// Get mapping type
 				mappingType = MappingType.parseFilterProperty(propertyName);
-				// Remap propertyName if it is a custom field
-				Mapping customFieldMapping = maps.get(MappingType.CUSTOM_FIELD);
-				newPropertyName = mapCustomFieldName(customFieldMapping.getMapped(), propertyName);
+				if (mappingType == null) {
+					// Remap propertyName if it is a custom field
+					mappedCustomField = mapCustomFieldName(
+							maps.get(MappingType.CUSTOM_FIELD).getMapped(), 
+							data.get(MappingType.CUSTOM_FIELD),
+							propertyName);
+					if (mappedCustomField != null) {
+						newPropertyName = mappedCustomField.getJQLName();
+					}
+				}
 				Log.info(LOGGER, "Property [" + propertyName + "] -> [" + newPropertyName + "]");
 			}
 			for (Clause sc : c.getClauses()) {
@@ -533,11 +594,14 @@ public class DashboardMigrator {
 				List<String> unmappedValues = new ArrayList<>();
 				if (mappingType != null) {
 					// Modify value
-					Mapping map = maps.get(mappingType);
 					if (originalOperand instanceof SingleValueOperand) {
 						SingleValueOperand svo = (SingleValueOperand) originalOperand;
 						// Change value
-						clonedOperand = mapValue(svo, data, map, filterName, tc.getName(), ignoreFilter);
+						clonedOperand = mapValue(svo, 
+								mappingType, 
+								mappedCustomField, 
+								data, maps, 
+								filterName, tc.getName(), ignoreFilter);
 					} else if (originalOperand instanceof MultiValueOperand) {
 						MultiValueOperand mvo = (MultiValueOperand) originalOperand;
 						List<Operand> list = new ArrayList<>();
@@ -547,7 +611,11 @@ public class DashboardMigrator {
 								SingleValueOperand svo = (SingleValueOperand) item;
 								try {
 									SingleValueOperand result = mapValue(
-											svo, data, map, filterName, tc.getName(), ignoreFilter);
+											svo, 
+											mappingType, 
+											mappedCustomField, 
+											data, maps, 
+											filterName, tc.getName(), ignoreFilter);
 									list.add(result);
 								} catch (Exception ex) {
 									unmappedValues.add((svo.getLongValue() != null)? 
@@ -829,6 +897,353 @@ public class DashboardMigrator {
 		CSV.printRecord(printer, filter.getName(), filter.getId(), filter.getJql(), 
 				message, category, resolution, notes);
 	}
+
+	private static Map<Filter, String> setFilterEditPermission(Config conf, boolean add, String accountId) 
+			throws Exception {
+		Map<Filter, String> result = new HashMap<>();
+		List<Filter> filterList = JiraObject.getObjects(conf, Filter.class, true);
+		// Sort filters into batches to avoid name clashes
+		Map<Integer, Map<String, Filter>> batches = new HashMap<>();
+		int batchNo = 0;
+		while (filterList.size() != 0) {
+			batches.put(batchNo, new HashMap<>());
+			List<Filter> toRemove = new ArrayList<>();
+			for (Filter filter : filterList) {
+				if (!batches.get(batchNo).containsKey(filter.getName())) {
+					batches.get(batchNo).put(filter.getName(), filter);
+					toRemove.add(filter);
+				}
+			}
+			filterList.removeAll(toRemove);
+			batchNo++;
+		}
+		// Process each batch
+		for (Map.Entry<Integer, Map<String, Filter>> entry : batches.entrySet()) {
+			ExecutorService executorService = Executors.newFixedThreadPool(conf.getThreadCount());
+			Map<Filter, Future<String>> batchResult = new HashMap<>();
+			for (Filter filter : entry.getValue().values()) {
+				Log.info(LOGGER, 
+						"Processing batch #" + entry.getKey() + " " + 
+						"filter [" + filter.getName() + "] (" + filter.getId() + ")");
+				batchResult.put(
+						filter, 
+						executorService.submit(new EditFilterPermission(conf, add, accountId, filter)));
+			}
+			// Get results of this batch
+			while (batchResult.size() != 0) {
+				List<Filter> toRemove = new ArrayList<>();
+				for (Map.Entry<Filter, Future<String>> resultEntry : batchResult.entrySet()) {
+					try {
+						String s = resultEntry.getValue().get(conf.getThreadWait(), TimeUnit.MILLISECONDS);
+						result.put(resultEntry.getKey(), s);
+						toRemove.add(resultEntry.getKey());
+					} catch (TimeoutException tex) {
+						// Ignore and keep waiting
+					} catch (Exception ex) {
+						// Failed to get result from thread
+						result.put(resultEntry.getKey(), ex.getMessage());
+						toRemove.add(resultEntry.getKey());
+					}
+				}
+				for (Filter f : toRemove) {
+					batchResult.remove(f);
+				}
+			}
+			executorService.shutdown();
+			while (!executorService.isTerminated()) {
+				try {
+					executorService.awaitTermination(conf.getThreadWait(), TimeUnit.MILLISECONDS);
+				} catch (InterruptedException iex) {
+					Log.error(LOGGER, "AwaitTermination interrupted", iex);
+				}
+			}
+		}
+		return result;
+	}
+	
+	private static List<FilterValue> getFilterReferences(Clause c) {
+		List<FilterValue> result = new ArrayList<>();
+		if (c != null) {
+			if (c instanceof TerminalClause) {
+				TerminalClause tc = (TerminalClause) c;
+				String propertyName = c.getName();
+				MappingType type = MappingType.parseFilterProperty(propertyName);
+				if (MappingType.FILTER.equals(type)) {
+					Operand originalOperand = tc.getOperand();
+					if (originalOperand instanceof SingleValueOperand) {
+						SingleValueOperand svo = (SingleValueOperand) originalOperand;
+						result.add(new FilterValue(svo));
+					} else if (originalOperand instanceof MultiValueOperand) {
+						MultiValueOperand mvo = (MultiValueOperand) originalOperand;
+						for (Operand item : mvo.getValues()) {
+							if (item instanceof SingleValueOperand) {
+								SingleValueOperand svo = (SingleValueOperand) item;
+								result.add(new FilterValue(svo));
+							}
+						}
+					} else if (originalOperand instanceof FunctionOperand) {
+						FunctionOperand fo = (FunctionOperand) originalOperand;
+						for (String s : fo.getArgs()) {
+							result.add(new FilterValue(s));
+						}
+					} // Operand check
+				} // If proeprty is filter
+			} // Is TerminalClause
+			// Process sub-clauses recursively
+			if (c.getClauses() != null) {
+				for (Clause subclause : c.getClauses()) {
+					result.addAll(getFilterReferences(subclause));
+				}
+			}
+		} // Is not null
+		return result;
+	}
+	
+	private static void mapFiltersV4(
+			Config conf, boolean callApi, boolean overwriteFilter, boolean allValuesMapped) 
+			throws Exception {
+		// Directories for filter output
+		Date now = new Date();
+		try (	FileWriter fw = CSV.getCSVFileWriter(MappingType.FILTER.getCSV(now)); 
+				CSVPrinter csvPrinter = new CSVPrinter(
+						fw, 
+						CSV.getCSVWriteFormat(
+								Arrays.asList(
+										"Filter Name", 
+										"Server Id", 
+										"Server JQL",
+										"Cloud Id", 
+										"Cloud JQL",
+										"Action", 
+										"Result", 
+										"Error")
+						)
+				)) {
+			String dirName = new SimpleDateFormat("yyyyMMdd-HHmmss").format(now);
+			Path originalDir = Files.createDirectory(Paths.get(dirName + "-OriginalFilter"));
+			Path newDir = Files.createDirectory(Paths.get(dirName + "-NewFilter"));
+			// Get my account id
+			String myAccountId = "";
+			// Add self to edit permission for all filters
+			if (callApi) {
+				Log.info(LOGGER, "Getting account id");
+				myAccountId = getUserAccountId(conf, conf.getTargetUser());
+				Log.info(LOGGER, "Adding filter edit permission");
+				Map<Filter, String> addPermissionResult = setFilterEditPermission(conf, true, myAccountId);
+				for (Map.Entry<Filter, String> entry : addPermissionResult.entrySet()) {
+					Log.info(LOGGER, 
+							"Filter [" + entry.getKey().getName() + "] (" + entry.getKey().getId() + ") " + 
+							"Value = [" + entry.getValue() + "]");
+					csvPrinter.printRecord(
+							entry.getKey().getName(),
+							null, null, 
+							entry.getKey().getId(), entry.getKey().getJql(), 
+							"Add Edit Permission",
+							((entry.getValue() != null && entry.getValue().isEmpty())? "Success" : "Fail"),
+							entry.getValue());
+				}
+			}
+			Log.info(LOGGER, "Reading DC filters from file");
+			// Parse all filters from JSON, separate them into multiple batches based on filter reference
+			List<Filter> filterList = readValuesFromFile(MappingType.FILTER.getDC(), Filter.class);
+			Map<Filter, List<FilterValue>> filterDependencies = new HashMap<>();
+			for (Filter filter : filterList) {
+				// Parse and convert JQL
+				JqlLexer lexer = new JqlLexer((CharStream) new ANTLRStringStream(filter.getJql()));
+				CommonTokenStream cts = new CommonTokenStream(lexer);
+				JqlParser parser = new JqlParser(cts);
+				query_return qr = parser.query();
+				// Find references to filter, name or id
+				List<FilterValue> filterReferences = getFilterReferences(qr.clause);
+				filterDependencies.put(filter, filterReferences);
+			}
+			Log.info(LOGGER, "Sorting filters into batches");
+			// Sort filters into batches based on filter dependency
+			int batchNo = 0;
+			Map<Integer, List<Filter>> filterBatches = new TreeMap<>();
+			while (!filterDependencies.isEmpty()) {
+				filterBatches.put(batchNo, new ArrayList<>());
+				List<Filter> filterToRemove = new ArrayList<>();
+				for (Map.Entry<Filter, List<FilterValue>> entry : filterDependencies.entrySet()) {
+					// Look in previous batches for referenced filters, remove them.
+					List<FilterValue> refToRemove = new ArrayList<>();
+					for (FilterValue ref : entry.getValue()) {
+						for (int i = batchNo -1; i >= 0; i--) {
+							boolean found = false;
+							for (Filter f : filterBatches.get(i)) {
+								if (ref.equals(f)) {
+									found = true;
+									refToRemove.add(ref);
+									break;
+								}
+							}
+							if (found) {
+								break;
+							}
+						}
+					}
+					entry.getValue().removeAll(refToRemove);
+					// If no more reference, add to current batch
+					if (entry.getValue().size() == 0) {
+						List<Filter> list = filterBatches.get(batchNo);
+						list.add(entry.getKey());
+						filterToRemove.add(entry.getKey());
+						filterBatches.put(batchNo, list);
+						Log.info(LOGGER, 
+								"Batch #" + batchNo + " " + 
+								entry.getKey().getName() + " (" + entry.getKey().getId() + ") = " + 
+								"[" + entry.getKey().getJql() + "]");
+					} 
+				}
+				// If current batch is empty, that means the remaining filters references invalid filters
+				if (filterBatches.get(batchNo).isEmpty()) {
+					for (Filter f : filterDependencies.keySet()) {
+						Log.error(LOGGER, 
+								"Batch #" + batchNo + " " + 
+								"Filter [" + f.getName() + "] (" + f.getId() + ") " + 
+								"references invalid filters = [" + f.getJql() + "]");
+					}
+					break;
+				}
+				// Remove resolved filters
+				for (Filter f : filterToRemove) {
+					filterDependencies.remove(f);
+				}
+				// Next batch
+				batchNo++;
+			}
+			Log.info(LOGGER, "Loading object mappings");
+			// Load object mappings
+			Map<MappingType, Mapping> mappings = loadMappings(MappingType.FILTER, MappingType.DASHBOARD);
+			// Load object data
+			Map<MappingType, List<JiraObject<?>>> data = new HashMap<>();
+			for (MappingType type : MappingType.values()) {
+				if (type.isIncludeServer()) {
+					@SuppressWarnings("unchecked")
+					List<JiraObject<?>> list = (List<JiraObject<?>>) 
+							readValuesFromFile(type.getDC(), type.getDataClass());
+					data.put(type, list);
+				}
+			}
+			// Modify MappingType namesInJQL
+			// Get User and Group custom fields, add their names/ids
+			final Map<String, MappingType> TARGET_TYPES = new HashMap<>();
+			TARGET_TYPES.put(
+					"com.atlassian.jira.plugin.system.customfieldtypes:userpicker", MappingType.USER);
+			TARGET_TYPES.put(
+					"com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker", MappingType.USER);
+			TARGET_TYPES.put(
+					"com.atlassian.jira.plugin.system.customfieldtypes:grouppicker", MappingType.GROUP);
+			TARGET_TYPES.put(
+					"com.atlassian.jira.plugin.system.customfieldtypes:multigrouppicker", MappingType.GROUP);
+			for (Object obj : data.get(MappingType.CUSTOM_FIELD)) {
+				CustomField cf = (CustomField) obj;
+				if (cf.getSchema() != null) {
+					String type = cf.getSchema().getCustom();
+					if (TARGET_TYPES.containsKey(type)) {
+						MappingType mt = TARGET_TYPES.get(type);
+						// Custom field name
+						mt.getNamesInJQL().add(cf.getName());
+						// cf[xxx]
+						mt.getNamesInJQL().add("cf[" + cf.getId() + "]");
+					}
+				}
+			}
+			Log.info(LOGGER, "Mapping filters");
+			// Results of mapped and failed filters
+			Mapping result = new Mapping(MappingType.FILTER);
+			// Add filter mapping, to be filled as we go
+			mappings.put(MappingType.FILTER, result);
+			// Launch threads on each batch to map and update JQL
+			for (Map.Entry<Integer, List<Filter>> batch : filterBatches.entrySet()) {
+				Log.info(LOGGER, "Remapping filters in batch #" + batch.getKey());
+				ExecutorService executorService = Executors.newFixedThreadPool(conf.getThreadCount());
+				Map<Filter, Future<MapFilterResult>> batchResults = new HashMap<>();
+				for (Filter filter : batch.getValue()) {
+					MapFilter mapFilter = new MapFilter(
+							conf, myAccountId, 
+							originalDir, newDir, 
+							mappings, data, 
+							filter, 
+							callApi, allValuesMapped, overwriteFilter);
+					batchResults.put(filter, executorService.submit(mapFilter));
+				}
+				// Get result from future
+				while (batchResults.size() != 0) {
+					List<Filter> toRemove = new ArrayList<>();
+					for (Map.Entry<Filter, Future<MapFilterResult>> entry : batchResults.entrySet()) {
+						try {
+							Future<MapFilterResult> future = entry.getValue();
+							MapFilterResult r = future.get(conf.getThreadWait(), TimeUnit.MILLISECONDS);
+							if (r != null) {
+								toRemove.add(entry.getKey());
+								csvPrinter.printRecord(
+										r.getOriginal().getName(),
+										r.getOriginal().getId(), r.getOriginal().getJql(), 
+										(r.getTarget() != null? r.getTarget().getId() : ""),
+										(r.getTarget() != null? r.getTarget().getJql() : ""),
+										"Map filter",
+										(r.getException() == null? "Success" : "Fail"),
+										(r.getException() == null? "" : r.getException().getMessage())
+										);
+								Log.info(LOGGER, 
+										"Mapped filter [" + r.getOriginal().getName() + "] " + 
+										"(" + r.getOriginal().getId() + ") " + 
+										"[" + r.getOriginal().getJql() + "] => " + 
+										"(" + r.getTarget().getId() + ") " + 
+										"[" + r.getTarget().getJql() + "]");
+							}
+						} catch (TimeoutException tex) {
+							// Ignore
+						} catch (Exception ex) {
+							toRemove.add(entry.getKey());
+							csvPrinter.printRecord(
+									entry.getKey().getName(),
+									entry.getKey().getId(), entry.getKey().getJql(), 
+									"", "",
+									"Map filter",
+									"Fail",
+									ex.getMessage()
+									);
+							Log.error(LOGGER, 
+									"Filter mapping thread execution failed for " + 
+									"Filter [" + entry.getKey().getName() + "] (" + entry.getKey().getId() + ")", 
+									ex);
+						}
+					}
+					for (Filter f : toRemove) {
+						batchResults.remove(f);
+					}
+				}
+				// Wait for shutdown
+				executorService.shutdown();
+				while (!executorService.isTerminated()) {
+					try {
+						executorService.awaitTermination(conf.getThreadWait(), TimeUnit.MILLISECONDS);
+					} catch (InterruptedException iex) {
+						Log.error(LOGGER, "Map filter wait interrupted", iex);
+					}
+				}
+			}
+			// Remove self from edit permission for all filters
+			if (callApi) {
+				Log.info(LOGGER, "Removing filter edit permission");
+				Map<Filter, String> removePermissionResult = setFilterEditPermission(conf, false, myAccountId);
+				for (Map.Entry<Filter, String> entry : removePermissionResult.entrySet()) {
+					Log.info(LOGGER, 
+							"Filter [" + entry.getKey().getName() + "] (" + entry.getKey().getId() + ") " + 
+							"Value = [" + entry.getValue() + "]");
+					csvPrinter.printRecord(
+							entry.getKey().getName(),
+							null, null, 
+							entry.getKey().getId(), entry.getKey().getJql(), 
+							"Remove Edit Permission",
+							((entry.getValue() != null && entry.getValue().isEmpty())? "Success" : "Fail"),
+							entry.getValue());
+				}
+			}
+		}
+	}
 	
 	@SuppressWarnings("incomplete-switch")
 	private static void mapFiltersV3(
@@ -864,10 +1279,12 @@ public class DashboardMigrator {
 			// Load object mappings
 			Map<MappingType, Mapping> mappings = loadMappings(MappingType.FILTER, MappingType.DASHBOARD);
 			// Load object data
-			Map<MappingType, List<?>> data = new HashMap<>();
+			Map<MappingType, List<JiraObject<?>>> data = new HashMap<>();
 			for (MappingType type : MappingType.values()) {
 				if (type.isIncludeServer()) {
-					List<?> list = readValuesFromFile(type.getDC(), type.getDataClass());
+					@SuppressWarnings("unchecked")
+					List<JiraObject<?>> list = (List<JiraObject<?>>) 
+							readValuesFromFile(type.getDC(), type.getDataClass());
 					data.put(type, list);
 				}
 			}
@@ -916,7 +1333,11 @@ public class DashboardMigrator {
 				for (Filter filter : currentBatch.values()) {
 					Log.info(LOGGER, "Processing filter " + filter.getName() + " [" + filter.getJql() + "]");
 					// Save original filter as individual file
-					saveFile(originalDir.resolve(getSafeFileName(filter.getName()) + "-" + filter.getId()).toString(), filter);
+					saveFile(
+							originalDir.resolve(
+									getSafeFileName(filter.getName()) + "-" + filter.getId()).toString() + 
+							".json", 
+							filter);
 					// Verify and map owner
 					String originalOwner = filter.getOwner().getKey();
 					String newOwner = null;
@@ -1075,13 +1496,24 @@ public class DashboardMigrator {
 						// Handler order clause
 						OrderBy orderClone = null;
 						if (qr.order != null) {
-							Mapping fieldMapping = mappings.get(MappingType.CUSTOM_FIELD);
 							List<SearchSort> sortList = new ArrayList<>();
 							for (SearchSort ss : qr.order.getSearchSorts()) {
-								String newColumn = mapCustomFieldName(fieldMapping.getMapped(), ss.getField());
-								SearchSort newSS = new SearchSort(newColumn, ss.getProperty(), ss.getSortOrder());
+								CustomField cf = mapCustomFieldName(
+										mappings.get(MappingType.CUSTOM_FIELD).getMapped(), 
+										data.get(MappingType.CUSTOM_FIELD),
+										ss.getField());
+								if (cf == null) {
+									String msg = "Order by column [" + ss.getProperty() + "] is invalid";
+									Log.error(LOGGER, msg);
+									result.getFailed().put(filter.getId(), msg);
+									printFilterMappingResult(csvPrinter, filter, msg);
+									continue;
+								}
+								String newColumn = cf.getJQLName();
+								SearchSort newSS = new SearchSort(
+										newColumn, ss.getProperty(), ss.getSortOrder());
 								sortList.add(newSS);
-								Log.warn(LOGGER, "Mapped sort column for filter [" + filter.getName() + "] " + 
+								Log.info(LOGGER, "Mapped sort column for filter [" + filter.getName() + "] " + 
 										"column [" + ss.getField() + "] => [" + newColumn + "]");
 							}
 							orderClone = new OrderByImpl(sortList);
@@ -1098,7 +1530,11 @@ public class DashboardMigrator {
 						actualOwner.setAccountId(newOwner);
 						filter.setOriginalOwner(actualOwner);
 						// Save new filter as individual file, before renaming and after changing owner
-						saveFile(newDir.resolve(getSafeFileName(filter.getName()) + "-" + filter.getId()).toString(), filter);
+						saveFile(
+								newDir.resolve(
+										getSafeFileName(filter.getName()) + "-" + filter.getId()).toString() + 
+								".json", 
+								filter);
 						// Rename filter (as if already renamed)
 						filter.setOriginalName(filter.getName());
 						filter.setName(getFilterNewName(filter));
@@ -1243,7 +1679,6 @@ public class DashboardMigrator {
 				throw new Exception("Filter [" + filterName + "] Property [" + propertyName + "] " + 
 						"issueFunction is no longer supported");
 			}
-			// TODO Other checks possible?
 		} 
 		// Check children
 		for (Clause child :	clause.getClauses()) {
@@ -1254,7 +1689,7 @@ public class DashboardMigrator {
 	/**
 	 * Dashboard and Filter from Server requires DB access to dump, so this is needed outside of mapObjectsV2().
 	 */
-	private static void dumpDashboard(Config conf) throws Exception {
+	private static void dumpFilterAndDashboard(Config conf) throws Exception {
 		SqlSessionFactory factory = setupMyBatis(conf);
 		try (SqlSession session = factory.openSession()) {
 			// Get filter info from source
@@ -1288,10 +1723,11 @@ public class DashboardMigrator {
 		for (MappingType type : MappingType.values()) {
 			if (requestedTypes.contains(type)) {
 				Class<?> dataClass = null;
-				// Always exclude filter and dashboard
+				// Always exclude dashboard and filters
 				// For cloud they are not exported
 				// For server they require database
-				if (type == MappingType.DASHBOARD || type == MappingType.FILTER) {
+				if (type == MappingType.DASHBOARD || 
+					(!cloud && type == MappingType.FILTER)) {
 					continue;
 				}
 				if (cloud && type.isIncludeCloud()) {
@@ -1312,9 +1748,10 @@ public class DashboardMigrator {
 	}
 
 	@SuppressWarnings("unchecked")
-	private static <U extends JiraObject<U>> void mapObjectsV2(boolean exactMatch) throws Exception {
+	private static <U extends JiraObject<U>> void mapObjectsV2(boolean exactMatch, List<MappingType> types) 
+			throws Exception {
 		Log.info(LOGGER, "Mapping objects between Data Center and Cloud...");
-		for (MappingType type : MappingType.values()) {
+		for (MappingType type : types) {
 			Log.info(LOGGER, "Processing mapping for " + type);
 			int mappedCount = 0;
 			Mapping mapping = new Mapping(type);
@@ -1358,9 +1795,9 @@ public class DashboardMigrator {
 						}
 						// Fall-through to default
 					default:
-						List<String> conflicts = new ArrayList<>();
+						List<JiraObject<?>> conflicts = new ArrayList<>();
 						for (U item : targets) {
-							conflicts.add(item.getInternalId());
+							conflicts.add(item);
 						}
 						mapping.getConflict().put(server.getInternalId(), conflicts);
 						Log.warn(LOGGER, 
@@ -1414,30 +1851,37 @@ public class DashboardMigrator {
 			// Check if exists for current user
 			List<CloudDashboard> list = dashboardUtil
 					.path("/rest/api/latest/dashboard/search")
-					.query("dashboardName", dashboard.getPageName())
+					.query("dashboardName", "\"" + dashboard.getPageName() + "\"")
 					.method(HttpMethod.GET)
 					.pagination(new Paged<CloudDashboard>(CloudDashboard.class).maxResults(1))
-					.requestAllPages();
+					.requestNextPage();
 			CloudDashboard createdDashboard;
 			if (list.size() != 0) {
 				String id = list.get(0).getId();
 				Log.info(LOGGER, "Updating dashboard [" + cd.getName() + "]");
 				// Delete all gadgets
-				List<DashboardGadget> gadgetList = JiraObject.getObjects(conf, DashboardGadget.class, true, id);
-				for (DashboardGadget gadget : gadgetList) {
-					Response respDeleteGadget = util
-						.path("/rest/api/latest/dashboard/{boardId}/gadget/{gadgetId}")
-						.pathTemplate("boardId", id)
-						.pathTemplate("gadgetId", Integer.toString(gadget.getId()))
-						.method(HttpMethod.DELETE)
-						.request();
-					if (checkStatusCode(respDeleteGadget, Status.NO_CONTENT)) {
-						Log.info(LOGGER, "Dashboard [" + cd.getName() + "] gadget [" + gadget.getId() + "] removed");
-					} else {
-						Log.error(LOGGER, "Unable to remove dashboard [" + cd.getName() + "] " + 
-								"gadget [" + gadget.getId() + "]: " + 
-								respDeleteGadget.readEntity(String.class));
+				try {
+					List<DashboardGadget> gadgetList = JiraObject.getObjects(
+							conf, DashboardGadget.class, true, id);
+					for (DashboardGadget gadget : gadgetList) {
+						Response respDeleteGadget = util
+							.path("/rest/api/latest/dashboard/{boardId}/gadget/{gadgetId}")
+							.pathTemplate("boardId", id)
+							.pathTemplate("gadgetId", Integer.toString(gadget.getId()))
+							.method(HttpMethod.DELETE)
+							.request();
+						if (checkStatusCode(respDeleteGadget, Status.NO_CONTENT)) {
+							Log.info(LOGGER, "Dashboard [" + cd.getName() + "] gadget [" + gadget.getId() + "] removed");
+						} else {
+							Log.error(LOGGER, "Unable to remove dashboard [" + cd.getName() + "] " + 
+									"gadget [" + gadget.getId() + "]: " + 
+									respDeleteGadget.readEntity(String.class));
+						}
 					}
+				} catch (Exception ex) {
+					// Unable to delete existing gadgets
+					Log.warn(LOGGER, "Unable to delete dashboard [" + cd.getName() + "] " + 
+							"gadgets: " + ex.getMessage());
 				}
 				createdDashboard = list.get(0);
 			} else {
@@ -1506,14 +1950,20 @@ public class DashboardMigrator {
 								Log.info(LOGGER, "Config: [" + entry.getKey() + "] = [" + entry.getValue() + "]");
 								if (entry.getValue() != null && 
 									!entry.getValue().isBlank()) {
-									JsonNode json = OM.readTree(entry.getValue());
+									// Parse value as JSON first
+									try {
+										JsonNode json = OM.readTree(entry.getValue());
+										util.payload(json);
+									} catch (Exception ex) {
+										// If failed, treat as string
+										util.payload(OM.writeValueAsString(entry.getValue()));
+									}
 									resp2 = util
 											.path("/rest/api/latest/dashboard/{boardId}/items/{gadgetId}/properties/{key}")
 											.pathTemplate("boardId", createdDashboard.getId())
 											.pathTemplate("gadgetId", createdGadget.getId())
 											.pathTemplate("key", entry.getKey())
 											.method(HttpMethod.PUT)
-											.payload(json)
 											.status()
 											.request();
 									if (!checkStatusCode(resp2, Response.Status.OK)) {
@@ -1605,10 +2055,9 @@ public class DashboardMigrator {
 						String accountId = u.getAccountId();
 						permission.setParam1(accountId);
 					} else {
-						hasError = true;
-						Log.error(LOGGER, "Unable to map shared user for " + 
+						Log.warn(LOGGER, "Unable to map shared user for " + 
 								"dashboard [" + dashboard.getPageName() + "] " + 
-								"user [" + userKey + "]");
+								"user [" + userKey + "], share omitted");
 					}
 					break;
 				case PROJECT:
@@ -1624,10 +2073,9 @@ public class DashboardMigrator {
 						String newId = p.getId();
 						permission.setParam1(newId);
 					} else {
-						hasError = true;
-						Log.error(LOGGER, "Unable to map shared project for " + 
+						Log.warn(LOGGER, "Unable to map shared project for " + 
 								"dashboard [" + dashboard.getPageName() + "] " + 
-								"project [" + projectId + "]");
+								"project [" + projectId + "], share omitted");
 					}
 					if (projectRoleId != null) {
 						if (roleMapping.getMapped().containsKey(projectRoleId)) {
@@ -1635,11 +2083,10 @@ public class DashboardMigrator {
 							String newId = r.getId();
 							permission.setParam2(newId);
 						} else {
-							hasError = true;
 							Log.error(LOGGER, "Unable to map shared project role for " + 
 									"dashboard [" + dashboard.getPageName() + "] " + 
 									"project [" + projectId + "] " + 
-									"role [" + projectRoleId + "]");
+									"role [" + projectRoleId + "], share omitted");
 						}
 					}
 					break;
@@ -1892,29 +2339,36 @@ public class DashboardMigrator {
 
 	private static final Pattern CUSTOM_FIELD_CF = Pattern.compile("^cf\\[([0-9]+)\\]$");
 	private static final String CUSTOM_FIELD = "customfield_";
-	private static String mapCustomFieldName(Map<String, JiraObject<?>> map, String data) throws Exception {
+	private static CustomField mapCustomFieldName(
+			Map<String, JiraObject<?>> map, 
+			List<JiraObject<?>> data,
+			String name) 
+			throws Exception {
+		// If data matches custom field display name
+		for (JiraObject<?> obj : data) {
+			if (obj.getDisplay().equals(name)) {
+				// Translate to customfield_#
+				name = obj.getInternalId();
+				break;
+			}
+		}
 		// If data is customfield_#
-		if (map.containsKey(data)) {
-			CustomField cf = (CustomField) map.get(data);
-			return cf.getId();
+		if (map.containsKey(name)) {
+			CustomField cf = (CustomField) map.get(name);
+			return cf;
 		}
 		// If data is cf[#]
-		Matcher m = CUSTOM_FIELD_CF.matcher(data);
+		Matcher m = CUSTOM_FIELD_CF.matcher(name);
 		if (m.matches()) {
 			if (map.containsKey(CUSTOM_FIELD + m.group(1))) {
 				CustomField cf = (CustomField) map.get(CUSTOM_FIELD + m.group(1));
-				String s = cf.getId();
-				s = s.substring(CUSTOM_FIELD.length());
-				return "cf[" + s + "]";
+				return cf;
 			} else {
-				throw new Exception("Custom field [" + data + "] cannot be mapped");
+				throw new Exception("Custom field [" + name + "] cannot be mapped");
 			}
 		}
-		if (data.contains(" ")) {
-			return "\"" + data + "\"";
-		} else {
-			return data;
-		}
+		// This can be issue function name, return null
+		return null;
 	}
 
 	/*
@@ -1964,7 +2418,6 @@ public class DashboardMigrator {
 					}
 					clonedO = new MultiValueOperand(list);
 				} else if (o instanceof FunctionOperand) {
-					// TODO membersOf to map group
 					FunctionOperand fo = (FunctionOperand) o;
 					List<String> args = new ArrayList<>();
 					for (String s : fo.getArgs()) {
@@ -2209,8 +2662,299 @@ public class DashboardMigrator {
 		return result;
 	}
 	
+	private static void testFilter(Config conf, String filterFolder) throws Exception {
+		final SimpleDateFormat SDF = new SimpleDateFormat("yyyyMMdd-HHmmss");
+		RestUtil<Object> util = RestUtil.getInstance(Object.class)
+				.config(conf, true);
+		Path folder = Paths.get(filterFolder);
+		if (!folder.toFile().exists() || !folder.toFile().isDirectory()) {
+			throw new IOException("[" + filterFolder + "] does not exist or is not a directory");
+		}
+		Path outputFile = folder.resolve("FilterCheck." + SDF.format(new Date()) + ".csv");
+		String[] filterFileList = folder.toFile().list(new FilenameFilter() {
+			@Override
+			public boolean accept(File dir, String name) {
+				if (name.toLowerCase().endsWith(".json")) {
+					return true;
+				}
+				return false;
+			}
+		});
+		CSVFormat csvFormat = CSV.getCSVWriteFormat(Arrays.asList(
+				"Filter Name", "Filter ID", "JQL", "Result", "Message"));
+		int total = filterFileList.length;
+		int success = 0;
+		try (	FileWriter fw = CSV.getCSVFileWriter(outputFile); 
+				CSVPrinter csvPrinter = new CSVPrinter(fw, csvFormat)) {
+			for (String filterFile : filterFileList) {
+				try (FileInputStream fis = new FileInputStream(
+						Paths.get(filterFolder).resolve(filterFile).toFile())) {
+					Filter filter = OM.readValue(fis, Filter.class);
+					// Execute filter
+					Response resp = util
+							.path("/rest/api/3/search")
+							.query("jql", filter.getJql())
+							.query("failFast", true)
+							.query("startAt", 0)
+							.query("maxResults", 1)
+							.method(HttpMethod.GET)
+							.status()
+							.request();
+					if (checkStatusCode(resp, Response.Status.OK)) {
+						Log.info(LOGGER, 
+								"Filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
+								"JQL: [" + filter.getJql() + "]: SUCCESS");
+						success++;
+						csvPrinter.printRecord(
+								filter.getName(), 
+								filter.getId(),
+								filter.getJql(),
+								"Success",
+								"");
+					} else {
+						Log.error(LOGGER, 
+								"Filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
+								"JQL: [" + filter.getJql() + "]: ERROR");
+						csvPrinter.printRecord(
+								filter.getName(), 
+								filter.getId(),
+								filter.getJql(),
+								"Failed",
+								resp.readEntity(String.class));
+					}
+				} catch (JsonParseException | JsonMappingException ex) {
+					Log.error(LOGGER, "Error parsing filter file: [" + filterFile + "]", ex);
+				} catch (IOException ex) {
+					Log.error(LOGGER, "Error reading filter file: [" + filterFile + "]", ex);
+				}
+			}
+		}
+		Log.info(LOGGER, "Filter test result: " + success + "/" + total);
+	}
+	
+	private static void resetFilter(Config conf, String listFile) throws Exception {
+		RestUtil<Filter> util = RestUtil.getInstance(Filter.class).config(conf, true);
+		String myAccountId = getUserAccountId(conf, conf.getTargetUser());
+		final Pattern NAME_PATTERN = Pattern.compile("(.+?)-" + myAccountId);
+		List<Filter> filterList = readValuesFromFile(listFile, Filter.class);
+		for (Filter filter : filterList) {
+			Response resp;
+			Map<String, Object> payload = new HashMap<>();
+			// Find filter id by name
+			List<Filter> filtersFound = util.path("/rest/api/latest/filter/search")
+				.query("overrideSharePermissions", true)
+				.query("filterName", "\"" + filter.getName() + "\"")
+				.method(HttpMethod.GET)
+				.pagination(new Paged<Filter>(Filter.class).maxResults(1))
+				.requestAllPages();
+			if (filtersFound.size() != 0) {
+				Filter found = filtersFound.get(0);
+				Log.info(LOGGER, "Filter [" + filter.getName() + "] found: " + found.getId());
+				filter.setId(found.getId());
+			} else {
+				Log.error(LOGGER, "Filter [" + filter.getName() + "] cannot be found");
+				continue;
+			}
+			// Change owner to self
+			payload.clear();
+			payload.put("accountId", myAccountId);
+			resp = util
+					.path("/rest/api/latest/filter/{filterId}/owner")
+					.pathTemplate("filterId", filter.getId())
+					.method(HttpMethod.PUT)
+					.payload(payload)
+					.status()
+					.request();
+			if (checkStatusCode(resp, Status.NO_CONTENT)) {
+				Log.info(LOGGER, "Changed filter (" + filter.getId() + ") " + 
+						"owner to [" + myAccountId + "] ");
+			} else if (checkStatusCode(resp, Status.BAD_REQUEST)) {
+				Log.info(LOGGER, "Filter (" + filter.getId() + ") " + 
+						"already owned by [" + myAccountId + "] ");
+			} else {
+				Log.error(LOGGER, "Unable to change filter (" + filter.getId() + ") " + 
+						"owner to [" + myAccountId + "]: (" + resp.getStatus() + ") " + 
+						resp.readEntity(String.class));
+				continue;
+			}
+			// Rename
+			payload.clear();
+			Matcher matcher = NAME_PATTERN.matcher(filter.getName());
+			if (matcher.matches()) {
+				payload.put("name", matcher.group(1));
+				resp = util
+						.path("/rest/api/latest/filter/{filterId}")
+						.pathTemplate("filterId", filter.getId())
+						.method(HttpMethod.PUT)
+						.payload(payload)
+						.status()
+						.request();
+				if (!checkStatusCode(resp, Status.OK)) {
+					Log.error(LOGGER, "Unable to rename filter (" + filter.getId() + ") " + 
+							"to [" + matcher.group(1) + "]: (" + resp.getStatus() + ") " + 
+							resp.readEntity(String.class));
+					continue;
+				} else {
+					Log.info(LOGGER, "Renamed filter (" + filter.getId() + ") " + 
+							"to [" + matcher.group(1) + "]");
+				}
+			}
+			// Change owner to originalOwner
+			payload.clear();
+			payload.put("accountId", filter.getOriginalOwner().getAccountId());
+			resp = util
+					.path("/rest/api/latest/filter/{filterId}/owner")
+					.pathTemplate("filterId", filter.getId())
+					.method(HttpMethod.PUT)
+					.payload(payload)
+					.status()
+					.request();
+			if (!checkStatusCode(resp, Status.OK)) {
+				Log.error(LOGGER, "Unable to change filter (" + filter.getId() + ") " + 
+						"owner to [" + filter.getOriginalOwner().getAccountId() + "]: (" + resp.getStatus() + ") " + 
+						resp.readEntity(String.class));
+				continue;
+			} else {
+				Log.info(LOGGER, "Changed filter (" + filter.getId() + ") " + 
+						"owner to [" + filter.getOriginalOwner().getAccountId() + "]");
+			}
+		}
+	}
+	
+	private static class TestThread implements Callable<TestThread> {
+		private long id;
+		private Config conf;
+		private int status = -1;
+		private Instant start;
+		private Instant end;
+		private Exception exception;
+		public TestThread(Config conf) {
+			this.conf = conf;
+		}
+		@Override
+		public TestThread call() throws Exception {
+			this.start = Instant.now();
+			Log.info(LOGGER, "[" + id + "] run() starts");
+			try {
+				RestUtil2<Filter> util = RestUtil2.getInstance(Filter.class)
+						.config(conf, false);
+				// Create filter
+				CloudFilter f = new CloudFilter();
+				f.setJql("assignee is not empty");
+				f.setName("PerfTest." + id);
+				f.setDescription("Filter for performance test");
+				Response resp = util
+						.path("/rest/api/latest/filter")
+						.method(HttpMethod.POST)
+						.query("overrideSharePermissions", true)
+						.payload(f)
+						.status()
+						.request();
+				if (resp != null) {
+					this.status = resp.getStatus();
+				}
+				Log.info(LOGGER, "[" + id + "] Status = " + this.status);
+			} catch (Exception ex) {
+				Log.error(LOGGER, "[" + id + "] Error = " + ex.getMessage());
+				this.exception = ex;
+			} 
+			this.end = Instant.now();
+			Log.info(LOGGER, "[" + id + "] run() completed");
+			return this;
+		}
+		public long getId() {
+			return id;
+		}
+		public int getStatus() {
+			return status;
+		}
+		public Instant getStart() {
+			return start;
+		}
+		public Instant getEnd() {
+			return end;
+		}
+		public Exception getException() {
+			return exception;
+		}
+		public void setId(long id) {
+			this.id = id;
+		}
+	}
+	
+	private static void test(Config conf) {
+		ConcurrentLinkedQueue<Integer> dataQueue = new ConcurrentLinkedQueue<>();
+		for (int i = 0; i < 1000; i++) {
+			dataQueue.offer(i);
+		}
+		ExecutorService executorService = Executors.newFixedThreadPool(conf.getThreadCount());
+		Integer data = null;
+		List<TestThread> list = new ArrayList<>();
+		do {
+			data = dataQueue.poll();
+			if (data != null) {
+				Log.info(LOGGER, "Create TestThread [" + data + "]");
+				TestThread t = new TestThread(conf);
+				t.setId(data);
+				Future<TestThread> result = executorService.submit(t);
+				list.add(t);
+			}
+		} while (data != null);
+		Log.info(LOGGER, "Shutting down executor");
+		executorService.shutdown();
+		while (!executorService.isTerminated()) {
+			try {
+				Log.info(LOGGER, "Awaiting executor termination");
+				executorService.awaitTermination(conf.getThreadWait(), TimeUnit.MILLISECONDS);
+			} catch (InterruptedException e) {
+				Log.error(LOGGER, "Termination check interrupted", e);
+			}
+		}
+		Log.info(LOGGER, "Executor shutdown complete");
+//		Log.info(LOGGER, "Calculating summary");
+//		final SimpleDateFormat SDF = new SimpleDateFormat("HH:mm:ss.SSS");
+//		int total = 0;
+//		int success = 0;
+//		long minElapsed = 0;
+//		long maxElapsed = 0;
+//		long totalElapsed = 0;
+//		for (TestThread t : list) {
+//			total++;
+//			if ((t.getStatus() & 200) == 200) {
+//				success++;
+//			}
+//			Duration elapsed = Duration.between(
+//					t.getStart().atZone(ZoneId.systemDefault()),
+//					t.getEnd().atZone(ZoneId.systemDefault()));
+//			long currentElapsed = elapsed.getSeconds();
+//			totalElapsed += currentElapsed;
+//			if (minElapsed == 0) {
+//				minElapsed = currentElapsed;
+//			} else {
+//				minElapsed = Math.min(minElapsed, currentElapsed);
+//			}
+//			maxElapsed = Math.max(maxElapsed, currentElapsed);
+//			Log.info(LOGGER, "Thread [" + t.getId() + "]: " + t.getStatus() + " " + 
+//					"From: " + SDF.format(Date.from(t.getStart())) + " " + 
+//					"To: " + SDF.format(Date.from(t.getEnd())) + " " + 
+//					"Elapsed: " + currentElapsed + " second(s) "
+//					);
+//			if (t.getException() != null) {
+//				Log.error(LOGGER, "Exception: ", t.getException());
+//			}
+//		}
+//		Log.info(LOGGER, "Result: " + success + "/" + total);
+//		Log.info(LOGGER, "Total elapsed: " + totalElapsed);
+//		Log.info(LOGGER, "Min elapsed: " + minElapsed);
+//		Log.info(LOGGER, "Max elapsed: " + maxElapsed);
+//		Log.info(LOGGER, "Average elapsed: " + (totalElapsed/threadCount));
+		ClientPool.close();
+	}
+	
 	@SuppressWarnings("incomplete-switch")
 	public static void main(String[] args) {
+		Instant startTime = Instant.now();
+		Log.info(LOGGER, "Start time: " + SDF.format(Date.from(startTime)));
 		try {
 			// Parse config
 			CommandLine cli = CLI.parseCommandLine(args);
@@ -2221,6 +2965,9 @@ public class DashboardMigrator {
 			if (conf == null) {
 				return;
 			}
+			// Initialize client pool
+			ClientPool.setMaxPoolSize(conf.getConnectionPoolSize());
+			// Process options
 			if (cli.hasOption(CLI.GRANT_OPTION)) {
 				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
 					String[] roles = cli.getOptionValues(CLI.ROLE_OPTION);
@@ -2247,12 +2994,21 @@ public class DashboardMigrator {
 						continue;
 					}
 					switch (opt) {
+					case TEST: {
+						test(conf);
+						break;
+					}
+					case RESET_FILTER: {
+						String listFile = cli.getOptionValue(CLI.RESETFILTER_OPTION);
+						resetFilter(conf, listFile);
+						break;
+					}
 					case DUMP_DC: {
 						getCredentials(conf, false);
 						List<MappingType> types = parseMappingTypes(false, cli.getOptionValues(CLI.DUMPDC_OPTION));
 						dumpObjects(conf, false, types);
 						if (types.contains(MappingType.FILTER) && types.contains(MappingType.DASHBOARD)) {
-							dumpDashboard(conf);
+							dumpFilterAndDashboard(conf);
 						}
 						break;
 					}
@@ -2261,12 +3017,15 @@ public class DashboardMigrator {
 						dumpObjects(conf, true, parseMappingTypes(true, cli.getOptionValues(CLI.DUMPCLOUD_OPTION)));
 						break;
 					case MAP_OBJECT:
+						List<MappingType> types = parseMappingTypes(false, cli.getOptionValues(CLI.OBJECTTYPE_OPTION));
 						boolean exactMatch = cli.hasOption(CLI.EXACTMATCH_OPTION);
-						mapObjectsV2(exactMatch);
-						String csvFile = cli.getOptionValue(CLI.MAPOBJECT_OPTION);
-						if (csvFile != null) {
-							// Override user mapping with CSV file exported from Cloud User Management
-							mapUsersWithCSV(csvFile);
+						mapObjectsV2(exactMatch, types);
+						if (types.contains(MappingType.USER)) {
+							String csvFile = cli.getOptionValue(CLI.USERCSV_OPTION);
+							if (csvFile != null) {
+								// Override user mapping with CSV file exported from Cloud User Management
+								mapUsersWithCSV(csvFile);
+							}
 						}
 						break;
 					case CREATE_FILTER: 
@@ -2277,7 +3036,12 @@ public class DashboardMigrator {
 						if (callApiString != null) {
 							callApi = Boolean.parseBoolean(callApiString);
 						}
-						mapFiltersV3(conf, callApi, overwriteFilter, allValuesMapped);
+//						mapFiltersV3(conf, callApi, overwriteFilter, allValuesMapped);
+						mapFiltersV4(conf, callApi, overwriteFilter, allValuesMapped);
+						break;
+					case TEST_FILTER: 
+						String filterFolder = cli.getOptionValue(CLI.TESTFILTER_OPTION);
+						testFilter(conf, filterFolder);
 						break;
 					case MAP_DASHBOARD:
 						mapDashboards();
@@ -2312,6 +3076,20 @@ public class DashboardMigrator {
 			}
 		} catch (Exception ex) {
 			LOGGER.fatal("Exception: " + ex.getMessage(), ex);
+		} finally {
+			// Close ClientPool
+			ClientPool.close();
 		}
+		Instant endTime = Instant.now();
+		Log.info(LOGGER, "End time: " + SDF.format(Date.from(endTime)));
+		Duration elapsed = Duration.between(
+				LocalTime.from(startTime.atZone(ZoneId.systemDefault())), 
+				LocalTime.from(endTime.atZone(ZoneId.systemDefault())));
+		Log.info(LOGGER, "Elapsed: " + 
+				elapsed.toDaysPart() + " day(s) " + 
+				elapsed.toHoursPart() + " hour(s) " + 
+				elapsed.toMinutesPart() + " minute(s) " + 
+				elapsed.toSecondsPart() + " second(s) " + 
+				elapsed.toMillisPart() + " millisecond(s) ");
 	}
 }

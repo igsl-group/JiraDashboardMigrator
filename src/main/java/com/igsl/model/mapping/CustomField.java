@@ -1,16 +1,22 @@
 package com.igsl.model.mapping;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import javax.ws.rs.HttpMethod;
 
 import com.igsl.rest.RestUtil;
 import com.igsl.rest.SinglePage;
 
 public class CustomField extends JiraObject<CustomField> {
+
+	private static final Pattern PATTERN = Pattern.compile("customfield_([0-9]+)");
+	
 	private String id;
 	private String name;
 	private boolean custom;
 	private Schema schema;
-
+	
 	@Override
 	public String getDisplay() {
 		return name;
@@ -23,6 +29,10 @@ public class CustomField extends JiraObject<CustomField> {
 
 	@Override
 	public String getJQLName() {
+		Matcher matcher = PATTERN.matcher(id);
+		if (matcher.matches()) {
+			return "cf[" + matcher.group(1) + "]";
+		}
 		return name;
 	}
 	

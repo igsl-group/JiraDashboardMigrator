@@ -95,7 +95,7 @@ public class RestUtil<T> {
 		return new RestUtil<T>(dataClass);
 	}
 
-	private RestUtil(Class<T> dataClass) {
+	protected RestUtil(Class<T> dataClass) {
 		this.pathTemplates = new HashMap<>();
 		this.headers = new MultivaluedHashMap<>();
 		this.query = new HashMap<>();
@@ -332,8 +332,7 @@ public class RestUtil<T> {
 	 * @throws URISyntaxException 
 	 * @throws IllegalStateException If status code does not match.
 	 */
-	public Response request() 
-			throws URISyntaxException, IllegalStateException, JsonProcessingException, JsonMappingException {
+	public Response request() throws Exception {
 		Client client = ClientBuilder.newClient();
 		client.register(JACKSON_JSON_PROVIDER);
 		String finalPath = this.path;
@@ -458,8 +457,7 @@ public class RestUtil<T> {
  	 * @throws JsonProcessingException
 	 * @throws JsonMappingException
 	 */
-	public List<T> requestNextPage() 
-			throws JsonMappingException, JsonProcessingException, IllegalStateException, URISyntaxException, 
+	public List<T> requestNextPage() throws Exception, 
 			IOException {
 		if (this.pagination == null) {
 			throw new IllegalStateException("Pagination is not configured. Call .pagination() first.");
@@ -480,8 +478,7 @@ public class RestUtil<T> {
 		this.pagination.reset();
 	}
 	
-	public List<T> requestAllPages() 
-			throws JsonMappingException, JsonProcessingException, IllegalStateException, URISyntaxException,
+	public List<T> requestAllPages() throws Exception,
 			IOException {
 		if (this.pagination == null) {
 			throw new IllegalStateException("Pagination is not configured. Call .pagination() first.");

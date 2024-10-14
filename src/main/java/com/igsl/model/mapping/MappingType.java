@@ -9,6 +9,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public enum MappingType {
+	PRIORITY("Priority", Priority.class, true, true, 
+			Arrays.asList("priority")),
 	STATUS("Status", Status.class, true, true, 
 			Arrays.asList("status")), 
 	PROJECT("Project", Project.class, true, true, 
@@ -26,13 +28,16 @@ public enum MappingType {
 			Arrays.asList("assignee", "reporter")), 	
 	GROUP("Group", Group.class, true, true, null), 
 	CUSTOM_FIELD("CustomField", CustomField.class, true, true, null), 
+	CUSTOM_FIELD_CONTEXT("CustomFieldContext", CustomFieldContext.class, false, true, null, CUSTOM_FIELD),
+	CUSTOM_FIELD_OPTION("CustomFieldOption", CustomFieldOption.class, true, true, null, 
+			CUSTOM_FIELD, CUSTOM_FIELD_CONTEXT),
 	AGILE_BOARD("AgileBoard", AgileBoard.class, true, true, null), 
 	SPRINT("Sprint", Sprint.class, true, true, 
 			Arrays.asList("sprint"), 
 			AGILE_BOARD),
 	ISSUE_TYPE("IssueType", IssueType.class, true, true, 
 			Arrays.asList("issuetype")),
-	FILTER("Filter", Filter.class, true, false, 
+	FILTER("Filter", Filter.class, true, true, 
 			Arrays.asList("filter")), 
 	DASHBOARD("Dashboard", Dashboard.class, true, false, null, FILTER);
 	

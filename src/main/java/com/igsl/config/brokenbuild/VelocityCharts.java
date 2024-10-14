@@ -60,32 +60,36 @@ public class VelocityCharts extends CustomGadgetConfigMapper {
 					config.setBoardId(Integer.parseInt(b.getId()));
 				}
 				// boards
-				for (Board b : config.getBoards()) {
-					// estimationField
-					estimationField = b.getEstimationField();
-					if (mappings.get(MappingType.CUSTOM_FIELD).getMapped().containsKey(estimationField)) {
-						CustomField cf = (CustomField)
-								mappings.get(MappingType.CUSTOM_FIELD).getMapped().get(estimationField);
-						b.setEstimationField(cf.getId());
-					}	
-					// customDoneStatuses
-					List<String> statuses = new ArrayList<>();
-					for (String status : b.getCustomDoneStatuses()) {
-						if (mappings.get(MappingType.STATUS).getMapped().containsKey(status)) {
-							Status s = (Status)
-									mappings.get(MappingType.STATUS).getMapped().get(status);
-							statuses.add(s.getId());
-						} else {
-							statuses.add(status);
+				if (config.getBoards() != null) {
+					for (Board b : config.getBoards()) {
+						// estimationField
+						estimationField = b.getEstimationField();
+						if (mappings.get(MappingType.CUSTOM_FIELD).getMapped().containsKey(estimationField)) {
+							CustomField cf = (CustomField)
+									mappings.get(MappingType.CUSTOM_FIELD).getMapped().get(estimationField);
+							b.setEstimationField(cf.getId());
+						}	
+						// customDoneStatuses
+						List<String> statuses = new ArrayList<>();
+						if (b.getCustomDoneStatuses() != null) {
+							for (String status : b.getCustomDoneStatuses()) {
+								if (mappings.get(MappingType.STATUS).getMapped().containsKey(status)) {
+									Status s = (Status)
+											mappings.get(MappingType.STATUS).getMapped().get(status);
+									statuses.add(s.getId());
+								} else {
+									statuses.add(status);
+								}
+							}
 						}
-					}
-					b.setCustomDoneStatuses(statuses);
-					// boardId
-					boardId = String.valueOf(b.getBoardId());
-					if (mappings.get(MappingType.AGILE_BOARD).getMapped().containsKey(boardId)) {
-						AgileBoard ab = (AgileBoard)
-								mappings.get(MappingType.AGILE_BOARD).getMapped().get(boardId);
-						b.setBoardId(Integer.parseInt(ab.getId()));
+						b.setCustomDoneStatuses(statuses);
+						// boardId
+						boardId = String.valueOf(b.getBoardId());
+						if (mappings.get(MappingType.AGILE_BOARD).getMapped().containsKey(boardId)) {
+							AgileBoard ab = (AgileBoard)
+									mappings.get(MappingType.AGILE_BOARD).getMapped().get(boardId);
+							b.setBoardId(Integer.parseInt(ab.getId()));
+						}
 					}
 				}
 				// Update value

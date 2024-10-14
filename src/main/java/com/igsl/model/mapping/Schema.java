@@ -9,6 +9,7 @@ public class Schema implements Comparable<Schema> {
 	public static final Comparator<Schema> COMPARATOR = Comparator.nullsFirst(Schema::compareTo);
 	private static final Comparator<String> STRING_COMPARATOR = Comparator.nullsFirst(String::compareTo); 
 	private String type;
+	private String customId;
 	private String items;
 	private String custom;
 
@@ -41,5 +42,13 @@ public class Schema implements Comparable<Schema> {
 
 	public void setCustom(String custom) {
 		this.custom = custom;
+	}
+
+	public String getCustomId() {
+		return customId;
+	}
+
+	public void setCustomId(String customId) {
+		this.customId = customId;
 	}
 }

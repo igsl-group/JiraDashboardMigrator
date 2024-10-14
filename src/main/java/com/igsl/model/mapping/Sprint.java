@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 import javax.ws.rs.HttpMethod;
 
@@ -52,6 +53,27 @@ public class Sprint extends JiraObject<Sprint> {
 			.pathTemplate("boardId", boardId)
 			.method(HttpMethod.GET)
 			.pagination(new Paged<Sprint>(Sprint.class));
+	}
+	
+	public static class Process implements Callable<List<Sprint>> {
+		private Config config;
+		private boolean cloud;
+		private String boardId;
+		public Process(Config config, boolean cloud, String boardId) {
+			this.config = config;
+			this.cloud = cloud;
+			this.boardId = boardId;
+		}
+		@Override
+		public List<Sprint> call() throws Exception {
+			RestUtil<Sprint> util = RestUtil.getInstance(Sprint.class)
+					.config(config, cloud);
+			util.path("/rest/agile/1.0/board/{boardId}/sprint")
+				.pathTemplate("boardId", boardId)
+				.method(HttpMethod.GET)
+				.pagination(new Paged<Sprint>(Sprint.class));
+			return util.requestAllPages();
+		}		
 	}
 	
 	@Override

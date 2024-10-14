@@ -2,6 +2,9 @@ package com.igsl.config;
 
 public class Config {
 	public static final String DEFAULT_SCHEME = "https";
+	public static final int DEFAULT_CONNECTION_POOL_SIZE = 10;
+	public static final int DEFAULT_THREAD_COUNT = 8;
+	public static final long DEFAULT_THREAD_WAIT = 1000L;
 	
 	private String sourceDatabaseURL;
 	private String sourceDatabaseUser;
@@ -16,6 +19,10 @@ public class Config {
 	private String targetHost;
 	private String targetUser;
 	private String targetAPIToken;
+	
+	private int connectionPoolSize = DEFAULT_CONNECTION_POOL_SIZE;
+	private int threadCount = DEFAULT_THREAD_COUNT;
+	private long threadWait = DEFAULT_THREAD_WAIT;
 	
 	private boolean jerseyLog = false;
 	
@@ -35,6 +42,10 @@ public class Config {
 		c.targetUser = "[Cloud site user, e.g kc.wong@igsl-group.com]";
 		c.targetAPIToken = "[REST API token, generate one at https://id.atlassian.com/manage-profile/security/api-tokens]";
 	
+		c.connectionPoolSize = DEFAULT_CONNECTION_POOL_SIZE;
+		c.threadCount = DEFAULT_THREAD_COUNT;
+		c.threadWait = DEFAULT_THREAD_WAIT;
+		
 		return c;
 	}
 	
@@ -133,5 +144,29 @@ public class Config {
 
 	public void setTargetHost(String targetHost) {
 		this.targetHost = targetHost;
+	}
+
+	public int getConnectionPoolSize() {
+		return connectionPoolSize;
+	}
+
+	public void setConnectionPoolSize(int connectionPoolSize) {
+		this.connectionPoolSize = connectionPoolSize;
+	}
+
+	public int getThreadCount() {
+		return threadCount;
+	}
+
+	public void setThreadCount(int threadCount) {
+		this.threadCount = threadCount;
+	}
+
+	public long getThreadWait() {
+		return threadWait;
+	}
+
+	public void setThreadWait(long threadWait) {
+		this.threadWait = threadWait;
 	}
 }

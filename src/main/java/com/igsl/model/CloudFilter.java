@@ -16,6 +16,13 @@ public class CloudFilter {
 	private List<CloudPermission> editPermissions;
 	private PermissionTarget owner;
 
+	/**
+	 * Copy data from Filter to CloudFilter. 
+	 * id is omitted intentionally. 
+	 * 
+	 * Filter is the format returned when reading a filter from both Server and Cloud.
+	 * CloudFilter is the format used when creating a filter.
+	 */
 	public static CloudFilter create(Filter filter) {
 		CloudFilter result = null;
 		if (filter != null) {
@@ -25,15 +32,28 @@ public class CloudFilter {
 			result.jql = filter.getJql();
 			result.sharePermissions = new ArrayList<CloudPermission>();
 			result.editPermissions = new ArrayList<CloudPermission>();
-			for (DataCenterPermission permission : filter.getSharePermissions()) {
-				if (permission.isEdit()) {
+			if (filter.getSharePermissions() != null) {
+				for (DataCenterPermission permission : filter.getSharePermissions()) {
+					if (permission.isEdit()) {
+						CloudPermission cp = CloudPermission.create(permission);
+						result.editPermissions.add(cp);
+					}
+					if (permission.isView()) {
+						CloudPermission cp = CloudPermission.create(permission);
+						result.sharePermissions.add(cp);
+					}
+					if (!permission.isEdit() && !permission.isView()) {
+						// This comes from Cloud, treat as view
+						CloudPermission cp = CloudPermission.create(permission);
+						result.sharePermissions.add(cp);
+					}
+				}
+			}
+			if (filter.getEditPermissions() != null) {
+				for (DataCenterPermission permission : filter.getEditPermissions()) {
 					CloudPermission cp = CloudPermission.create(permission);
 					result.editPermissions.add(cp);
-				}
-				if (permission.isView()) {
-					CloudPermission cp = CloudPermission.create(permission);
-					result.sharePermissions.add(cp);
-				}
+				}				
 			}
 			// If logged in user is in sharePermissions, delete everything else
 			CloudPermission shareAuthenticated = null;

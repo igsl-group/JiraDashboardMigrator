@@ -17,10 +17,12 @@ public class CLI {
 	// Enum so we can use switch on Option
 	public static enum CLIOptions {
 		CONFIG(null),
+		TEST(TEST_OPTION),
 		DUMP_DC(DUMPDC_OPTION),
 		DUMP_CLOUD(DUMPCLOUD_OPTION),
 		MAP_OBJECT(MAPOBJECT_OPTION),
 		CREATE_FILTER(CREATEFILTER_OPTION),
+		TEST_FILTER(TESTFILTER_OPTION),
 		DELETE_FILTER(DELETEFILTER_OPTION),
 		LIST_FILTER(LISTFILTER_OPTION),
 		MAP_DASHBOARD(MAPDASHBOARD_OPTION),
@@ -28,7 +30,8 @@ public class CLI {
 		DELETE_DASHBOARD(DELETEDASHBOARD_OPTION),
 		LIST_DASHBOARD(LISTDASHBOARD_OPTION),
 		GRANT_ROLE(GRANT_OPTION),
-		REVOKE_ROLE(REVOKE_OPTION);
+		REVOKE_ROLE(REVOKE_OPTION),
+		RESET_FILTER(RESETFILTER_OPTION);
 		private Option option;
 		CLIOptions(Option option) {
 			this.option = option;
@@ -55,6 +58,15 @@ public class CLI {
 			.hasArg()
 			.build();
 	
+	public static final Option RESETFILTER_OPTION = Option.builder()
+			.desc(	"Reset filter name and owner based on Filter.Remapped.json. " + 
+					"Filter name will be changed according to name property. " + 
+					"Owner will be changed according to originalOwner property. ") 
+			.option("rf")
+			.longOpt("resetFilter")
+			.hasArg()
+			.build();
+	
 	public static final Option DUMPDC_OPTION = Option.builder()
 			.desc("Dump objects from Data Center. Optionally specify object types: " + 
 					MappingType.getMappingTypes(false))
@@ -77,8 +89,15 @@ public class CLI {
 			.desc("Map Data Center and Cloud objects. Provide CSV exported from Cloud User Management, otherwise user is mapped based on display name")
 			.option("m")
 			.longOpt("mapObject")
+			.build();
+
+	public static final Option USERCSV_OPTION = Option.builder()
+			.desc(	"Modifier for mapObject. Only applicable when USER is among mapped object types. " + 
+					"Specifies export-users.csv exported from Atlassian Admin. " + 
+					"If not specified, users will be compared using display name which is very inaccurate.")
+			.option("uc")
+			.longOpt("userCsv")
 			.hasArg()
-			.optionalArg(true)
 			.build();
 	
 	public static final Option EXACTMATCH_OPTION = Option.builder()
@@ -87,7 +106,23 @@ public class CLI {
 			.option("em")
 			.longOpt("exactMatch")
 			.build();
-			
+	
+	public static final Option OBJECTTYPE_OPTION = Option.builder()
+			.desc( "Modifier for mapObject. " + 
+					"If specified, only map objects with specific types.")
+			.option("ot")
+			.longOpt("objectType")
+			.hasArgs()
+			.build();
+	
+	public static final Option TESTFILTER_OPTION = Option.builder()
+			.desc(	"Test filter created in -createFilter false. " + 
+					"Requires specifying the [Timestamp]-NewFilter folder.")
+			.option("tf")
+			.longOpt("testFilter")
+			.hasArg()
+			.build();
+	
 	public static final Option CREATEFILTER_OPTION = Option.builder()
 			.desc(	"Create filters in Cloud. " + 
 					"Optionally specify true/false to call/disable REST API calls. Default false." + 
@@ -151,13 +186,24 @@ public class CLI {
 			.longOpt("listDashboard")
 			.build();
 
+	public static final Option TEST_OPTION = Option.builder()
+			.desc(	"Multithread test.")
+			.option("t")
+			.longOpt("test")
+			.build();
+
 	public static final Options MAIN_OPTIONS = new Options()
+			.addOption(TEST_OPTION)
 			.addOption(CONFIG_OPTION)
 			.addOption(DUMPDC_OPTION)
 			.addOption(DUMPCLOUD_OPTION)
 			.addOption(MAPOBJECT_OPTION)
+			.addOption(USERCSV_OPTION)
+			.addOption(OBJECTTYPE_OPTION)
+			.addOption(TESTFILTER_OPTION)
 			.addOption(EXACTMATCH_OPTION)
 			.addOption(CREATEFILTER_OPTION)
+			.addOption(TESTFILTER_OPTION)
 			.addOption(ALLVALUESMAPPED_OPTION)
 			.addOption(OVERWRITEFILTER_OPTION)
 			.addOption(DELETEFILTER_OPTION)
@@ -165,7 +211,8 @@ public class CLI {
 			.addOption(MAPDASHBOARD_OPTION)
 			.addOption(CREATEDASHBOARD_OPTION)
 			.addOption(DELETEDASHBOARD_OPTION)
-			.addOption(LISTDASHBOARD_OPTION);
+			.addOption(LISTDASHBOARD_OPTION)
+			.addOption(RESETFILTER_OPTION);
 			
 	public static final Option ROLE_OPTION = Option.builder()
 			.desc("Role name(s)")

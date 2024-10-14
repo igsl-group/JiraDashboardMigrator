@@ -13,5 +13,9 @@
     "targetScheme": "https",
     "targetHost": "[Cloud Domain].atlassian.net",
     "targetUser": "[User]",
-    "targetAPIToken": "[API Token]"
+    "targetAPIToken": "[API Token]",
+    
+    "connectionPoolSize": 10,
+    "threadCount": 8,
+    "threadWait": 1000
 }

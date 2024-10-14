@@ -12,6 +12,17 @@ public class PermissionTarget {
 	private String name; // For group ID mapping
 	private String displayName; // For user ID mapping
 
+	public PermissionTarget clone() {
+		PermissionTarget result = new PermissionTarget();
+		result.setAccountId(this.getAccountId());
+		result.setDisplayName(this.getDisplayName());
+		result.setGroupId(this.getGroupId());
+		result.setId(this.getId());
+		result.setKey(this.getKey());
+		result.setName(this.getName());
+		return result;
+	}
+	
 	public static PermissionTarget create(PermissionType type, DataCenterPortalPermission permission) {
 		PermissionTarget result = new PermissionTarget();
 		switch (type) {

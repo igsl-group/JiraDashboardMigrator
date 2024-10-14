@@ -1,5 +1,6 @@
 package com.igsl.model.mapping;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.ws.rs.HttpMethod;
@@ -26,8 +27,37 @@ public class Filter extends JiraObject<Filter> {
 	private String originalJql;
 	private PermissionTarget owner;
 	private PermissionTarget originalOwner;
-	private List<DataCenterPermission> sharePermissions;
+	private List<DataCenterPermission> sharePermissions;	// Used by Server to store everything
+	private List<DataCenterPermission> editPermissions;	// Used only by Cloud for edit permissions
 	private String originalName;	// Used to rename filter and back
+	
+	public Filter clone() {
+		Filter result = new Filter();
+		result.setId(this.getId());
+		result.setName(this.getName());
+		result.setDescription(this.getDescription());
+		result.setJql(this.getJql());
+		if (this.getOwner() != null) {
+			result.setOwner(this.getOwner().clone());
+		}
+		if (this.getOriginalOwner() != null) {
+			result.setOwner(this.getOriginalOwner().clone());
+		}
+		if (this.getSharePermissions() != null) {
+			List<DataCenterPermission> sharePermissions = new ArrayList<>();
+			for (DataCenterPermission permission : this.getSharePermissions()) {
+				sharePermissions.add(permission.clone());
+			}
+		}
+		if (this.getEditPermissions() != null) {
+			List<DataCenterPermission> editPermissions = new ArrayList<>();
+			for (DataCenterPermission permission : this.getEditPermissions()) {
+				editPermissions.add(permission.clone());
+			}
+		}
+		result.setOriginalName(this.getOriginalName());
+		return result;
+	}
 	
 	@Override
 	public String getDisplay() {
@@ -48,13 +78,13 @@ public class Filter extends JiraObject<Filter> {
 	public int compareTo(Filter obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			int result = STRING_COMPARATOR.compare(getName(), obj1.getName());
-			String owner = (getOwner().getAccountId() != null)? 
-					getOwner().getAccountId() : 
-					getOwner().getName();
-			String obj1Owner = (obj1.getOwner().getAccountId() != null)? 
-					obj1.getOwner().getAccountId() : 
-					obj1.getOwner().getName();
-			result |= STRING_COMPARATOR.compare(owner, obj1Owner);
+//			String owner = (getOwner().getAccountId() != null)? 
+//					getOwner().getAccountId() : 
+//					getOwner().getName();
+//			String obj1Owner = (obj1.getOwner().getAccountId() != null)? 
+//					obj1.getOwner().getAccountId() : 
+//					obj1.getOwner().getName();
+//			result |= STRING_COMPARATOR.compare(owner, obj1Owner);
 			return result;
 		}
 		return 1;
@@ -70,23 +100,24 @@ public class Filter extends JiraObject<Filter> {
 			if (filterId != null) {
 				util.path("/rest/api/latest/filter/{filterId}")
 					.pathTemplate("filterId", filterId)
-					.query("expand", "owner")	// Include owner information
+					.query("expand", "owner,editPermissions,sharePermissions")
 					.query("overrideSharePermissions", true)	// Override permission
 					.method(HttpMethod.GET)
 					.pagination(new SinglePage<Filter>(Filter.class, null));
 			} else {
 				util.path("/rest/api/latest/filter/search")
 					.method(HttpMethod.GET)
-					.query("expand", "owner")	// Include owner information
+					.query("expand", "owner,editPermissions,sharePermissions")
 					.query("overrideSharePermissions", true)	// Override permission
 					.pagination(new Paged<Filter>(Filter.class));
 			}
 		} else {
 			// There is no API to list filter in Server
+			// This is only used to read a specific filter
 			String filterId = String.valueOf(data[0]);
 			util.path("/rest/api/latest/filter/{filterId}")
 				.pathTemplate("filterId", filterId)
-				.query("expand", "owner")	// Include owner information
+				.query("expand", "owner,editPermissions,sharePermissions")
 				.query("overrideSharePermissions", true)	// Override permission
 				.method(HttpMethod.GET)
 				.pagination(new SinglePage<Filter>(Filter.class, null));
@@ -163,5 +194,13 @@ public class Filter extends JiraObject<Filter> {
 
 	public void setOriginalOwner(PermissionTarget originalOwner) {
 		this.originalOwner = originalOwner;
+	}
+
+	public List<DataCenterPermission> getEditPermissions() {
+		return editPermissions;
+	}
+
+	public void setEditPermissions(List<DataCenterPermission> editPermissions) {
+		this.editPermissions = editPermissions;
 	}
 }

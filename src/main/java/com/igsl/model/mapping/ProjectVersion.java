@@ -4,6 +4,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import javax.ws.rs.HttpMethod;
 
@@ -51,6 +57,27 @@ public class ProjectVersion extends JiraObject<ProjectVersion> {
 			.pagination(new Paged<ProjectVersion>(ProjectVersion.class));
 	}
 
+	private static class Process implements Callable<List<ProjectVersion>> {
+		private String projectId;
+		private boolean cloud;
+		private Config config;
+		public Process(Config config, boolean cloud, String projectId) {
+			this.config = config;
+			this.cloud = cloud;
+			this.projectId = projectId;
+		}
+		@Override
+		public List<ProjectVersion> call() throws Exception {
+			RestUtil<ProjectVersion> util = RestUtil.getInstance(ProjectVersion.class)
+					.config(config, cloud);
+			util.path("/rest/api/latest/project/{projectId}/version")
+				.pathTemplate("projectId", projectId)
+				.method(HttpMethod.GET)
+				.pagination(new Paged<ProjectVersion>(ProjectVersion.class));
+			return util.requestAllPages();
+		}
+	}
+	
 	@Override
 	protected List<ProjectVersion> _getObjects(
 			Config config, 
@@ -58,22 +85,49 @@ public class ProjectVersion extends JiraObject<ProjectVersion> {
 			boolean cloud,
 			Object... data)
 			throws Exception {
-		// Multiple boards can return the same sprints
-		// So store them in a map to eliminate duplicates
 		Map<String, ProjectVersion> result = new HashMap<>();
 		RestUtil<ProjectVersion> util = RestUtil.getInstance(dataClass);
 		util.config(config, cloud);
 		List<Project> projectList = DashboardMigrator.readValuesFromFile(
 				(cloud? MappingType.PROJECT.getCloud() : MappingType.PROJECT.getDC()), 
 				Project.class);
-		for (Project project : projectList) {
-			setupRestUtil(util, cloud, project.getId());
-			List<ProjectVersion> list = util.requestAllPages();
-			for (ProjectVersion ver : list) {
-				ver.setProjectKey(project.getKey());
-				result.put(ver.getId(), ver);
+		ExecutorService service = Executors.newFixedThreadPool(config.getThreadCount());
+		try {
+			Map<Project, Future<List<ProjectVersion>>> futureMap = new HashMap<>();
+			for (Project project : projectList) {
+				futureMap.put(project, service.submit(new Process(config, cloud, project.getId())));
 			}
+			while (futureMap.size() != 0) {
+				List<Project> toRemove = new ArrayList<>();
+				for (Map.Entry<Project, Future<List<ProjectVersion>>> entry : futureMap.entrySet()) {
+					try {
+						Project project = entry.getKey();
+						Future<List<ProjectVersion>> future = entry.getValue();
+						List<ProjectVersion> list = future.get(config.getThreadWait(), TimeUnit.MILLISECONDS);
+						toRemove.add(project);
+						for (ProjectVersion ver : list) {
+							ver.setProjectKey(project.getKey());
+							result.put(ver.getId(), ver);
+						}
+					} catch (TimeoutException tex) {
+						// Ignore and keep waiting
+					}
+				}
+				for (Project f : toRemove) {
+					futureMap.remove(f);
+				}
+			}
+		} finally {
+			service.shutdownNow();
 		}
+//		for (Project project : projectList) {
+//			setupRestUtil(util, cloud, project.getId());
+//			List<ProjectVersion> list = util.requestAllPages();
+//			for (ProjectVersion ver : list) {
+//				ver.setProjectKey(project.getKey());
+//				result.put(ver.getId(), ver);
+//			}
+//		}
 		List<ProjectVersion> list = new ArrayList<>();
 		list.addAll(result.values());
 		return list;
