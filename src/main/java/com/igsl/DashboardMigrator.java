@@ -2837,19 +2837,40 @@ public class DashboardMigrator {
 			Log.info(LOGGER, "[" + id + "] run() starts");
 			try {
 				RestUtil2<Filter> util = RestUtil2.getInstance(Filter.class)
-						.config(conf, false);
+						.config(conf, true);
 				// Create filter
 				CloudFilter f = new CloudFilter();
 				f.setJql("assignee is not empty");
 				f.setName("PerfTest." + id);
 				f.setDescription("Filter for performance test");
-				Response resp = util
-						.path("/rest/api/latest/filter")
-						.method(HttpMethod.POST)
+				Response resp = null;
+				
+				// Create
+//				resp = util
+//						.path("/rest/api/latest/filter")
+//						.method(HttpMethod.POST)
+//						.query("overrideSharePermissions", true)
+//						.payload(f)
+//						.status()
+//						.request();
+				
+				// Delete
+				List<Filter> list = util
+						.path("/rest/api/latest/filter/search")
+						.query("filterName", "\"PerfTest." + id + "\"")
 						.query("overrideSharePermissions", true)
-						.payload(f)
-						.status()
-						.request();
+						.method(HttpMethod.GET)
+						.pagination(new Paged<Filter>(Filter.class))
+						.requestAllPages();
+				for (Filter filter : list) {
+					resp = util
+							.path("/rest/api/latest/filter/{filterId}")
+							.pathTemplate("filterId", filter.getId())
+							.method(HttpMethod.DELETE)
+							.status()
+							.request();
+				}				
+
 				if (resp != null) {
 					this.status = resp.getStatus();
 				}

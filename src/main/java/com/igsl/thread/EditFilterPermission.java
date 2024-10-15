@@ -139,7 +139,7 @@ public class EditFilterPermission implements Callable<String> {
 		}
 		Log.info(LOGGER, 
 				"Filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
-				"Add [" + accountId + "] Result = [" + result + "]");
+				(add? "Add" : "Remove") + " [" + accountId + "] Result = [" + result + "]");
 		return result;
 	}
 

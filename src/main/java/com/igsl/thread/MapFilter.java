@@ -56,9 +56,12 @@ import com.igsl.model.DataCenterPermission;
 import com.igsl.model.PermissionTarget;
 import com.igsl.model.PermissionType;
 import com.igsl.model.mapping.CustomField;
+import com.igsl.model.mapping.CustomFieldOption;
 import com.igsl.model.mapping.Filter;
 import com.igsl.model.mapping.Group;
 import com.igsl.model.mapping.IssueType;
+import com.igsl.model.mapping.JQLFuncArg;
+import com.igsl.model.mapping.JQLFunction;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
@@ -451,6 +454,118 @@ public class MapFilter implements Callable<MapFilterResult> {
 		return result;
 	}
 	
+	@SuppressWarnings("incomplete-switch")
+	private static String mapArgument(
+			String argument, MappingType mappingType, 
+			Mapping map, List<JiraObject<?>> dataList) throws Exception {
+		String result = argument;
+		if (mappingType != null) {
+			boolean validated = false;
+			boolean mapped = false;
+			// Handle types used in JQLFunction
+			switch (mappingType) {
+			case USER:
+				for (Object obj : dataList) {
+					User o = (User) obj;
+					if (o.getKey().equalsIgnoreCase(argument) || 
+						o.getDisplayName().equalsIgnoreCase(argument) || 
+						o.getName().equalsIgnoreCase(argument)) {
+						validated = true;
+						if (map.getMapped().containsKey(o.getKey())) {
+							mapped = true;
+							User u = (User) map.getMapped().get(o.getKey());
+							result = u.getAccountId();
+						}
+						break;
+					}
+				}
+				break;
+			case PROJECT:
+				for (Object obj : dataList) {
+					Project o = (Project) obj;
+					if (o.getId().equalsIgnoreCase(argument) || 
+						o.getKey().equalsIgnoreCase(argument) || 
+						o.getName().equalsIgnoreCase(argument)) {
+						validated = true;
+						if (map.getMapped().containsKey(o.getId())) {
+							mapped = true;
+							Project p = (Project) map.getMapped().get(o.getId());
+							result = p.getKey();
+						}
+						break;
+					}
+				}
+				break;
+			case ROLE:
+				for (Object obj : dataList) {
+					Role o = (Role) obj;
+					if (o.getId().equalsIgnoreCase(argument) || 
+						o.getName().equalsIgnoreCase(argument)) {
+						validated = true;
+						if (map.getMapped().containsKey(o.getId())) {
+							mapped = true;
+							Role r = (Role) map.getMapped().get(o.getId());
+							result = r.getName();
+						}
+						break;
+					}
+				}
+				break;
+			case GROUP:
+				for (Object obj : dataList) {
+					Group o = (Group) obj;
+					if (o.getName().equalsIgnoreCase(argument)) {
+						validated = true;
+						if (map.getMapped().containsKey(o.getName())) {
+							mapped = true;
+							Group grp = (Group) map.getMapped().get(o.getName());
+							result = grp.getName();
+						}
+						break;
+					}
+				}
+				break;
+			case CUSTOM_FIELD: 
+				for (Object obj : dataList) {
+					CustomField o = (CustomField) obj;
+					if (o.getName().equalsIgnoreCase(argument)) {
+						validated = true;
+						if (map.getMapped().containsKey(o.getName())) {
+							mapped = true;
+							CustomField grp = (CustomField) map.getMapped().get(o.getName());
+							result = grp.getName();
+						}
+						break;
+					}
+				}
+				break;
+			case CUSTOM_FIELD_OPTION:
+				for (Object obj : dataList) {
+					CustomFieldOption o = (CustomFieldOption) obj;
+					if (	o.getId().equalsIgnoreCase(argument) || 
+							o.getValue().equalsIgnoreCase(argument)) {
+						validated = true;
+						if (map.getMapped().containsKey(o.getId())) {
+							mapped = true;
+							CustomFieldOption grp = (CustomFieldOption) map.getMapped().get(o.getId());
+							result = grp.getValue();
+						}
+						break;
+					}
+				}
+				break;
+			}
+			if (!validated) {
+				throw new Exception("Argument [" + argument + "] not validated as " + mappingType);
+			}
+			if (!mapped) {
+				throw new Exception("Argument [" + argument + "] not mapped as " + mappingType);
+			}
+		} // Else treat as string, no change
+		Log.info(LOGGER, "Argument [" + argument + "] -> [" + result + "]");
+		return result;
+	}
+	
 	private static Clause mapClause(
 			String filterName, 
 			Map<MappingType, List<JiraObject<?>>> data,
@@ -498,7 +613,7 @@ public class MapFilter implements Callable<MapFilterResult> {
 				Operand originalOperand = tc.getOperand();
 				Operand clonedOperand = null;
 				List<String> unmappedValues = new ArrayList<>();
-				if (mappingType != null) {
+//				if (mappingType != null) {
 					// Modify value
 					if (originalOperand instanceof SingleValueOperand) {
 						SingleValueOperand svo = (SingleValueOperand) originalOperand;
@@ -538,18 +653,64 @@ public class MapFilter implements Callable<MapFilterResult> {
 							throw new Exception("All values in MultiValueOperand cannot be mapped");
 						}
 					} else if (originalOperand instanceof FunctionOperand) {
-						// TODO Throw error for unsupported function?
-						// TODO Remap arguments?
 						FunctionOperand fo = (FunctionOperand) originalOperand;
+						JQLFunction func = JQLFunction.parse(fo.getName());
+						if (func == null) {
+							// Unrecognized function
+							throw new Exception("Unrecognized JQL function [" + fo.getName() + "]");
+						}
+						// Check if obsolete
+						if (func.isObsolete()) {
+							throw new Exception("JQL function [" + fo.getName() + "] is obsolete");
+						}
+						// Check arguments
 						List<String> args = new ArrayList<>();
-						for (String s : fo.getArgs()) {
-							if (s.contains(" ")) {
-								args.add("\"" + s + "\"");
-							} else {
+						JQLFuncArg[] argDefList = func.getArguments();
+						if (argDefList != null) {
+							// If argument is present, check against type and remap value if needed
+							for (int i = 0; i < fo.getArgs().size(); i++) {
+								if (i >= argDefList.length) {
+									// Too many arguments
+									throw new Exception(
+											"Too many arguments #" + i + " for JQL function [" + fo.getName() + "]");
+								}
+								JQLFuncArg argDef = argDefList[i];
+								MappingType type = argDef.getMappingType();
+								if (argDef.isVarArgs()) {
+									// Varargs, consume the rest of the arguments
+									for (int j = i; j < fo.getArgs().size(); j++) {
+										String newValue = mapArgument(
+												fo.getArgs().get(j), 
+												type, 
+												maps.get(type), 
+												data.get(type));
+										args.add(newValue);
+									}
+									break;	// for loop
+								} else {
+									// Singular argument
+									String newValue = mapArgument(
+											fo.getArgs().get(i), 
+											type, 
+											maps.get(type), 
+											data.get(type));
+									args.add(newValue);
+								}
+							}
+						} else {
+							for (String s : fo.getArgs()) {
 								args.add(s);
 							}
 						}
-						clonedOperand = new FunctionOperand(fo.getName(), args);
+						// Quote arguments if they contain space
+						List<String> quotedArgs = new ArrayList<>();
+						for (String s : args) {
+							if (s.contains(" ")) {
+								s = "\"" + s + "\"";
+							}
+							quotedArgs.add(s);
+						}
+						clonedOperand = new FunctionOperand(fo.getName(), quotedArgs);
 					} else if (originalOperand instanceof EmptyOperand) {
 						clonedOperand = originalOperand;
 					} else {
@@ -557,10 +718,10 @@ public class MapFilter implements Callable<MapFilterResult> {
 								+ "], reusing reference");
 						clonedOperand = originalOperand;
 					}
-				} else {
-					// No change
-					clonedOperand = originalOperand;
-				}
+//				} else {
+//					// No change
+//					clonedOperand = originalOperand;
+//				}
 				// Create clone
 				clone = new MyTerminalClause(newPropertyName, tc.getOperator(), clonedOperand);
 				if (unmappedValues.size() != 0) {
