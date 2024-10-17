@@ -5,6 +5,14 @@ public class DataCenterGadgetConfiguration {
 	private String userPrefKey;
 	private String userPrefValue;
 
+	public DataCenterGadgetConfiguration clone() {
+		DataCenterGadgetConfiguration result = new DataCenterGadgetConfiguration();
+		result.setId(this.getId());
+		result.setUserPrefKey(this.getUserPrefKey());
+		result.setUserPrefValue(this.getUserPrefValue());
+		return result;
+	}
+	
 	public int getId() {
 		return id;
 	}

@@ -1,6 +1,10 @@
 package com.igsl.model;
 
+import java.util.Map;
+import java.util.TreeMap;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonValue;
 
@@ -67,6 +71,21 @@ public class CloudGadget {
 		}
 	}
 
+	public CloudGadget clone() {
+		CloudGadget result = new CloudGadget();
+		result.setId(this.id);
+		result.setColor(this.color);
+		result.setIgnoreUriAndModuleKeyValidation(this.ignoreUriAndModuleKeyValidation);
+		result.setTitle(this.title);
+		result.setModuleKey(this.moduleKey);
+		result.setUri(this.uri);
+		Position position = new Position();
+		position.setColumn(this.position.getColumn());
+		position.setRow(this.position.getRow());
+		result.setPosition(position);
+		return result;
+	}
+	
 	private String id;
 	private Color color;
 	private boolean ignoreUriAndModuleKeyValidation = false;
@@ -74,8 +93,10 @@ public class CloudGadget {
 	private String moduleKey;
 	private String uri;
 	private Position position;
-
-	public static CloudGadget create(DataCenterPortletConfiguration data) {
+	@JsonIgnore
+	private Map<String, Object> configurations;
+	
+	public static CloudGadget create(DataCenterPortletConfiguration data, boolean includeConfiguration) {
 		CloudGadget result = null;
 		if (data != null) {
 			result = new CloudGadget();
@@ -86,15 +107,16 @@ public class CloudGadget {
 			if (data.getDashboardCompleteKey() == null) {
 				result.uri = data.getGadgetXml();
 			}
-			// There seems to be no REST API to change dashboard layout, so if column number
-			// >= 2, add gadget will fail.
-			// So instead we do not specify position and let Jira decides where to put it
-			// (default is 0, 0 pushing away existing gadgets)
-			if (data.getColumnNumber() < 2) {
-				result.position = result.new Position();
-				result.position.row = data.getPositionSeq();
-				result.position.column = data.getColumnNumber();
-			}
+			result.position = result.new Position();
+			result.position.row = data.getPositionSeq();
+			result.position.column = data.getColumnNumber();
+			
+			if (includeConfiguration) {
+				result.configurations = new TreeMap<>();
+				for (DataCenterGadgetConfiguration conf : data.getGadgetConfigurations()) {
+					result.configurations.put(conf.getUserPrefKey(), conf.getUserPrefValue());
+				}
+			} 
 		}
 		return result;
 	}
@@ -153,5 +175,13 @@ public class CloudGadget {
 
 	public void setColor(Color color) {
 		this.color = color;
+	}
+
+	public Map<String, Object> getConfigurations() {
+		return configurations;
+	}
+
+	public void setConfigurations(Map<String, Object> configurations) {
+		this.configurations = configurations;
 	}
 }

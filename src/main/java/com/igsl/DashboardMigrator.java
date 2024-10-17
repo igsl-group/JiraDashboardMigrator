@@ -107,7 +107,6 @@ import com.igsl.model.CloudDashboard;
 import com.igsl.model.CloudFilter;
 import com.igsl.model.CloudGadget;
 import com.igsl.model.CloudGadgetConfiguration;
-import com.igsl.model.CloudPermission;
 import com.igsl.model.DataCenterPermission;
 import com.igsl.model.DataCenterPortalPage;
 import com.igsl.model.DataCenterPortalPermission;
@@ -137,6 +136,9 @@ import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
 import com.igsl.rest.RestUtil2;
 import com.igsl.rest.SinglePage;
+import com.igsl.thread.CreateDashboard;
+import com.igsl.thread.CreateDashboardResult;
+import com.igsl.thread.CreateGadgetResult;
 import com.igsl.thread.EditFilterPermission;
 import com.igsl.thread.MapFilter;
 import com.igsl.thread.MapFilterResult;
@@ -255,11 +257,22 @@ public class DashboardMigrator {
 	}
 
 	public static void saveFile(String fileName, Object content) throws IOException {
+		saveFile(fileName, content, null);
+	}
+	public static void saveFile(String fileName, Object content, Map<Class<?>, Class<?>> mixin) 
+			throws IOException {
 		try (FileWriter fw = new FileWriter(fileName, DEFAULT_CHARSET)) {
+			if (mixin != null) {
+				OM.setMixIns(mixin);
+			}
 			ObjectWriter writer = OM.writer(new DefaultPrettyPrinter()
-						.withObjectIndenter(
-								new DefaultIndenter().withLinefeed(NEWLINE)));
-			fw.write(writer.writeValueAsString(content));
+					.withObjectIndenter(
+							new DefaultIndenter().withLinefeed(NEWLINE)));
+			String s = writer.writeValueAsString(content);
+			fw.write(s);
+			if (mixin != null) {
+				OM.setMixIns(null);
+			}
 		}
 		Log.info(LOGGER, "File " + fileName + " saved");
 	}
@@ -1834,6 +1847,152 @@ public class DashboardMigrator {
 		return true;
 	}
 	
+	private static void createDashboardsV2(Config config) throws Exception {
+		Log.info(LOGGER, "Creating dashboards...");
+		String myAccountId = getUserAccountId(config, config.getTargetUser());
+		List<DataCenterPortalPage> dashboards = readValuesFromFile(MappingType.DASHBOARD.getDC(),
+				DataCenterPortalPage.class);
+		Log.info(LOGGER, "Loading object mappings");
+		// Load object mappings
+		Map<MappingType, Mapping> mappings = loadMappings(MappingType.DASHBOARD);
+		// Load object data
+		Map<MappingType, List<JiraObject<?>>> data = new HashMap<>();
+		for (MappingType type : MappingType.values()) {
+			if (type.isIncludeServer()) {
+				@SuppressWarnings("unchecked")
+				List<JiraObject<?>> list = (List<JiraObject<?>>) 
+						readValuesFromFile(type.getDC(), type.getDataClass());
+				data.put(type, list);
+			}
+		}
+		ExecutorService service = Executors.newFixedThreadPool(config.getThreadCount());
+		Map<DataCenterPortalPage, Future<CreateDashboardResult>> futureMap = new HashMap<>();
+		Date now = new Date();
+		String dirName = new SimpleDateFormat("yyyyMMdd-HHmmss").format(now);
+		Path originalDir = Files.createDirectory(Paths.get(dirName + "-OriginalDashboard"));
+		Path newDir = Files.createDirectory(Paths.get(dirName + "-NewDashboard"));
+		for (DataCenterPortalPage dashboard : dashboards) {
+			futureMap.put(dashboard, service.submit(
+					new CreateDashboard(
+							config, myAccountId, 
+							mappings, data, 
+							dashboard, originalDir, newDir)));
+		}
+		CSVFormat csvFormat = CSV.getCSVWriteFormat(Arrays.asList(
+				"Owner", 
+				"Server ID", "Server Name", 
+				"Cloud ID", "Cloud Name", 
+				"Action",
+				"Gadget",
+				"Configuration",
+				"Result"
+				));
+		try (	FileWriter fw = new FileWriter(MappingType.DASHBOARD.getCSV(now)); 
+				CSVPrinter csv = new CSVPrinter(fw, csvFormat)) {
+			// Wait for results
+			while (futureMap.size() != 0) {
+				List<DataCenterPortalPage> toRemove = new ArrayList<>();
+				for (Map.Entry<DataCenterPortalPage, Future<CreateDashboardResult>> entry : 
+					futureMap.entrySet()) {
+					CreateDashboardResult result = null;
+					Future<CreateDashboardResult> future = entry.getValue();
+					try {
+						result = future.get(config.getThreadWait(), TimeUnit.MILLISECONDS);
+						toRemove.add(entry.getKey());
+					} catch (TimeoutException tex) {
+						// Ignore and wait
+					} catch (Exception ex) {
+						result = new CreateDashboardResult();
+						result.setOriginalDashboard(entry.getKey());
+						result.setCreateDashboardResult("Thread execution failed: " + ex.getMessage());
+						toRemove.add(entry.getKey());
+					}
+					if (result != null) {
+						if (result.getDeleteDashboardResult() != null) {
+							csv.printRecord(
+									result.getOriginalDashboard().getUsername(),
+									result.getOriginalDashboard().getId(),
+									result.getOriginalDashboard().getPageName(),
+									(result.getCreatedDashboard() != null? result.getCreatedDashboard().getId(): ""),
+									(result.getCreatedDashboard() != null? result.getCreatedDashboard().getName(): ""),
+									"Delete dashboard",
+									"N/A",
+									"N/A",
+									result.getDeleteDashboardResult()
+									);
+						}
+						if (result.getCreateDashboardResult() != null) {
+							csv.printRecord(
+									result.getOriginalDashboard().getUsername(),
+									result.getOriginalDashboard().getId(),
+									result.getOriginalDashboard().getPageName(),
+									(result.getCreatedDashboard() != null? result.getCreatedDashboard().getId(): ""),
+									(result.getCreatedDashboard() != null? result.getCreatedDashboard().getName(): ""),
+									"Create dashboard",
+									"N/A",
+									"N/A",
+									result.getCreateDashboardResult()
+									);
+						}
+						for (Map.Entry<String, CreateGadgetResult> gadgetEntry : 
+							result.getCreateGadgetResults().entrySet()) {
+							String identifier = gadgetEntry.getKey();
+							CreateGadgetResult r = gadgetEntry.getValue();
+							csv.printRecord(
+									result.getOriginalDashboard().getUsername(),
+									result.getOriginalDashboard().getId(),
+									result.getOriginalDashboard().getPageName(),
+									(result.getCreatedDashboard() != null? 
+											result.getCreatedDashboard().getId(): ""),
+									(result.getCreatedDashboard() != null? 
+											result.getCreatedDashboard().getName(): ""),
+									"Create gadget",
+									identifier,
+									"N/A",
+									r.getCreateResult()
+									);
+							for (Map.Entry<String, String> configEntry : 
+								r.getConfigurationResult().entrySet()) {
+								csv.printRecord(
+										result.getOriginalDashboard().getUsername(),
+										result.getOriginalDashboard().getId(),
+										result.getOriginalDashboard().getPageName(),
+										(result.getCreatedDashboard() != null? 
+												result.getCreatedDashboard().getId(): ""),
+										(result.getCreatedDashboard() != null? 
+												result.getCreatedDashboard().getName(): ""),
+										"Configure gadget",
+										identifier,
+										configEntry.getKey(),
+										configEntry.getValue()
+										);
+							}
+						}
+						// Dashboard change owner
+						csv.printRecord(
+								result.getOriginalDashboard().getUsername(),
+								result.getOriginalDashboard().getId(),
+								result.getOriginalDashboard().getPageName(),
+								(result.getCreatedDashboard() != null? 
+										result.getCreatedDashboard().getId(): ""),
+								(result.getCreatedDashboard() != null? 
+										result.getCreatedDashboard().getName(): ""),
+								"Change dashboard owner",
+								"N/A",
+								"N/A",
+								result.getChangeOwnerResult()
+								);
+					}			
+				}
+				for (DataCenterPortalPage item : toRemove) {
+					futureMap.remove(item);
+				}
+			}
+		}
+		// Shutdown
+		service.shutdownNow();
+	}
+	
 	private static void createDashboards(Client cloudClient, Config conf) throws Exception {
 		Log.info(LOGGER, "Creating dashboards...");
 		RestUtil<Object> util = RestUtil.getInstance(Object.class)
@@ -1846,7 +2005,7 @@ public class DashboardMigrator {
 		Mapping migratedList = new Mapping(MappingType.DASHBOARD);
 		int migratedCount = 0;
 		for (DataCenterPortalPage dashboard : dashboards) {
-			CloudDashboard cd = CloudDashboard.create(dashboard);
+			CloudDashboard cd = CloudDashboard.create(dashboard, false);
 			Log.info(LOGGER, "CloudDashboard: " + OM.writeValueAsString(cd));
 			// Check if exists for current user
 			List<CloudDashboard> list = dashboardUtil
@@ -1908,7 +2067,7 @@ public class DashboardMigrator {
 			// Impossible to change layout via REST?
 			for (DataCenterPortletConfiguration gadget : dashboard.getPortlets()) {
 				// Add gadgets
-				CloudGadget cg = CloudGadget.create(gadget);
+				CloudGadget cg = CloudGadget.create(gadget, false);
 				Log.info(LOGGER, "DC Gadget: " + OM.writeValueAsString(gadget));
 				Log.info(LOGGER, "Cloud Gadget: " + OM.writeValueAsString(cg));
 				Response resp1 = util.path("/rest/api/latest/dashboard/{boardId}/gadget")
@@ -3069,7 +3228,8 @@ public class DashboardMigrator {
 						break;
 					case CREATE_DASHBOARD: 
 						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
-							createDashboards(wrapper.getClient(), conf);
+							//createDashboards(wrapper.getClient(), conf);
+							createDashboardsV2(conf);
 						}
 						break;
 					case DELETE_FILTER:

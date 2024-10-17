@@ -3,6 +3,7 @@ package com.igsl.model;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 @JsonInclude(value = JsonInclude.Include.NON_NULL)
@@ -12,8 +13,12 @@ public class CloudDashboard {
 	private String description;
 	private List<CloudPermission> sharePermissions;
 	private List<CloudPermission> editPermissions;
+	@JsonIgnore
+	private String accountId;
+	@JsonIgnore
+	private List<CloudGadget> gadgets = new ArrayList<>();
 
-	public static CloudDashboard create(DataCenterPortalPage data) {
+	public static CloudDashboard create(DataCenterPortalPage data, boolean includeGadgets) {
 		CloudDashboard result = null;
 		if (data != null) {
 			result = new CloudDashboard();
@@ -42,6 +47,12 @@ public class CloudDashboard {
 			if (shareAuthenticated != null) {
 				result.sharePermissions.clear();
 				result.sharePermissions.add(shareAuthenticated);
+			}
+			if (includeGadgets) {
+				result.gadgets = new ArrayList<>();
+				for (DataCenterPortletConfiguration portlet : data.getPortlets()) {
+					result.gadgets.add(CloudGadget.create(portlet, includeGadgets));
+				}
 			}
 		}
 		return result;
@@ -86,5 +97,21 @@ public class CloudDashboard {
 
 	public void setId(String id) {
 		this.id = id;
+	}
+
+	public String getAccountId() {
+		return accountId;
+	}
+
+	public void setAccountId(String accountId) {
+		this.accountId = accountId;
+	}
+
+	public List<CloudGadget> getGadgets() {
+		return gadgets;
+	}
+
+	public void setGadgets(List<CloudGadget> gadgets) {
+		this.gadgets = gadgets;
 	}
 }

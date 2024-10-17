@@ -1,5 +1,6 @@
 package com.igsl.model;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class DataCenterPortletConfiguration {
@@ -11,6 +12,21 @@ public class DataCenterPortletConfiguration {
 	private String dashboardCompleteKey;
 	private List<DataCenterGadgetConfiguration> gadgetConfigurations;
 
+	public DataCenterPortletConfiguration clone() {
+		DataCenterPortletConfiguration result = new DataCenterPortletConfiguration();
+		result.setId(this.getId());
+		result.setColumnNumber(this.getColumnNumber());
+		result.setPositionSeq(this.getPositionSeq());
+		result.setGadgetXml(this.getGadgetXml());
+		result.setDashboardCompleteKey(this.getDashboardCompleteKey());
+		result.setColor(this.getColor());
+		result.gadgetConfigurations = new ArrayList<>();
+		for (DataCenterGadgetConfiguration conf : this.getGadgetConfigurations()) {
+			result.gadgetConfigurations.add(conf.clone());
+		}
+		return result;
+	}
+	
 	public int getId() {
 		return id;
 	}

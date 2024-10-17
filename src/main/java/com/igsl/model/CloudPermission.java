@@ -17,6 +17,16 @@ public class CloudPermission {
 	private PermissionTarget role;
 	private PermissionTarget user;
 
+	public CloudPermission clone() {
+		CloudPermission result = new CloudPermission();
+		result.setGroup(this.getGroup() != null? this.getGroup().clone() : null);
+		result.setProject(this.getProject() != null? this.getProject().clone() : null);
+		result.setRole(this.getRole() != null? this.getRole().clone() : null);
+		result.setType(this.getType());
+		result.setUser(this.getUser() != null? this.getUser().clone() : null);
+		return result;
+	}
+	
 	public static CloudPermission create(DataCenterPortalPermission permission) {
 		CloudPermission result = null;
 		if (permission != null) {
@@ -38,6 +48,10 @@ public class CloudPermission {
 				break;
 			case PROJECT:
 				result.project = PermissionTarget.create(cpt, permission);
+				if (permission.getParam2() != null) {
+					result.setType(PermissionType.PROJECT_ROLE.toString());
+					result.role = PermissionTarget.create(PermissionType.PROJECT_ROLE, permission);
+				}
 				break;
 			case USER:
 				result.user = PermissionTarget.create(cpt, permission);
