@@ -32,7 +32,7 @@ public enum PermissionType {
 
 	public static PermissionType parse(String dataCenterType) {
 		for (PermissionType t : PermissionType.values()) {
-			if (t.dataCenterType.equals(dataCenterType)) {
+			if (t.dataCenterType.equals(dataCenterType) || t.cloudType.equals(dataCenterType)) {
 				return t;
 			}
 		}

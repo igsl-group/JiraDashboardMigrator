@@ -1853,6 +1853,22 @@ public class DashboardMigrator {
 		List<DataCenterPortalPage> dashboards = readValuesFromFile(MappingType.DASHBOARD.getDC(),
 				DataCenterPortalPage.class);
 		Log.info(LOGGER, "Loading object mappings");
+		// Split dashboards in batches according to name, to avoid name clash
+		Map<Integer, Map<String, DataCenterPortalPage>> batches = new HashMap<>();
+		int batchNo = 0;
+		while (dashboards.size() != 0) {
+			batches.put(batchNo, new HashMap<>());
+			List<DataCenterPortalPage> toRemove = new ArrayList<>();
+			for (DataCenterPortalPage dashboard : dashboards) {
+				if (!batches.get(batchNo).containsKey(dashboard.getPageName())) {
+					batches.get(batchNo).put(dashboard.getPageName(), dashboard);
+					toRemove.add(dashboard);
+				} // Wait for next batch
+			}
+			// Next batch
+			dashboards.removeAll(toRemove);
+			batchNo++;
+		}
 		// Load object mappings
 		Map<MappingType, Mapping> mappings = loadMappings(MappingType.DASHBOARD);
 		// Load object data
@@ -1865,19 +1881,11 @@ public class DashboardMigrator {
 				data.put(type, list);
 			}
 		}
-		ExecutorService service = Executors.newFixedThreadPool(config.getThreadCount());
-		Map<DataCenterPortalPage, Future<CreateDashboardResult>> futureMap = new HashMap<>();
+		// Start threads
 		Date now = new Date();
 		String dirName = new SimpleDateFormat("yyyyMMdd-HHmmss").format(now);
 		Path originalDir = Files.createDirectory(Paths.get(dirName + "-OriginalDashboard"));
 		Path newDir = Files.createDirectory(Paths.get(dirName + "-NewDashboard"));
-		for (DataCenterPortalPage dashboard : dashboards) {
-			futureMap.put(dashboard, service.submit(
-					new CreateDashboard(
-							config, myAccountId, 
-							mappings, data, 
-							dashboard, originalDir, newDir)));
-		}
 		CSVFormat csvFormat = CSV.getCSVWriteFormat(Arrays.asList(
 				"Owner", 
 				"Server ID", "Server Name", 
@@ -1889,70 +1897,66 @@ public class DashboardMigrator {
 				));
 		try (	FileWriter fw = new FileWriter(MappingType.DASHBOARD.getCSV(now)); 
 				CSVPrinter csv = new CSVPrinter(fw, csvFormat)) {
-			// Wait for results
-			while (futureMap.size() != 0) {
-				List<DataCenterPortalPage> toRemove = new ArrayList<>();
-				for (Map.Entry<DataCenterPortalPage, Future<CreateDashboardResult>> entry : 
-					futureMap.entrySet()) {
-					CreateDashboardResult result = null;
-					Future<CreateDashboardResult> future = entry.getValue();
-					try {
-						result = future.get(config.getThreadWait(), TimeUnit.MILLISECONDS);
-						toRemove.add(entry.getKey());
-					} catch (TimeoutException tex) {
-						// Ignore and wait
-					} catch (Exception ex) {
-						result = new CreateDashboardResult();
-						result.setOriginalDashboard(entry.getKey());
-						result.setCreateDashboardResult("Thread execution failed: " + ex.getMessage());
-						toRemove.add(entry.getKey());
-					}
-					if (result != null) {
-						if (result.getDeleteDashboardResult() != null) {
-							csv.printRecord(
-									result.getOriginalDashboard().getUsername(),
-									result.getOriginalDashboard().getId(),
-									result.getOriginalDashboard().getPageName(),
-									(result.getCreatedDashboard() != null? result.getCreatedDashboard().getId(): ""),
-									(result.getCreatedDashboard() != null? result.getCreatedDashboard().getName(): ""),
-									"Delete dashboard",
-									"N/A",
-									"N/A",
-									result.getDeleteDashboardResult()
-									);
+			for (Map<String, DataCenterPortalPage> currentBatch : batches.values()) {
+				// For each batch			
+				ExecutorService service = Executors.newFixedThreadPool(config.getThreadCount());
+				Map<DataCenterPortalPage, Future<CreateDashboardResult>> futureMap = new HashMap<>();
+				for (DataCenterPortalPage dashboard : currentBatch.values()) {
+					futureMap.put(dashboard, service.submit(
+							new CreateDashboard(
+									config, myAccountId, 
+									mappings, data, 
+									dashboard, originalDir, newDir)));
+				}
+				// Wait for results
+				while (futureMap.size() != 0) {
+					List<DataCenterPortalPage> toRemove = new ArrayList<>();
+					for (Map.Entry<DataCenterPortalPage, Future<CreateDashboardResult>> entry : 
+						futureMap.entrySet()) {
+						CreateDashboardResult result = null;
+						Future<CreateDashboardResult> future = entry.getValue();
+						try {
+							result = future.get(config.getThreadWait(), TimeUnit.MILLISECONDS);
+							toRemove.add(entry.getKey());
+						} catch (TimeoutException tex) {
+							// Ignore and wait
+						} catch (Exception ex) {
+							result = new CreateDashboardResult();
+							result.setOriginalDashboard(entry.getKey());
+							result.setCreateDashboardResult("Thread execution failed: " + ex.getMessage());
+							toRemove.add(entry.getKey());
 						}
-						if (result.getCreateDashboardResult() != null) {
-							csv.printRecord(
-									result.getOriginalDashboard().getUsername(),
-									result.getOriginalDashboard().getId(),
-									result.getOriginalDashboard().getPageName(),
-									(result.getCreatedDashboard() != null? result.getCreatedDashboard().getId(): ""),
-									(result.getCreatedDashboard() != null? result.getCreatedDashboard().getName(): ""),
-									"Create dashboard",
-									"N/A",
-									"N/A",
-									result.getCreateDashboardResult()
-									);
-						}
-						for (Map.Entry<String, CreateGadgetResult> gadgetEntry : 
-							result.getCreateGadgetResults().entrySet()) {
-							String identifier = gadgetEntry.getKey();
-							CreateGadgetResult r = gadgetEntry.getValue();
-							csv.printRecord(
-									result.getOriginalDashboard().getUsername(),
-									result.getOriginalDashboard().getId(),
-									result.getOriginalDashboard().getPageName(),
-									(result.getCreatedDashboard() != null? 
-											result.getCreatedDashboard().getId(): ""),
-									(result.getCreatedDashboard() != null? 
-											result.getCreatedDashboard().getName(): ""),
-									"Create gadget",
-									identifier,
-									"N/A",
-									r.getCreateResult()
-									);
-							for (Map.Entry<String, String> configEntry : 
-								r.getConfigurationResult().entrySet()) {
+						if (result != null) {
+							if (result.getDeleteDashboardResult() != null) {
+								csv.printRecord(
+										result.getOriginalDashboard().getUsername(),
+										result.getOriginalDashboard().getId(),
+										result.getOriginalDashboard().getPageName(),
+										(result.getCreatedDashboard() != null? result.getCreatedDashboard().getId(): ""),
+										(result.getCreatedDashboard() != null? result.getCreatedDashboard().getName(): ""),
+										"Delete dashboard",
+										"N/A",
+										"N/A",
+										result.getDeleteDashboardResult()
+										);
+							}
+							if (result.getCreateDashboardResult() != null) {
+								csv.printRecord(
+										result.getOriginalDashboard().getUsername(),
+										result.getOriginalDashboard().getId(),
+										result.getOriginalDashboard().getPageName(),
+										(result.getCreatedDashboard() != null? result.getCreatedDashboard().getId(): ""),
+										(result.getCreatedDashboard() != null? result.getCreatedDashboard().getName(): ""),
+										"Create dashboard",
+										"N/A",
+										"N/A",
+										result.getCreateDashboardResult()
+										);
+							}
+							for (Map.Entry<String, CreateGadgetResult> gadgetEntry : 
+								result.getCreateGadgetResults().entrySet()) {
+								String identifier = gadgetEntry.getKey();
+								CreateGadgetResult r = gadgetEntry.getValue();
 								csv.printRecord(
 										result.getOriginalDashboard().getUsername(),
 										result.getOriginalDashboard().getId(),
@@ -1961,36 +1965,52 @@ public class DashboardMigrator {
 												result.getCreatedDashboard().getId(): ""),
 										(result.getCreatedDashboard() != null? 
 												result.getCreatedDashboard().getName(): ""),
-										"Configure gadget",
+										"Create gadget",
 										identifier,
-										configEntry.getKey(),
-										configEntry.getValue()
+										"N/A",
+										r.getCreateResult()
 										);
+								for (Map.Entry<String, String> configEntry : 
+									r.getConfigurationResult().entrySet()) {
+									csv.printRecord(
+											result.getOriginalDashboard().getUsername(),
+											result.getOriginalDashboard().getId(),
+											result.getOriginalDashboard().getPageName(),
+											(result.getCreatedDashboard() != null? 
+													result.getCreatedDashboard().getId(): ""),
+											(result.getCreatedDashboard() != null? 
+													result.getCreatedDashboard().getName(): ""),
+											"Configure gadget",
+											identifier,
+											configEntry.getKey(),
+											configEntry.getValue()
+											);
+								}
 							}
-						}
-						// Dashboard change owner
-						csv.printRecord(
-								result.getOriginalDashboard().getUsername(),
-								result.getOriginalDashboard().getId(),
-								result.getOriginalDashboard().getPageName(),
-								(result.getCreatedDashboard() != null? 
-										result.getCreatedDashboard().getId(): ""),
-								(result.getCreatedDashboard() != null? 
-										result.getCreatedDashboard().getName(): ""),
-								"Change dashboard owner",
-								"N/A",
-								"N/A",
-								result.getChangeOwnerResult()
-								);
-					}			
+							// Dashboard change owner
+							csv.printRecord(
+									result.getOriginalDashboard().getUsername(),
+									result.getOriginalDashboard().getId(),
+									result.getOriginalDashboard().getPageName(),
+									(result.getCreatedDashboard() != null? 
+											result.getCreatedDashboard().getId(): ""),
+									(result.getCreatedDashboard() != null? 
+											result.getCreatedDashboard().getName(): ""),
+									"Change dashboard owner",
+									"N/A",
+									"N/A",
+									result.getChangeOwnerResult()
+									);
+						}			
+					}
+					for (DataCenterPortalPage item : toRemove) {
+						futureMap.remove(item);
+					}
 				}
-				for (DataCenterPortalPage item : toRemove) {
-					futureMap.remove(item);
-				}
-			}
-		}
-		// Shutdown
-		service.shutdownNow();
+				// Shutdown
+				service.shutdownNow();
+			}	// For each batch
+		}	// CSV try
 	}
 	
 	private static void createDashboards(Client cloudClient, Config conf) throws Exception {
