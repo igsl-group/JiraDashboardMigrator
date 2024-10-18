@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.igsl</groupId>
 	<artifactId>JiraDashboardMigrator</artifactId>
-	<version>0.0.11</version>
+	<version>0.0.12</version>
 
 	<organization>
 		<name>Integrated Global Solutions Limited</name>

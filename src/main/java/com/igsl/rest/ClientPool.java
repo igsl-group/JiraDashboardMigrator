@@ -47,7 +47,7 @@ public class ClientPool  {
 		Client c = null;
 		try {
 			c = pool.take();
-			Log.info(LOGGER, "ClientPool.get() = " + c + ", size: " + pool.size());
+			//Log.info(LOGGER, "ClientPool.get() = " + c + ", size: " + pool.size());
 		} catch (InterruptedException iex) {
 			Log.error(LOGGER, "ClientPool take interrupted", iex);
 		}
@@ -57,7 +57,7 @@ public class ClientPool  {
 	public static void release(Client c) {
 		try {
 			pool.put(c);
-			Log.info(LOGGER, "ClientPool.release(), size: " + pool.size());
+			//Log.info(LOGGER, "ClientPool.release(), size: " + pool.size());
 		} catch (InterruptedException iex) {
 			Log.error(LOGGER, "ClientPool put interrupted", iex);
 		}

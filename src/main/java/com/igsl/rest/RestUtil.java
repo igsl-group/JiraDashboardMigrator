@@ -2,21 +2,25 @@ package com.igsl.rest;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.SocketException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import javax.net.ssl.SSLHandshakeException;
 import javax.ws.rs.HttpMethod;
+import javax.ws.rs.ProcessingException;
 import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation.Builder;
+import javax.ws.rs.client.ResponseProcessingException;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedHashMap;
@@ -27,9 +31,7 @@ import javax.ws.rs.core.Response.Status;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
@@ -38,14 +40,28 @@ import com.igsl.Log;
 import com.igsl.config.Config;
 
 public class RestUtil<T> {
-
+	
+	// Generics
+	private Class<T> dataClass;
+	public Class<T> getDataClass() {
+		return dataClass;
+	}
+	
+	// Rate limit
+	private static Object LOCK = new Object();
+	private static long maxCall = 100;	// No. of calls per period
+	private static long period = 1000;	// ms
+	private static Date lastCheck = null;
+	private static Float allowance = null;
+	
+	// Encoding
 	private static final String ENCODDING = "ASCII";	
 	private static final String DEFAULT_SCHEME = "https";
 	private static final String DEFAULT_METHOD = HttpMethod.GET;
-	private static final long DEFAULT_MAX_CALL = 100L;
-	private static final long DEFAULT_PERIOD_MUILLISECOND = 1000L;
 	
 	private static final Logger LOGGER = LogManager.getLogger();
+
+	// JSON
 	private static final ObjectMapper OM = new ObjectMapper()
 			.enable(SerializationFeature.INDENT_OUTPUT)
 			.enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
@@ -74,18 +90,26 @@ public class RestUtil<T> {
 	// Payload
 	private Object payload;
 	
+	// Retry
+	private boolean allowRetry = false;
+	private int maxRetryCount = -1;
+	private boolean bitwiseRetryStatus = false;
+	// Atlassian supposedly will return HTTP 429 for too many requests
+	private List<Integer> retryStatusList = Arrays.asList(
+			429	// Supposedly returned when rate limit exceeded
+			);	
+	// Retry when these exceptions occur
+	private List<Class<? extends Throwable>> retryExceptionList = Arrays.asList(
+				SocketException.class,
+				SSLHandshakeException.class
+			); 
+	
 	// Status
 	private boolean bitwiseStatus = true;
 	private List<Integer> statusList = Arrays.asList(Status.OK.getStatusCode());
 	
 	// Paging
 	private Pagination<T> pagination;
-	
-	// Throttle
-	private long lastCheck = System.currentTimeMillis();
-	private Float allowance = null;
-	private long maxCall = DEFAULT_MAX_CALL;
-	private long periodMS = DEFAULT_PERIOD_MUILLISECOND;
 	
 	/**
 	 * Create instance.
@@ -96,6 +120,7 @@ public class RestUtil<T> {
 	}
 
 	protected RestUtil(Class<T> dataClass) {
+		this.dataClass = dataClass;
 		this.pathTemplates = new HashMap<>();
 		this.headers = new MultivaluedHashMap<>();
 		this.query = new HashMap<>();
@@ -103,25 +128,11 @@ public class RestUtil<T> {
 	}
 
 	/**
-	 * Set throttling.
-	 * @param maxCall Max. no. of REST API calls in a period. Default is {@value #DEFAULT_MAX_CALL}.
-	 * @param periodMS Period defined as milliseconds. Default is {@value #DEFAULT_PERIOD_MUILLISECOND}.
-	 * @return
-	 */
-	public RestUtil<T> throttle(Integer maxCall, Integer periodMS) {
-		this.maxCall = maxCall;
-		this.periodMS = periodMS;
-		return this;
-	}
-	
-	/**
 	 * Configure using {@link Config} object.
 	 * Includes:
 	 * - scheme
 	 * - host
 	 * - authenticate 
-	 * - throttle rate
-	 * - throttle period
 	 * @param config
 	 * @throws UnsupportedEncodingException 
 	 * @throws URISyntaxException 
@@ -159,11 +170,12 @@ public class RestUtil<T> {
 	
 	/**
 	 * Set path. You can include path templates in the format of {name}.
+	 * This also clears out query() cache.
 	 * e.g. /rest/api/2/dosomething/{id}
 	 */
 	public RestUtil<T> path(String path) {
 		this.path = path;
-		return this;
+		return this.query();
 	}
 	
 	/**
@@ -237,7 +249,17 @@ public class RestUtil<T> {
 	}
 	
 	/**
-	 * Set a single query parameter.
+	 * Clear query parameters.
+	 * Calling .path() also clears query parameters.
+	 * @return
+	 */
+	public RestUtil<T> query() {
+		this.query.clear();
+		return this;
+	}
+	
+	/**
+	 * Add a single query parameter.
 	 * @param name Parameter name.
 	 * @param value Parameter value.
 	 */
@@ -268,34 +290,76 @@ public class RestUtil<T> {
 	}
 	
 	/**
-	 * Disable status checking. Call .request() and check response code yourself.
+	 * Control the max. rate for REST API calls. 
+	 * @param maxCall Max. no. of calls per period.
+	 * @param period Milliseconds in one period.
 	 */
-	public RestUtil<T> status() {
-		return this.status(true, null);
+	public RestUtil<T> throttle(long maxCall, long period) {
+		this.maxCall = maxCall;
+		this.period = period;
+		return this;
 	}
+	
 	/**
-	 * Set valid status codes. These codes will be checked with bitwise AND.
-	 * Default is [Status.OK]
-	 * @param statuses Valid status codes.
+	 * Enable or disable retry and set max retry count.
+	 * @param allowRetry Boolean.
+	 * @param maxRetryCount -1 to have no limit.
 	 */
-	public RestUtil<T> status(int... statuses) {
-		return this.status(true, statuses);
+	public RestUtil<T> retry(boolean allowRetry, int maxRetryCount) {
+		this.allowRetry = allowRetry;
+		this.maxRetryCount = maxRetryCount;
+		return this;
 	}
+	
 	/**
-	 * Set valid status codes. These codes will be checked with bitwise AND.
-	 * Default is [Status.OK]
-	 * @param statuses Valid status codes.
+	 * Configure list of exceptions that can be retried.
+	 * Default is SocketException.class and SSLHandshakeException.class, 
+	 * which happens when network connection is overloaded.
+	 * @param exceptions
 	 */
-	public RestUtil<T> status(Status... statuses) {
-		if (statuses != null) {
-			int[] list = new int[statuses.length];
-			for (int i = 0; i < statuses.length; i++) {
-				list[i] = statuses[i].getStatusCode();
+	@SuppressWarnings("unchecked")
+	public RestUtil<T> retryException(Class<? extends Exception>... exceptions) {
+		this.retryExceptionList = new ArrayList<>();
+		if (exceptions != null) {
+			for (Class<? extends Exception> cls : exceptions) {
+				this.retryExceptionList.add(cls);
 			}
-			return this.status(true, list);
-		} else {
-			return this.status(true, null);
 		}
+		return this;
+	}
+	
+	/**
+	 * Set retry status to be bitwise or not.
+	 * @param bitwiseRetryStatus
+	 */
+	public RestUtil<T> bitwiseRetryStatus(boolean bitwiseRetryStatus) {
+		this.bitwiseRetryStatus = bitwiseRetryStatus;
+		return this;
+	}
+	
+	/**
+	 * Configures status code that can be retried. 
+	 * Default is 429 (Atlassian's too many calls response).
+	 * @param statuses
+	 */
+	public RestUtil<T> retryStatus(int... statuses) {
+		this.retryStatusList = new ArrayList<>();
+		if (statuses != null) {
+			for (int status : statuses) {
+				this.retryStatusList.add(status);
+			}
+		}
+		return this;
+	}
+	
+	/**
+	 * Configure status check to be bitwise or not.
+	 * Default true.
+	 * @param bitwiseStatus
+	 */
+	public RestUtil<T> bitwiseStatus(boolean bitwiseStatus) {
+		this.bitwiseStatus = bitwiseStatus;
+		return this;
 	}
 	
 	/**
@@ -305,8 +369,7 @@ public class RestUtil<T> {
 	 * @param bitwiseAnd If false, status code must match exactly. Otherwise checked with bitwise AND.
 	 * @param statuses Valid status codes.
 	 */
-	public RestUtil<T> status(boolean bitwiseAnd, int... statuses) {
-		this.bitwiseStatus = bitwiseAnd;
+	public RestUtil<T> status(int... statuses) {
 		this.statusList = new ArrayList<>();
 		if (statuses != null) {
 			for (int status : statuses) {
@@ -326,136 +389,225 @@ public class RestUtil<T> {
 		return this;
 	}
 	
+	private void rateCheck() {
+		boolean requestGranted = false;
+		while (!requestGranted) {
+			synchronized(LOCK) {
+				Date now = new Date();
+				if (lastCheck == null) {
+					lastCheck = now;
+				}
+				float timePassed = now.getTime() - lastCheck.getTime();
+				lastCheck = now;
+				if (allowance == null) {
+					allowance = (float) maxCall;
+				} else {
+					allowance += timePassed / period * maxCall;
+				}
+				if (allowance >= maxCall) {
+					allowance = (float) maxCall;
+				}
+				if (allowance >= 1) {
+					requestGranted = true;
+					allowance -= 1;
+				}
+				//Log.info(LOGGER, "allowance: " + allowance);
+			}
+			if (!requestGranted) {
+				//Log.info(LOGGER, "Waiting for rate limit");
+				try {
+					Thread.sleep(100);
+				} catch (InterruptedException e) {
+					Log.error(LOGGER, "Rate sleep interrupted", e);
+				}
+			}
+		}
+	}
+	
 	/**
 	 * Invoke REST API without pagination, validates status code and return the response. 
 	 * @return Response.
-	 * @throws URISyntaxException 
 	 * @throws IllegalStateException If status code does not match.
 	 */
 	public Response request() throws Exception {
-		Client client = ClientBuilder.newClient();
-		client.register(JACKSON_JSON_PROVIDER);
-		String finalPath = this.path;
-		for (Map.Entry<String, String> entry : pathTemplates.entrySet()) {
-			finalPath = finalPath.replaceAll(Pattern.quote("{" + entry.getKey() + "}"), entry.getValue());
-		}
-		URI uri = new URI(scheme + "://" + host).resolve(finalPath);
-		WebTarget target = client.target(uri);
-		Log.debug(LOGGER, "uri: " + uri.toASCIIString() + " " + method);
-		if (query != null) {
-			for (Map.Entry<String, Object> item : query.entrySet()) {
-				Log.debug(LOGGER, "query: " + item.getKey() + " = " + item.getValue());
-				target = target.queryParam(item.getKey(), item.getValue());
-			}
-		}
-		Builder builder = target.request();
-		MultivaluedMap<String, Object> finalHeaders = new MultivaluedHashMap<>();
-		if (headers != null) {
-			finalHeaders.putAll(headers);
-		}
-		if (authHeader != null) {
-			finalHeaders.putAll(authHeader);
-		}
-		builder = builder.headers(finalHeaders);
-		for (Map.Entry<String, List<Object>> header : finalHeaders.entrySet()) {
-			for (Object o : header.getValue()) {
-				Log.debug(LOGGER, "header: " + header.getKey() + " = " + o);
-			}
-		}
-		// Check throttle
-		if (this.allowance == null) {
-			this.allowance = (float) this.maxCall;
-		}
-		long now = System.currentTimeMillis();
-		long timePassed = now - this.lastCheck;
-		Log.debug(LOGGER, "Throttle: Time passed: " + timePassed);
-		this.lastCheck = now;
-		this.allowance += timePassed * (this.maxCall / this.periodMS);
-		Log.debug(LOGGER, "Throttle: Allowance: " + allowance);
-		Log.debug(LOGGER, "Throttle: RATE: " + this.maxCall);
-		if (this.allowance > this.maxCall) {
-			Log.debug(LOGGER, "Throttle: Allowance > RATE, throttle");
-			this.allowance = (float) this.maxCall;
-		}
-		if (this.allowance < 1) {
-			Log.debug(LOGGER, "Throttle: Allowance < 1, sleeping");
-			try {
-				Thread.sleep(this.periodMS);
-			} catch (InterruptedException e) {
-				Log.warn(LOGGER, "Sleep interrupted", e);
-			}
-		}
-		Log.debug(LOGGER, "Throttle: Executing, allowance - 1");
-		this.allowance -= 1;
-		// Invoke
 		Response response = null;
-		switch (this.method) {
-		case HttpMethod.DELETE:
-			response = builder.delete();
-			break;
-		case HttpMethod.GET:
-			response = builder.get();
-			break;
-		case HttpMethod.HEAD:
-			response = builder.head();
-			break;
-		case HttpMethod.OPTIONS:
-			response = builder.options();
-			break;
-		case HttpMethod.POST:
-			if (payload != null) {
-				if (String.class.isAssignableFrom(payload.getClass())) {
-					response = builder.post(Entity.entity(payload, MediaType.TEXT_PLAIN));
-				} else {
-					response = builder.post(Entity.entity(payload, MediaType.APPLICATION_JSON));
-				}
-			} 
-			break;
-		case HttpMethod.PUT:
-			if (payload != null) {
-				if (String.class.isAssignableFrom(payload.getClass())) {
-					response = builder.post(Entity.entity(payload, MediaType.TEXT_PLAIN));
-				} else {
-					response = builder.put(Entity.entity(payload, MediaType.APPLICATION_JSON));
-				}
-			}
-			break;
-		default:
-			throw new IllegalArgumentException("Invalid method \"" + method + "\"");
-		}
-		// Check status if statusList is provided
-		if (statusList != null && statusList.size() != 0) {
-			boolean statusValid = false;
-			int respStatus = response.getStatus();
-			if (bitwiseStatus) {
-				for (int status : statusList) {
-					if ((respStatus & status) == status) {
-						statusValid = true;
-						break;
+		Client client = null;
+		int retryCount = 0;
+		boolean doRetry = false;
+		do {
+			doRetry = false;
+			try {
+				// Check rate of API calls
+				//Log.info(LOGGER, "Rate check");
+				rateCheck();
+				// Get client from pool
+				//Log.info(LOGGER, "ClientPool check");
+				while (client == null) {
+					client = ClientPool.get();
+					if (client == null) {
+						//Log.info(LOGGER, "Waiting for client pool");
+						try {
+							Thread.sleep(100);
+						} catch (InterruptedException e) {
+							Log.error(LOGGER, "Client pool sleep interrupted", e);
+						}
+					} else {
+						//Log.info(LOGGER, "Client received");
 					}
 				}
-			} else {
-				for (int status : statusList) {
-					if (respStatus == status) {
-						statusValid = true;
-						break;
+				client.register(JACKSON_JSON_PROVIDER);
+				String finalPath = this.path;
+				for (Map.Entry<String, String> entry : pathTemplates.entrySet()) {
+					finalPath = finalPath.replaceAll(
+							Pattern.quote("{" + entry.getKey() + "}"), 
+							entry.getValue());
+				}
+				URI uri = new URI(scheme + "://" + host).resolve(finalPath);
+				WebTarget target = client.target(uri);
+				Log.debug(LOGGER, "uri: " + uri.toASCIIString() + " " + method);
+				if (query != null) {
+					for (Map.Entry<String, Object> item : query.entrySet()) {
+						Log.debug(LOGGER, "query: " + item.getKey() + " = " + item.getValue());
+						target = target.queryParam(item.getKey(), item.getValue());
 					}
 				}
+				Builder builder = target.request();
+				MultivaluedMap<String, Object> finalHeaders = new MultivaluedHashMap<>();
+				if (headers != null) {
+					finalHeaders.putAll(headers);
+				}
+				if (authHeader != null) {
+					finalHeaders.putAll(authHeader);
+				}
+				builder = builder.headers(finalHeaders);
+				for (Map.Entry<String, List<Object>> header : finalHeaders.entrySet()) {
+					for (Object o : header.getValue()) {
+						Log.debug(LOGGER, "header: " + header.getKey() + " = " + o);
+					}
+				}
+				// Invoke
+				switch (this.method) {
+				case HttpMethod.DELETE:
+					response = builder.delete();
+					break;
+				case HttpMethod.GET:
+					response = builder.get();
+					break;
+				case HttpMethod.HEAD:
+					response = builder.head();
+					break;
+				case HttpMethod.OPTIONS:
+					response = builder.options();
+					break;
+				case HttpMethod.POST:
+					if (payload != null) {
+						if (String.class.isAssignableFrom(payload.getClass())) {
+							response = builder.post(Entity.entity(payload, MediaType.TEXT_PLAIN));
+						} else {
+							response = builder.post(Entity.entity(payload, MediaType.APPLICATION_JSON));
+						}
+					} 
+					break;
+				case HttpMethod.PUT:
+					if (payload != null) {
+						if (String.class.isAssignableFrom(payload.getClass())) {
+							response = builder.post(Entity.entity(payload, MediaType.TEXT_PLAIN));
+						} else {
+							response = builder.put(Entity.entity(payload, MediaType.APPLICATION_JSON));
+						}
+					}
+					break;
+				default:
+					throw new IllegalArgumentException("Invalid method \"" + method + "\"");
+				}
+				int respStatus = response.getStatus();
+				// Check if status means retry
+				if (retryStatusList != null && retryStatusList.size() != 0) {
+					for (int status : retryStatusList) {
+						if ((bitwiseRetryStatus && status == respStatus) || 
+							(!bitwiseRetryStatus && (status & respStatus) == status)) {
+							if (maxRetryCount == -1 || 
+								retryCount <= maxRetryCount) {
+								doRetry = true;
+								Log.warn(LOGGER, "Retrying due to status: " + respStatus);
+								break;
+							}
+						} 
+					}
+				}
+				// If not retry, check result
+				if (!doRetry) {
+					// Check status if statusList is provided
+					if (statusList != null && statusList.size() != 0) {
+						boolean statusValid = false;
+						for (int status : statusList) {
+							if (bitwiseStatus) {
+								if ((respStatus & status) == status) {
+									statusValid = true;
+									break;
+								}
+							} else {
+								if (respStatus == status) {
+									statusValid = true;
+									break;
+								}
+							}
+						}
+						if (!statusValid) {
+							throw new IllegalStateException(response.readEntity(String.class));
+						}
+					}
+				}
+			} catch (Exception ex) {
+				Throwable t = ex;
+				if (ex instanceof ProcessingException || 
+					ex instanceof ResponseProcessingException) {
+					if (ex.getCause() != null) {
+						t = ex.getCause();
+					}
+				}
+				Log.error(LOGGER, "Exception class: " + t.getClass());
+				Log.error(LOGGER, "Excepteion message: " + t.getMessage());
+				if (retryExceptionList != null) {
+					for (Class<? extends Throwable> cls : retryExceptionList) {
+						if (cls.isAssignableFrom(t.getClass())) {
+							if (maxRetryCount == -1 || 
+								retryCount <= maxRetryCount) {
+								doRetry = true;
+								Log.info(LOGGER, "Retrying due to exception: " + t.getClass());
+								break;
+							} else {
+								throw ex;
+							}
+						}
+					}
+				}
+			} finally {
+				ClientPool.release(client);
+				client = null;
+				//Log.info(LOGGER, "Client returned to pool");
 			}
-			if (!statusValid) {
-				throw new IllegalStateException(response.readEntity(String.class));
+			if (doRetry) {
+				retryCount++;
+				// Put a slight delay before retrying
+				try {
+					//Log.info(LOGGER, "Waiting before retry");
+					Thread.sleep(1000);
+				} catch (InterruptedException iex) {
+					Log.error(LOGGER, "Retry sleep interrutped", iex);
+				}
+				// TODO Get delay from headers
+				// Retry-After and X-RateLimit-Reset
 			}
-		} 
+		} while (	allowRetry && 
+					(maxRetryCount == -1 || retryCount <= maxRetryCount) && 
+					doRetry); 
 		return response;
 	}
 	
 	/**
 	 * Invoke REST API with pagination, validate status, and retrieve the next page of results.
 	 * @return List<T>
-	 * @throws URISyntaxException 
-	 * @throws IllegalStateException 
- 	 * @throws JsonProcessingException
-	 * @throws JsonMappingException
 	 */
 	public List<T> requestNextPage() throws Exception, 
 			IOException {
@@ -478,8 +630,7 @@ public class RestUtil<T> {
 		this.pagination.reset();
 	}
 	
-	public List<T> requestAllPages() throws Exception,
-			IOException {
+	public List<T> requestAllPages() throws Exception {
 		if (this.pagination == null) {
 			throw new IllegalStateException("Pagination is not configured. Call .pagination() first.");
 		}

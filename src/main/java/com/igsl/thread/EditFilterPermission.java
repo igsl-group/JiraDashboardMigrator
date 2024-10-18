@@ -20,7 +20,7 @@ import com.igsl.model.CloudFilter;
 import com.igsl.model.CloudPermission;
 import com.igsl.model.PermissionTarget;
 import com.igsl.model.mapping.Filter;
-import com.igsl.rest.RestUtil2;
+import com.igsl.rest.RestUtil;
 
 public class EditFilterPermission implements Callable<String> {
 
@@ -52,7 +52,7 @@ public class EditFilterPermission implements Callable<String> {
 	public String call() throws Exception {
 		String result = "";
 		Log.info(LOGGER, "Processing filter [" + filter.getName() + "] (" + filter.getId() + ")");
-		RestUtil2<Object> util = RestUtil2.getInstance(Object.class);
+		RestUtil<Object> util = RestUtil.getInstance(Object.class);
 		CloudFilter cf = CloudFilter.create(filter);
 		cf.setOwner(null);
 		cf.setDescription(null);

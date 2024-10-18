@@ -134,7 +134,7 @@ import com.igsl.mybatis.FilterMapper;
 import com.igsl.rest.ClientPool;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
-import com.igsl.rest.RestUtil2;
+import com.igsl.rest.RestUtil;
 import com.igsl.rest.SinglePage;
 import com.igsl.thread.CreateDashboard;
 import com.igsl.thread.CreateDashboardResult;
@@ -3015,7 +3015,7 @@ public class DashboardMigrator {
 			this.start = Instant.now();
 			Log.info(LOGGER, "[" + id + "] run() starts");
 			try {
-				RestUtil2<Filter> util = RestUtil2.getInstance(Filter.class)
+				RestUtil<Filter> util = RestUtil.getInstance(Filter.class)
 						.config(conf, true);
 				// Create filter
 				CloudFilter f = new CloudFilter();

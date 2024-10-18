@@ -74,7 +74,7 @@ import com.igsl.model.mapping.Sprint;
 import com.igsl.model.mapping.User;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
-import com.igsl.rest.RestUtil2;
+import com.igsl.rest.RestUtil;
 import com.igsl.rest.SinglePage;
 
 public class MapFilter implements Callable<MapFilterResult> {
@@ -943,7 +943,7 @@ public class MapFilter implements Callable<MapFilterResult> {
 		// Create or overwrite filter
 		if (callApi) {
 			Response respFilter = null;
-			RestUtil2<Filter> util = RestUtil2.getInstance(Filter.class)
+			RestUtil<Filter> util = RestUtil.getInstance(Filter.class)
 					.config(config, true);
 			// Check if exists for current user
 			Filter existingFilter = filterExists(
