@@ -764,6 +764,13 @@ public class DashboardMigrator {
 		return true;
 	}
 	
+	public static String sanitizePath(String s) {
+		if (s != null) {
+			return s.replaceAll("[^a-zA-Z0-9-_\\.]", "_");
+		}
+		return s;
+	}
+	
 	/**
 	 * Rename filter to a temporarily name that can be calculated from both Cloud and Server filter
 	 */
@@ -1203,8 +1210,8 @@ public class DashboardMigrator {
 										"Mapped filter [" + r.getOriginal().getName() + "] " + 
 										"(" + r.getOriginal().getId() + ") " + 
 										"[" + r.getOriginal().getJql() + "] => " + 
-										"(" + r.getTarget().getId() + ") " + 
-										"[" + r.getTarget().getJql() + "]");
+										"[" + (r.getTarget() != null? r.getTarget().getId() : "") + "]",
+										"[" + (r.getTarget() != null? r.getTarget().getJql() : "") + "]");
 							}
 						} catch (TimeoutException tex) {
 							// Ignore

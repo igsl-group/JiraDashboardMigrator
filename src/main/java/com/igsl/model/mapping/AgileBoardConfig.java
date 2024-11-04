@@ -27,6 +27,11 @@ public class AgileBoardConfig extends JiraObject<AgileBoardConfig> {
 	}
 	
 	@Override
+	public boolean jqlEquals(String value) {
+		return false;
+	}
+	
+	@Override
 	public int compareTo(AgileBoardConfig obj1, boolean exactMatch) {
 		if (obj1 != null && obj1.getFilter() != null && getFilter() != null) {
 			return getFilter().compareTo(obj1.getFilter());

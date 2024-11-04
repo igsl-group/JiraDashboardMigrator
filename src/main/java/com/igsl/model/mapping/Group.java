@@ -30,6 +30,12 @@ public class Group extends JiraObject<Group> {
 	}
 	
 	@Override
+	public boolean jqlEquals(String value) {
+		return 	groupId.equals(value) || 
+				name.equals(value);
+	}
+	
+	@Override
 	public int compareTo(Group obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return compareName(getName(), obj1.getName(), exactMatch);

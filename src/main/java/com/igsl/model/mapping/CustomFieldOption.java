@@ -58,10 +58,15 @@ public class CustomFieldOption extends JiraObject<CustomFieldOption> {
 		return value;
 	}
 	@Override
+	public boolean jqlEquals(String value) {
+		return 	this.id.equals(value) || 
+				this.value.equals(value);
+	}
+	@Override
 	public int compareTo(CustomFieldOption obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return 	STRING_COMPARATOR.compare(getValue(), obj1.getValue()) | 
-					compareName(customFieldName, obj1.getCustomFieldName(), true);	// Enfoce exact match?
+					compareName(customFieldName, obj1.getCustomFieldName(), true);	// Enforce exact match
 		}
 		return 1;
 	}

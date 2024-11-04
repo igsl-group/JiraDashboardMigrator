@@ -63,6 +63,14 @@ public abstract class JiraObject<T> implements Comparable<T> {
 	}
 	
 	/**
+	 * To compare object as JQL value.
+	 * Both ID and string representation should be considered.
+	 * 
+	 * For objects that do not appear in JQL, simply return false.
+	 */
+	public abstract boolean jqlEquals(String value);
+	
+	/**
 	 * Return display name of this object. 
 	 * Usually this is .getName().
 	 */

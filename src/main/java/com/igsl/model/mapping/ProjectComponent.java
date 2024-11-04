@@ -34,6 +34,12 @@ public class ProjectComponent extends JiraObject<ProjectComponent> {
 	}
 	
 	@Override
+	public boolean jqlEquals(String value) {
+		return 	id.equals(value) || 
+				name.equals(value);
+	}
+	
+	@Override
 	public int compareTo(ProjectComponent obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return 	STRING_COMPARATOR.compare(getName(), obj1.getName()) |

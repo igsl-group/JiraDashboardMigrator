@@ -31,6 +31,14 @@ public class User extends JiraObject<User> {
 	public String getJQLName() {
 		return accountId;
 	}
+
+	@Override
+	public boolean jqlEquals(String value) {
+		return name.equals(value) || 
+				accountId.equals(value) || 
+				key.equals(value) || 
+				displayName.equals(value);
+	}
 	
 	@Override
 	public int compareTo(User obj1, boolean exactMatch) {

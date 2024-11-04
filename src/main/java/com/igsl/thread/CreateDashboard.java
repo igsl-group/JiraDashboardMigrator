@@ -241,12 +241,14 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 		mixinMap.put(CloudGadget.class, CloudGadgetMixin.class);
 		CreateDashboardResult result = new CreateDashboardResult();
 		result.setOriginalDashboard(dashboard);
+		String dashboardFileName = DashboardMigrator.sanitizePath(
+				dashboard.getPageName() + "." + dashboard.getId() + ".json");
 		// Sort gadget by position
 		dashboard.getPortlets().sort(new GadgetOrderComparator(true));
 		// Save original to file
 		CloudDashboard original = CloudDashboard.create(dashboard, true);
 		DashboardMigrator.saveFile(
-				originalDir.resolve(dashboard.getPageName() + "." + dashboard.getId() + ".json").toString(), 
+				originalDir.resolve(dashboardFileName).toString(), 
 				original,
 				mixinMap);
 		RestUtil<CloudDashboard> util = RestUtil.getInstance(CloudDashboard.class)
@@ -330,7 +332,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 		result.setCreatedDashboard(createdDashboard);
 		// Save dashboard (without gadgets)
 		DashboardMigrator.saveFile(
-				newDir.resolve(dashboard.getPageName() + "." + dashboard.getId() + ".json").toString(), 
+				newDir.resolve(dashboardFileName).toString(), 
 				cd,
 				mixinMap);
 		// It is impossible to change layout via REST, WTF Atlassian		
@@ -514,7 +516,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 		}
 		// Save created dashboard
 		DashboardMigrator.saveFile(
-				newDir.resolve(dashboard.getPageName() + "." + dashboard.getId() + ".json").toString(), 
+				newDir.resolve(dashboardFileName).toString(), 
 				cd,
 				mixinMap);
 		return result;

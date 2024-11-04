@@ -32,6 +32,11 @@ public class AgileBoard extends JiraObject<AgileBoard> {
 	public String getJQLName() {
 		return name;
 	}
+		
+	@Override
+	public boolean jqlEquals(String value) {
+		return false;
+	}
 	
 	@Override
 	public int compareTo(AgileBoard obj1, boolean exactMatch) {

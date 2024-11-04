@@ -29,6 +29,11 @@ public class Dashboard extends JiraObject<Dashboard> {
 	}
 
 	@Override
+	public boolean jqlEquals(String value) {
+		return false;
+	}
+	
+	@Override
 	public int compareTo(Dashboard obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return STRING_COMPARATOR.compare(getId(), obj1.getId());

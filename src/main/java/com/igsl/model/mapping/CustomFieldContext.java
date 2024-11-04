@@ -45,6 +45,10 @@ public class CustomFieldContext extends JiraObject<CustomFieldContext> {
 		return name;
 	}
 	@Override
+	public boolean jqlEquals(String value) {
+		return false;
+	}
+	@Override
 	public int compareTo(CustomFieldContext obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return	STRING_COMPARATOR.compare(getName(), obj1.getName()) | 

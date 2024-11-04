@@ -37,6 +37,11 @@ public class CustomField extends JiraObject<CustomField> {
 	}
 	
 	@Override
+	public boolean jqlEquals(String value) {
+		return false;
+	}
+	
+	@Override
 	public int compareTo(CustomField obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return 	compareName(getName(), obj1.getName(), exactMatch) | 

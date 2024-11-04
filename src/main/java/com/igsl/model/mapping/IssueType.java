@@ -27,6 +27,12 @@ public class IssueType extends JiraObject<IssueType> {
 	}
 	
 	@Override
+	public boolean jqlEquals(String value) {
+		return 	id.equals(value) || 
+				name.equals(value);
+	}
+	
+	@Override
 	public int compareTo(IssueType obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return compareName(getName(), obj1.getName(), exactMatch);

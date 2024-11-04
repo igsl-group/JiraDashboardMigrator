@@ -9,6 +9,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public enum MappingType {
+	SERVICE_DESK("ServiceDesk", ServiceDesk.class, true, true, null),
+	REQUEST_TYPE("RequestType", RequestType.class, true, true, 
+			Arrays.asList("type"), 
+			SERVICE_DESK),
 	PRIORITY("Priority", Priority.class, true, true, 
 			Arrays.asList("priority")),
 	STATUS("Status", Status.class, true, true, 

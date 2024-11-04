@@ -75,6 +75,11 @@ public class Filter extends JiraObject<Filter> {
 	}
 	
 	@Override
+	public boolean jqlEquals(String value) {
+		return id.equals(value) || name.equals(value);
+	}
+	
+	@Override
 	public int compareTo(Filter obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			int result = STRING_COMPARATOR.compare(getName(), obj1.getName());

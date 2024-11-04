@@ -26,6 +26,12 @@ public class ProjectCategory extends JiraObject<ProjectCategory> {
 	}
 	
 	@Override
+	public boolean jqlEquals(String value) {
+		return 	id.equals(value) || 
+				name.equals(value);
+	}
+	
+	@Override
 	public int compareTo(ProjectCategory obj1, boolean exactMatch) {
 		if (obj1 != null) {
 			return STRING_COMPARATOR.compare(getName(), obj1.getName());

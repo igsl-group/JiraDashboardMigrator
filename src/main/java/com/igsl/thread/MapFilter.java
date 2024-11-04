@@ -65,6 +65,7 @@ import com.igsl.model.mapping.JQLFunction;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
+import com.igsl.model.mapping.Priority;
 import com.igsl.model.mapping.Project;
 import com.igsl.model.mapping.ProjectCategory;
 import com.igsl.model.mapping.ProjectComponent;
@@ -194,6 +195,7 @@ public class MapFilter implements Callable<MapFilterResult> {
 					Log.error(LOGGER, "Mapping for " + mappingType + " not found");
 				}
 				if (isLong) {
+					// Map value as internal ID
 					if (map.getMapped().containsKey(originalValue)) {
 						// Remap numerical values
 						JiraObject<?> obj = map.getMapped().get(originalValue);
@@ -214,189 +216,28 @@ public class MapFilter implements Callable<MapFilterResult> {
 						}
 					}
 				} else {
-					// Validate string values if type is known
+					// Map value as JQL name
 					String newValue = null;
 					boolean validated = false;
 					boolean mapped = false;
 					List<?> dataList = data.get(map.getType());
-					switch (map.getType()) {
-					case FILTER:
-						for (Object obj : dataList) {
-							Filter o = (Filter) obj;
-							if (o.getId().equalsIgnoreCase(originalValue) || 
-								o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (!ignoreFilter) {
-									if (map.getMapped().containsKey(o.getId())) {
-										mapped = true;
-										Filter f = (Filter) map.getMapped().get(o.getId());
-										newValue = f.getId();
-									}
-								} else {
+					for (Object obj : dataList) {
+						JiraObject<?> jo = (JiraObject<?>) obj;
+						if (jo.jqlEquals(originalValue)) {
+							validated = true;
+							if (map.getType() != MappingType.FILTER || 
+								(map.getType() == MappingType.FILTER && !ignoreFilter)) {
+								if (map.getMapped().containsKey(jo.getInternalId())) {
 									mapped = true;
-									newValue = originalValue;
+									newValue = map.getMapped().get(jo.getInternalId()).getJQLName();
 								}
-								break;
+							} else {
+								// Consider filter value mapped
+								mapped = true;
+								newValue = originalValue;
 							}
+							break;
 						}
-						break;
-					case GROUP:
-						for (Object obj : dataList) {
-							Group o = (Group) obj;
-							if (o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (map.getMapped().containsKey(o.getName())) {
-									mapped = true;
-									Group grp = (Group) map.getMapped().get(o.getName());
-									newValue = grp.getName();
-								}
-								break;
-							}
-						}
-						break;
-					case ISSUE_TYPE:
-						for (Object obj : dataList) {
-							IssueType o = (IssueType) obj;
-							if (o.getId().equalsIgnoreCase(originalValue) || 
-								o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (map.getMapped().containsKey(o.getId())) {
-									mapped = true;
-									IssueType it = (IssueType) map.getMapped().get(o.getId());
-									newValue = it.getName();
-								}
-								break;
-							}
-						}
-						break;
-					case PROJECT:
-						for (Object obj : dataList) {
-							Project o = (Project) obj;
-							if (o.getId().equalsIgnoreCase(originalValue) || 
-								o.getKey().equalsIgnoreCase(originalValue) || 
-								o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (map.getMapped().containsKey(o.getId())) {
-									mapped = true;
-									Project p = (Project) map.getMapped().get(o.getId());
-									newValue = p.getKey();
-								}
-								break;
-							}
-						}
-						break;
-					case PROJECT_CATEGORY:
-						for (Object obj : dataList) {
-							ProjectCategory o = (ProjectCategory) obj;
-							if (o.getId().equalsIgnoreCase(originalValue) || 
-								o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (map.getMapped().containsKey(o.getId())) {
-									mapped = true;
-									ProjectCategory cat = (ProjectCategory)
-											 map.getMapped().get(o.getId());
-									newValue = cat.getName();
-								}
-								break;
-							}
-						}
-						break;
-					case PROJECT_COMPONENT:
-						for (Object obj : dataList) {
-							ProjectComponent o = (ProjectComponent) obj;
-							if (o.getId().equalsIgnoreCase(originalValue) || 
-								o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (map.getMapped().containsKey(o.getId())) {
-									mapped = true;
-									ProjectComponent comp = (ProjectComponent)
-											map.getMapped().get(o.getId());
-									newValue = comp.getName();
-								}
-								break;
-							}
-						}
-						break;
-					case PROJECT_VERSION:
-						for (Object obj : dataList) {
-							ProjectVersion o = (ProjectVersion) obj;
-							if (o.getId().equalsIgnoreCase(originalValue) || 
-								o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (map.getMapped().containsKey(o.getId())) {
-									mapped = true;
-									ProjectVersion v = (ProjectVersion) 
-											map.getMapped().get(o.getId());
-									newValue = v.getName();
-								}
-								break;
-							}
-						}
-						break;
-					case ROLE:
-						for (Object obj : dataList) {
-							Role o = (Role) obj;
-							if (o.getId().equalsIgnoreCase(originalValue) || 
-								o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (map.getMapped().containsKey(o.getId())) {
-									mapped = true;
-									Role r = (Role) map.getMapped().get(o.getId());
-									newValue = r.getName();
-								}
-								break;
-							}
-						}
-						break;
-					case SPRINT:
-						for (Object obj : dataList) {
-							Sprint o = (Sprint) obj;
-							if (o.getId().equalsIgnoreCase(originalValue) || 
-								o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (map.getMapped().containsKey(o.getId())) {
-									mapped = true;
-									Sprint sp = (Sprint) map.getMapped().get(o.getId());
-									newValue = sp.getName();
-								}
-								break;
-							}
-						}
-						break;
-					case STATUS:
-						for (Object obj : dataList) {
-							com.igsl.model.mapping.Status o = (com.igsl.model.mapping.Status) obj;
-							if (o.getId().equalsIgnoreCase(originalValue) || 
-								o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (map.getMapped().containsKey(o.getId())) {
-									mapped = true;
-									com.igsl.model.mapping.Status s = (com.igsl.model.mapping.Status) 
-											map.getMapped().get(o.getId());
-									newValue = s.getName();
-								}
-								break;
-							}
-						}
-						break;
-					case USER:
-						for (Object obj : dataList) {
-							User o = (User) obj;
-							if (o.getKey().equalsIgnoreCase(originalValue) || 
-								o.getDisplayName().equalsIgnoreCase(originalValue) || 
-								o.getName().equalsIgnoreCase(originalValue)) {
-								validated = true;
-								if (map.getMapped().containsKey(o.getKey())) {
-									mapped = true;
-									User u = (User) map.getMapped().get(o.getKey());
-									newValue = u.getAccountId();
-								}
-								break;
-							}
-						}
-						break;
-					default: 
-						break;
 					}
 					if (!validated) {
 						String msg = "Value not validated for filter [" + filterName + "] " + 
@@ -591,8 +432,14 @@ public class MapFilter implements Callable<MapFilterResult> {
 							data.get(MappingType.CUSTOM_FIELD),
 							propertyName);
 					if (mappedCustomField != null) {
+						Log.info(LOGGER, "Custom field recognized: [" + propertyName + "] -> " + 
+								"[" + mappedCustomField.getId() + "]");						
 						newPropertyName = mappedCustomField.getJQLName();
+					} else {
+						Log.info(LOGGER, "Custom field not recognized: [" + propertyName + "]");						
 					}
+				} else {
+					Log.info(LOGGER, "Property [" + propertyName + "] is type " + mappingType.toString());
 				}
 				Log.info(LOGGER, "Property [" + propertyName + "] -> [" + newPropertyName + "]");
 			}
@@ -751,8 +598,10 @@ public class MapFilter implements Callable<MapFilterResult> {
 		MapFilterResult result = new MapFilterResult();
 		result.setOriginal(filter);
 		Log.info(LOGGER, "Processing filter " + filter.getName() + " [" + filter.getJql() + "]");
+		String filterFileName = DashboardMigrator.sanitizePath(
+				filter.getName() + "." + filter.getId() + ".json");
 		DashboardMigrator.saveFile(
-				originalDir.resolve(filter.getName() + "." + filter.getId() + ".json").toString(), 
+				originalDir.resolve(filterFileName).toString(), 
 				filter);
 		Filter outputFilter = this.filter.clone();
 		// Verify and map owner
@@ -912,18 +761,21 @@ public class MapFilter implements Callable<MapFilterResult> {
 		// Handler order clause
 		OrderBy orderClone = null;
 		if (qr.order != null) {
+			Log.info(LOGGER, "Orignal order by [" + qr.order.toString() + "]");
 			List<SearchSort> sortList = new ArrayList<>();
 			for (SearchSort ss : qr.order.getSearchSorts()) {
+				Log.info(LOGGER, "Order clause " + 
+						"[" + ss.toString() + "] " + 
+						"Field [" + ss.getField() + "] " + 
+						"Property [" + ss.getProperty() + "]");
 				CustomField cf = mapCustomFieldName(
 						mappings.get(MappingType.CUSTOM_FIELD).getMapped(), 
 						data.get(MappingType.CUSTOM_FIELD),
 						ss.getField());
-				if (cf == null) {
-					String msg = "Order by column [" + ss.getProperty() + "] is invalid";
-					result.setException(new Exception(msg));
-					return result;
-				}
-				String newColumn = cf.getJQLName();
+				// Some order by items are indeed not custom fields, e.g. key
+				// So don't count them as error, just let them proceed as is
+				// If it fails on update then so be it
+				String newColumn = (cf != null)? cf.getJQLName() : ss.getField();
 				SearchSort newSS = new SearchSort(
 						newColumn, ss.getProperty(), ss.getSortOrder());
 				sortList.add(newSS);
@@ -938,7 +790,7 @@ public class MapFilter implements Callable<MapFilterResult> {
 		result.setTarget(outputFilter);
 		// Save remapped filter
 		DashboardMigrator.saveFile(
-				newDir.resolve(filter.getName() + "." + filter.getId() + ".json").toString(), 
+				newDir.resolve(filterFileName).toString(), 
 				outputFilter);
 		// Create or overwrite filter
 		if (callApi) {
