@@ -200,8 +200,9 @@ public class MapFilter implements Callable<MapFilterResult> {
 						// Remap numerical values
 						JiraObject<?> obj = map.getMapped().get(originalValue);
 						Long newValue = Long.valueOf(obj.getInternalId());
-						Log.info(LOGGER, "Mapped value for filter [" + filterName + "] type [" +
-								propertyName + "] value [" + originalValue + "] => [" + newValue + "]");
+						Log.info(LOGGER, "Mapped value for filter [" + filterName + "] " + 
+								"type [" + propertyName + "][" + mappingType + "] " + 
+								"value [" + originalValue + "] => [" + newValue + "]");
 						result = new SingleValueOperand(newValue);
 					} else {
 						if (map.getType() == MappingType.FILTER) {
@@ -211,8 +212,9 @@ public class MapFilter implements Callable<MapFilterResult> {
 								throw new FilterNotMappedException(originalValue);
 							}
 						} else {
-							throw new Exception("Unable to map value for filter [" + filterName + "] type [" + 
-										propertyName + "] value [" + originalValue + "]");
+							throw new Exception("Unable to map value for filter [" + filterName + "] " + 
+									"type [" + propertyName + "][" + mappingType + "] " + 
+									"value [" + originalValue + "]");
 						}
 					}
 				} else {
@@ -241,12 +243,14 @@ public class MapFilter implements Callable<MapFilterResult> {
 					}
 					if (!validated) {
 						String msg = "Value not validated for filter [" + filterName + "] " + 
-								"type [" + propertyName + "] value [" + originalValue + "]";
+								"type [" + propertyName + "][" + mappingType + "] " + 
+								"value [" + originalValue + "]";
 						Log.info(LOGGER, msg);
 						throw new Exception(msg);
 					} else if (!mapped) {
 						String msg = "Value not mapped for filter [" + filterName + "] " + 
-								"type [" + propertyName + "] value [" + originalValue + "]";
+								"type [" + propertyName + "][" + mappingType + "] " + 
+								"value [" + originalValue + "]";
 						Log.info(LOGGER, msg);
 						if (map.getType() == MappingType.FILTER) {
 							throw new FilterNotMappedException(msg);
@@ -255,7 +259,7 @@ public class MapFilter implements Callable<MapFilterResult> {
 						}
 					} else {
 						Log.info(LOGGER, "Value validated and mapped for filter [" + filterName + "] " + 
-								"type [" + propertyName + "] " + 
+								"type [" + propertyName + "][" + mappingType + "] " + 
 								"value [" + originalValue + "] -> [" + newValue + "]");
 						result = new SingleValueOperand(newValue);
 					}
@@ -272,24 +276,28 @@ public class MapFilter implements Callable<MapFilterResult> {
 						result = new SingleValueOperand(obj.getJQLName());
 					} else {
 						String msg = "Value not validated for filter [" + filterName + "] " + 
-								"type [" + propertyName + "] value [" + originalValue + "]";
+								"type [" + propertyName + "][" + mappingType + "] " + 
+								"value [" + originalValue + "]";
 						Log.info(LOGGER, msg);
 						throw new Exception(msg);
 					}
 				} else {
 					// Text
 					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] " + 
-							"type [" + propertyName + "] value [" + originalValue + "]");
+							"type [" + propertyName + "][" + mappingType + "] " + 
+							"value [" + originalValue + "]");
 					result = new SingleValueOperand(originalValue);
 				}
 			} else {
 				if (isLong) {
 					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] " + 
-							"type [" + propertyName + "] value [" + originalValue + "]");
+							"type [" + propertyName + "][" + mappingType + "] " + 
+							"value [" + originalValue + "]");
 					result = new SingleValueOperand(originalValue);
 				} else {
 					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] " + 
-							"type [" + propertyName + "] value [" + originalValue + "]");
+							"type [" + propertyName + "][" + mappingType + "] " + 
+							"value [" + originalValue + "]");
 					result = new SingleValueOperand(originalValue);
 				}
 			}
