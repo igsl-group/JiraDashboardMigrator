@@ -1,7 +1,15 @@
 package com.igsl.model.mapping;
 
+import java.util.List;
+
 import javax.ws.rs.HttpMethod;
 
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+
+import com.igsl.DashboardMigrator;
+import com.igsl.config.Config;
+import com.igsl.mybatis.FilterMapper;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
 import com.igsl.rest.SinglePage;
@@ -50,11 +58,30 @@ public class Group extends JiraObject<Group> {
 				.method(HttpMethod.GET)
 				.pagination(new Paged<Group>(Group.class));
 		} else {
-			// There is no API to get all groups, wtf
-			util.path("/rest/api/latest/groups/picker")
-				.method(HttpMethod.GET)
-				.query("maxResults", 1000)
-				.pagination(new SinglePage<Group>(Group.class, "groups"));
+//			// There is no API to get all groups, wtf
+//			util.path("/rest/api/latest/groups/picker")
+//				.method(HttpMethod.GET)
+//				.query("maxResults", 1000)
+//				.pagination(new SinglePage<Group>(Group.class, "groups"));
+		}
+	}
+	
+	@Override
+	protected List<Group> _getObjects(
+			Config config, 
+			Class<Group> dataClass, 
+			boolean cloud,
+			Object... data)
+			throws Exception {
+		if (cloud) {
+			return super.getObjects(config, dataClass, cloud, data);
+		} else {
+			// Get from database
+			SqlSessionFactory factory = DashboardMigrator.setupMyBatis(config);
+			try (SqlSession session = factory.openSession()) {
+				FilterMapper filterMapper = session.getMapper(FilterMapper.class);
+				return filterMapper.getGroups();
+			}
 		}
 	}
 	

@@ -53,6 +53,23 @@
         <result column="emailaddress" property="emailAddress"/>
     </resultMap>
 
+    <resultMap id="Group" type="com.igsl.model.mapping.Group">
+        <id column="id" property="groupId"/>
+        <result column="name" property="name"/>
+        <result column="html" property="html"/>
+    </resultMap>
+
+    <select id="getGroups" resultMap="Group">
+        <![CDATA[
+            SELECT
+                g.ID AS id, 
+                g.group_name AS name, 
+                g.group_name AS html
+            FROM 
+                cwd_group g
+        ]]>
+    </select>
+
     <select id="getUsers" resultMap="User">
         <![CDATA[
             SELECT
