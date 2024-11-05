@@ -31,8 +31,8 @@ public class Group extends JiraObject<Group> {
 	
 	@Override
 	public boolean jqlEquals(String value) {
-		return 	groupId.equals(value) || 
-				name.equals(value);
+		return 	groupId.equalsIgnoreCase(value) || 
+				name.equalsIgnoreCase(value);
 	}
 	
 	@Override

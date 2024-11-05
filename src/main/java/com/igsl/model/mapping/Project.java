@@ -29,9 +29,9 @@ public class Project extends JiraObject<Project> {
 	
 	@Override
 	public boolean jqlEquals(String value) {
-		return 	id.equals(value) || 
-				name.equals(value) || 
-				key.equals(value);
+		return 	id.equalsIgnoreCase(value) || 
+				name.equalsIgnoreCase(value) || 
+				key.equalsIgnoreCase(value);
 	}
 	
 	@Override

@@ -38,8 +38,8 @@ public class Sprint extends JiraObject<Sprint> {
 	
 	@Override
 	public boolean jqlEquals(String value) {
-		return id.equals(value) || 
-				name.equals(value);
+		return 	id.equalsIgnoreCase(value) || 
+				name.equalsIgnoreCase(value);
 	}
 	
 	@Override

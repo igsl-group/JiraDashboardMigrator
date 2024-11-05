@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 public enum MappingType {
 	SERVICE_DESK("ServiceDesk", ServiceDesk.class, true, true, null),
 	REQUEST_TYPE("RequestType", RequestType.class, true, true, 
-			Arrays.asList("type"), 
+			Arrays.asList("request type"), 
 			SERVICE_DESK),
 	PRIORITY("Priority", Priority.class, true, true, 
 			Arrays.asList("priority")),
@@ -40,7 +40,7 @@ public enum MappingType {
 			Arrays.asList("sprint"), 
 			AGILE_BOARD),
 	ISSUE_TYPE("IssueType", IssueType.class, true, true, 
-			Arrays.asList("issuetype")),
+			Arrays.asList("issuetype", "type")),
 	FILTER("Filter", Filter.class, true, true, 
 			Arrays.asList("filter")), 
 	DASHBOARD("Dashboard", Dashboard.class, true, false, null, FILTER);

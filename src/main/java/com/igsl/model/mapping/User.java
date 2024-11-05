@@ -34,10 +34,10 @@ public class User extends JiraObject<User> {
 
 	@Override
 	public boolean jqlEquals(String value) {
-		return name.equals(value) || 
-				accountId.equals(value) || 
-				key.equals(value) || 
-				displayName.equals(value);
+		return 	name.equalsIgnoreCase(value) || 
+				accountId.equalsIgnoreCase(value) || 
+				key.equalsIgnoreCase(value) || 
+				displayName.equalsIgnoreCase(value);
 	}
 	
 	@Override
