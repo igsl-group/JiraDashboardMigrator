@@ -43,6 +43,32 @@
         <result column="contextName" property="contextName"/>
     </resultMap>
 
+    <resultMap id="User" type="com.igsl.model.mapping.User">
+        <id column="userkey" property="key"/>
+        <result column="name" property="name"/>
+        <result column="accountid" property="accountId"/>
+        <result column="displayname" property="displayName"/>
+        <result column="active" property="active"/>
+        <result column="deleted" property="deleted"/>
+        <result column="emailaddress" property="emailAddress"/>
+    </resultMap>
+
+    <select id="getUsers" resultMap="User">
+        <![CDATA[
+            SELECT
+                cu.user_name AS name,
+                au.user_key AS userkey,
+                NULL AS accountid,
+                cu.display_name AS displayname,
+                cu.active AS active,
+                COALESCE(cu.deleted_externally, 0) AS deleted,
+                cu.email_address AS emailaddress
+            FROM
+                cwd_user cu
+                JOIN app_user au ON au.lower_user_name = cu.lower_user_name
+        ]]>
+    </select>
+
     <select id="getCustomFieldOptions" resultMap="CustomFieldOption">
         <![CDATA[
             SELECT

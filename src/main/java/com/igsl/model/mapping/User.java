@@ -1,7 +1,15 @@
 package com.igsl.model.mapping;
 
+import java.util.List;
+
 import javax.ws.rs.HttpMethod;
 
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+
+import com.igsl.DashboardMigrator;
+import com.igsl.config.Config;
+import com.igsl.mybatis.FilterMapper;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
 
@@ -61,14 +69,34 @@ public class User extends JiraObject<User> {
 				.query("includeInactive", true)
 				.pagination(paging);
 		} else {
-			util.path("/rest/api/latest/user/search")
-				.query("username", ".")
-				.query("includeActive", true)
-				.query("includeInactive", true)
-				.pagination(paging);
+			// The REST API stops working in PCCW Server?
+//			util.path("/rest/api/latest/user/search")
+//				.query("username", ".")
+//				.query("includeActive", true)
+//				.query("includeInactive", true)
+//				.pagination(paging);
 		}
 	}
 	
+	@Override
+	protected List<User> _getObjects(
+			Config config, 
+			Class<User> dataClass, 
+			boolean cloud,
+			Object... data)
+			throws Exception {
+		if (cloud) {
+			return super.getObjects(config, dataClass, cloud, data);
+		} else {
+			// Get from database
+			SqlSessionFactory factory = DashboardMigrator.setupMyBatis(config);
+			try (SqlSession session = factory.openSession()) {
+				FilterMapper filterMapper = session.getMapper(FilterMapper.class);
+				return filterMapper.getUsers();
+			}
+		}
+	}
+		
 	public String getName() {
 		return name;
 	}
