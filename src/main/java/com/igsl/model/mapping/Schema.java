@@ -1,6 +1,10 @@
 package com.igsl.model.mapping;
 
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
  * Nested member in CustomField
@@ -8,11 +12,28 @@ import java.util.Comparator;
 public class Schema implements Comparable<Schema> {
 	public static final Comparator<Schema> COMPARATOR = Comparator.nullsFirst(Schema::compareTo);
 	private static final Comparator<String> STRING_COMPARATOR = Comparator.nullsFirst(String::compareTo); 
+
+	/**
+	 * Value of custom that corresponds to the field having options
+	 */
+	private static final List<String> OPTION_TYPES = Arrays.asList(
+			"com.atlassian.jira.plugin.system.customfieldtypes:select",
+			"com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+			"com.atlassian.jira.plugin.system.customfieldtypes:cascadingselect",
+			"com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons",
+			"com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+			);
+	
 	private String type;
 	private String customId;
 	private String items;
 	private String custom;
-
+	
+	@JsonIgnore
+	public boolean isOptionField() {
+		return (OPTION_TYPES.contains(custom));
+	}
+	
 	@Override
 	public int compareTo(Schema o) {
 		// items can be different, so ignore it

@@ -260,7 +260,9 @@ public class MapFilter implements Callable<MapFilterResult> {
 						result = new SingleValueOperand(newValue);
 					}
 				}
-			} else if (mappedCustomField != null) {
+			} else if (	mappedCustomField != null && 
+						mappedCustomField.getSchema() != null && 
+						mappedCustomField.getSchema().isOptionField()) {
 				// Find associated CustomFieldOption
 				Mapping mapping = maps.get(MappingType.CUSTOM_FIELD_OPTION);
 				if (isLong) {
@@ -497,7 +499,13 @@ public class MapFilter implements Callable<MapFilterResult> {
 						if (list.size() != 0) {
 							clonedOperand = new MultiValueOperand(list);
 						} else {
-							throw new Exception("All values in MultiValueOperand cannot be mapped");
+							StringBuilder sb = new StringBuilder();
+							for (String s : unmappedValues) {
+								sb.append("[").append(s).append("]");
+							}
+							throw new Exception("Not all values in MultiValueOperand mapped, " + 
+									"type: " + mappingType + " " + 
+									"unmapped values: " + sb.toString());
 						}
 					} else if (originalOperand instanceof FunctionOperand) {
 						FunctionOperand fo = (FunctionOperand) originalOperand;

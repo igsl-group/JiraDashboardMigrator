@@ -52,7 +52,7 @@ public class CustomField extends JiraObject<CustomField> {
 
 	@Override
 	public void setupRestUtil(RestUtil<CustomField> util, boolean cloud, Object... data) {
-		util.path("rest/api/latest/field")
+		util.path("/rest/api/latest/field")
 			.method(HttpMethod.GET)
 			.pagination(new SinglePage<CustomField>(CustomField.class, null));
 	}

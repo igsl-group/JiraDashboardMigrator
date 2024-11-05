@@ -14,9 +14,9 @@ import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
 
 public class User extends JiraObject<User> {
-	private String name;
-	private String key;
-	private String accountId;
+	private String name;	// username, e.g. rpoon
+	private String key;	// From app_user.user_key
+	private String accountId;	// Cloud account Id
 	private String displayName;
 	private boolean active;
 	private boolean deleted;
@@ -32,7 +32,7 @@ public class User extends JiraObject<User> {
 		if (accountId != null) {
 			return accountId;
 		}
-		return name;
+		return key;
 	}
 
 	@Override
@@ -43,7 +43,6 @@ public class User extends JiraObject<User> {
 	@Override
 	public boolean jqlEquals(String value) {
 		return 	name.equalsIgnoreCase(value) || 
-				accountId.equalsIgnoreCase(value) || 
 				key.equalsIgnoreCase(value) || 
 				displayName.equalsIgnoreCase(value);
 	}
