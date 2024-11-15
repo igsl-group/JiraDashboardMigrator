@@ -54,6 +54,9 @@ public class RestUtil<T> {
 	private static Date lastCheck = null;
 	private static Float allowance = null;
 	
+	// Thread wait
+	private long sleep = 1000;
+	
 	// Encoding
 	private static final String ENCODDING = "ASCII";	
 	private static final String DEFAULT_SCHEME = "https";
@@ -133,6 +136,7 @@ public class RestUtil<T> {
 	 * - scheme
 	 * - host
 	 * - authenticate
+	 * - sleep
 	 * @param config
 	 * @throws UnsupportedEncodingException 
 	 * @throws URISyntaxException 
@@ -141,15 +145,25 @@ public class RestUtil<T> {
 			throws UnsupportedEncodingException, URISyntaxException {
 		if (cloud) {
 			return this
+					.sleep(config.getThreadWait())
 					.scheme(config.getTargetScheme())
 					.host(config.getTargetHost())
 					.authenticate(config.getTargetUser(), config.getTargetAPIToken());
 		} else {
 			return this
+					.sleep(config.getThreadWait())
 					.scheme(config.getSourceScheme())
 					.host(config.getSourceHost())
 					.authenticate(config.getSourceUser(), config.getSourcePassword());
 		}
+	}
+	
+	/** 
+	 * Set sleep 
+	 */
+	public RestUtil<T> sleep(long sleep) {
+		this.sleep = sleep;
+		return this;
 	}
 	
 	/**
@@ -437,21 +451,21 @@ public class RestUtil<T> {
 			doRetry = false;
 			try {
 				// Check rate of API calls
-				Log.info(LOGGER, "Rate check");
+				//Log.info(LOGGER, "Rate check");
 				rateCheck();
 				// Get client from pool
-				Log.info(LOGGER, "ClientPool check");
+				//Log.info(LOGGER, "ClientPool check");
 				while (client == null) {
 					client = ClientPool.get();
 					if (client == null) {
-						Log.info(LOGGER, "Waiting for client pool");
+						//Log.info(LOGGER, "Waiting for client pool");
 						try {
 							Thread.sleep(100);
 						} catch (InterruptedException e) {
 							Log.error(LOGGER, "Client pool sleep interrupted", e);
 						}
 					} else {
-						Log.info(LOGGER, "Client received");
+						//Log.info(LOGGER, "Client received");
 					}
 				}
 				client.register(JACKSON_JSON_PROVIDER);
@@ -590,7 +604,7 @@ public class RestUtil<T> {
 			} finally {
 				ClientPool.release(client);
 				client = null;
-				Log.info(LOGGER, "Client returned to pool");
+				//Log.info(LOGGER, "Client returned to pool");
 			}
 			if (doRetry) {
 				retryCount++;
