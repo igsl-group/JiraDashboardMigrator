@@ -2077,6 +2077,7 @@ public class DashboardMigrator {
 							// Ignore and wait
 							Log.info(LOGGER, "Thread for [" + entry.getKey().getPageName()  + "] still running");
 						} catch (Exception ex) {
+							Log.error(LOGGER, "Thread execution for [" + entry.getKey().getPageName() + "] failed", ex);
 							result = new CreateDashboardResult();
 							result.setOriginalDashboard(entry.getKey());
 							result.setCreateDashboardResult(
@@ -2206,26 +2207,28 @@ public class DashboardMigrator {
 											);
 								}
 							}
-							// Dashboard change owner
-							String[] analyze = analyzeDashboardResult(result.getChangeOwnerResult());
-							String bug = analyze[0];
-							String notes = analyze[1];
-							csv.printRecord(
-									result.getOriginalDashboard().getUsername(),
-									result.getOriginalDashboard().getId(),
-									result.getOriginalDashboard().getPageName(),
-									(result.getCreatedDashboard() != null? 
-											result.getCreatedDashboard().getId(): ""),
-									(result.getCreatedDashboard() != null? 
-											result.getCreatedDashboard().getName(): ""),
-									"Change dashboard owner",
-									"N/A",
-									"N/A",
-									"N/A",
-									result.getChangeOwnerResult(),
-									bug, 
-									notes
-									);
+							if (result.getChangeOwnerResult() != null) {
+								// Dashboard change owner
+								String[] analyze = analyzeDashboardResult(result.getChangeOwnerResult());
+								String bug = analyze[0];
+								String notes = analyze[1];
+								csv.printRecord(
+										result.getOriginalDashboard().getUsername(),
+										result.getOriginalDashboard().getId(),
+										result.getOriginalDashboard().getPageName(),
+										(result.getCreatedDashboard() != null? 
+												result.getCreatedDashboard().getId(): ""),
+										(result.getCreatedDashboard() != null? 
+												result.getCreatedDashboard().getName(): ""),
+										"Change dashboard owner",
+										"N/A",
+										"N/A",
+										"N/A",
+										result.getChangeOwnerResult(),
+										bug, 
+										notes
+										);
+							}
 							Log.info(LOGGER, "Processed output for [" + entry.getKey().getPageName() + "]");
 						}
 					}

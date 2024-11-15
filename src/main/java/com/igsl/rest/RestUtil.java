@@ -427,7 +427,7 @@ public class RestUtil<T> {
 				//Log.info(LOGGER, "allowance: " + allowance);
 			}
 			if (!requestGranted) {
-				Log.info(LOGGER, "Waiting for rate limit");
+				//Log.info(LOGGER, "Waiting for rate limit");
 				try {
 					Thread.sleep(100);
 				} catch (InterruptedException e) {

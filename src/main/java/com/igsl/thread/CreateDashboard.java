@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.igsl.CloudGadgetConfigurationMapper;
 import com.igsl.DashboardMigrator;
-import com.igsl.GadgetConfigurationComparator;
 import com.igsl.GadgetOrderComparator;
 import com.igsl.Log;
 import com.igsl.config.Config;
@@ -37,7 +36,6 @@ import com.igsl.model.CloudPermission;
 import com.igsl.model.DataCenterPortalPage;
 import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.PermissionType;
-import com.igsl.model.CloudGadget.Position;
 import com.igsl.model.mapping.Group;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
@@ -45,7 +43,6 @@ import com.igsl.model.mapping.MappingType;
 import com.igsl.model.mapping.Project;
 import com.igsl.model.mapping.Role;
 import com.igsl.model.mapping.User;
-import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
 
 public class CreateDashboard implements Callable<CreateDashboardResult> {
