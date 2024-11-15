@@ -1,9 +1,12 @@
 package com.igsl.thread;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.igsl.model.CloudDashboard;
+import com.igsl.model.CloudPermission;
 import com.igsl.model.DataCenterPortalPage;
 
 public class CreateDashboardResult {
@@ -12,8 +15,10 @@ public class CreateDashboardResult {
 	private CloudDashboard createdDashboard;
 	private String deleteDashboardResult;
 	private String createDashboardResult;
+	private List<CloudPermission> editPermissionOmitted = new ArrayList<>();
+	private List<CloudPermission> sharePermissionOmitted = new ArrayList<>();
 	// Gadget id to result message(s)
-	private Map<String, CreateGadgetResult> createGadgetResults = new HashMap<>();
+	private Map<String, CreateGadgetResult> createGadgetResults = new LinkedHashMap<>();
 	private String changeOwnerResult;
 	public String getCreateDashboardResult() {
 		return createDashboardResult;
@@ -50,5 +55,17 @@ public class CreateDashboardResult {
 	}
 	public void setDeleteDashboardResult(String deleteDashboardResult) {
 		this.deleteDashboardResult = deleteDashboardResult;
+	}
+	public List<CloudPermission> getEditPermissionOmitted() {
+		return editPermissionOmitted;
+	}
+	public void setEditPermissionOmitted(List<CloudPermission> editPermissionOmitted) {
+		this.editPermissionOmitted = editPermissionOmitted;
+	}
+	public List<CloudPermission> getSharePermissionOmitted() {
+		return sharePermissionOmitted;
+	}
+	public void setSharePermissionOmitted(List<CloudPermission> sharePermissionOmitted) {
+		this.sharePermissionOmitted = sharePermissionOmitted;
 	}
 }

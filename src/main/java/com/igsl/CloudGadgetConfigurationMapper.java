@@ -17,7 +17,6 @@ import com.igsl.config.GadgetConfigMapping;
 import com.igsl.config.GadgetType;
 import com.igsl.model.DataCenterGadgetConfiguration;
 import com.igsl.model.DataCenterPortletConfiguration;
-import com.igsl.model.mapping.Group;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;

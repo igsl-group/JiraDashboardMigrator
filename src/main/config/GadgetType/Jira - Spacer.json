@@ -1,0 +1,16 @@
+[
+	{
+		"description": "Spacer",
+		"moduleKey": "",
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "",
+		"uri": "rest/gadgets/1.0/g/com.atlassian.jirawallboard.atlassian-wallboard-plugin:spacer-gadget/gadgets/spacerGadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": "rest/gadgets/1.0/g/com.atlassian.jira.atlassian-wallboard-plugin:spacer-gadget/gadgets/spacerGadget.xml",
+		"configType": "config",
+		"config": [
+		]
+	}
+]
+
+

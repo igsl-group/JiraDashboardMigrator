@@ -42,14 +42,13 @@ import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.igsl.FilterNotMappedException;
-import com.igsl.Log;
-import com.igsl.NotAllValuesMappedException;
 import com.igsl.DashboardMigrator;
 import com.igsl.DashboardMigrator.MyChangedClause;
 import com.igsl.DashboardMigrator.MyTerminalClause;
+import com.igsl.FilterNotMappedException;
+import com.igsl.Log;
+import com.igsl.NotAllValuesMappedException;
 import com.igsl.config.Config;
-import com.igsl.model.CloudDashboard;
 import com.igsl.model.CloudFilter;
 import com.igsl.model.CloudPermission;
 import com.igsl.model.DataCenterPermission;
@@ -59,27 +58,22 @@ import com.igsl.model.mapping.CustomField;
 import com.igsl.model.mapping.CustomFieldOption;
 import com.igsl.model.mapping.Filter;
 import com.igsl.model.mapping.Group;
-import com.igsl.model.mapping.IssueType;
 import com.igsl.model.mapping.JQLFuncArg;
 import com.igsl.model.mapping.JQLFunction;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
-import com.igsl.model.mapping.Priority;
 import com.igsl.model.mapping.Project;
-import com.igsl.model.mapping.ProjectCategory;
-import com.igsl.model.mapping.ProjectComponent;
-import com.igsl.model.mapping.ProjectVersion;
 import com.igsl.model.mapping.Role;
-import com.igsl.model.mapping.Sprint;
 import com.igsl.model.mapping.User;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
-import com.igsl.rest.RestUtil;
-import com.igsl.rest.SinglePage;
 
 public class MapFilter implements Callable<MapFilterResult> {
 
+	// Function arg not quoted
+	// project = GSDT AND issuetype = "Order Provisioning" AND status in (Provisioning, Provisioned, "PM Assigned", Verified, "Pending (Customer)", "Pending (Internal)", "Pending (Others)", "Pending (Vendor)", Pending) AND assignee in (mreichl) AND "Project Manager" in (mreichl, membersOf("Service Delivery - Europe"), currentUser())
+	
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static final ObjectMapper OM = new ObjectMapper()
 			.enable(SerializationFeature.INDENT_OUTPUT)
@@ -130,12 +124,25 @@ public class MapFilter implements Callable<MapFilterResult> {
 			String name) 
 			throws Exception {
 		// If data matches custom field display name
+		List<CustomField> matchedFields = new ArrayList<>();
 		for (JiraObject<?> obj : data) {
 			if (obj.getDisplay().equals(name)) {
 				// Translate to customfield_#
-				name = obj.getInternalId();
-				break;
+				matchedFields.add((CustomField) obj);
 			}
+		}
+		if (matchedFields.size() == 1) {
+			// Single match, return field
+			return matchedFields.get(0);
+		} else if (matchedFields.size() > 1) {
+			// Prioritize system field, use the first found that is not custom
+			for (CustomField cf : matchedFields) {
+				if (!cf.isCustom()) {
+					return cf;
+				}
+			}
+			// No system field, just use first result
+			return matchedFields.get(0);
 		}
 		// If data is customfield_#
 		if (map.containsKey(name)) {
@@ -169,6 +176,44 @@ public class MapFilter implements Callable<MapFilterResult> {
 		for (Clause child :	clause.getClauses()) {
 			validateClause(filterName, child);
 		}
+	}
+	
+	private static final Pattern NON_ASCII_PATTERN = Pattern.compile("([^\\x00-\\x7F])");
+	private static final Pattern NUMERIC_PATTERN = Pattern.compile("[0-9]+");
+	/**
+	 * Ensure value (not numeric) that contains space is surrounded by double quotes.
+	 */
+	private static String sanitizeValue(String value) {
+		return sanitizeValue(value, false);
+	}
+	private static String sanitizeValue(String value, boolean addQuote) {
+		if (value != null) {
+			Matcher matcher = NUMERIC_PATTERN.matcher(value);
+			if (!matcher.matches()) {
+				// Escape double quotes in value
+				value = value.replaceAll("\"", "\\\\\"");
+				// Escape value to u####
+				StringBuilder sb = new StringBuilder();
+				matcher = NON_ASCII_PATTERN.matcher(value);
+				while (matcher.find()) {
+					String nonAscii = matcher.group(1);
+					StringBuilder replacement = new StringBuilder();
+					for (char c : nonAscii.toCharArray()) {
+						replacement.append(String.format("\\\\u%04x", (int) c));
+					}
+					matcher.appendReplacement(sb, replacement.toString());
+				}
+				matcher.appendTail(sb);
+				value = sb.toString();		
+				if (addQuote) {
+					// If contain space, add double quotes
+					if (value.contains(" ")) {
+						value = "\"" + value + "\"";
+					}
+				}
+			} // Numeric value, keep unchanged
+		}
+		return value;
 	}
 	
 	private static SingleValueOperand mapValue(
@@ -258,10 +303,16 @@ public class MapFilter implements Callable<MapFilterResult> {
 							throw new Exception(msg);
 						}
 					} else {
+						// SingleValueOperand will add double quotes
+						newValue = sanitizeValue(newValue);
 						Log.info(LOGGER, "Value validated and mapped for filter [" + filterName + "] " + 
 								"type [" + propertyName + "][" + mappingType + "] " + 
 								"value [" + originalValue + "] -> [" + newValue + "]");
-						result = new SingleValueOperand(newValue);
+						if (isLong) {
+							result = new SingleValueOperand(Long.parseLong(newValue));
+						} else {
+							result = new SingleValueOperand(newValue);
+						}
 					}
 				}
 			} else if (	mappedCustomField != null && 
@@ -286,26 +337,25 @@ public class MapFilter implements Callable<MapFilterResult> {
 					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] " + 
 							"type [" + propertyName + "][" + mappingType + "] " + 
 							"value [" + originalValue + "]");
-					result = new SingleValueOperand(originalValue);
+					result = new SingleValueOperand(sanitizeValue(originalValue));
 				}
 			} else {
 				if (isLong) {
 					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] " + 
 							"type [" + propertyName + "][" + mappingType + "] " + 
 							"value [" + originalValue + "]");
-					result = new SingleValueOperand(originalValue);
+					result = new SingleValueOperand(Long.parseLong(originalValue));
 				} else {
 					Log.warn(LOGGER, "Value unchanged for filter [" + filterName + "] " + 
 							"type [" + propertyName + "][" + mappingType + "] " + 
 							"value [" + originalValue + "]");
-					result = new SingleValueOperand(originalValue);
+					result = new SingleValueOperand(sanitizeValue(originalValue));
 				}
 			}
 		}
 		return result;
 	}
 	
-	@SuppressWarnings("incomplete-switch")
 	private static String mapArgument(
 			String argument, MappingType mappingType, 
 			Mapping map, List<JiraObject<?>> dataList) throws Exception {
@@ -313,98 +363,15 @@ public class MapFilter implements Callable<MapFilterResult> {
 		if (mappingType != null) {
 			boolean validated = false;
 			boolean mapped = false;
-			// Handle types used in JQLFunction
-			switch (mappingType) {
-			case USER:
-				for (Object obj : dataList) {
-					User o = (User) obj;
-					if (o.getKey().equalsIgnoreCase(argument) || 
-						o.getDisplayName().equalsIgnoreCase(argument) || 
-						o.getName().equalsIgnoreCase(argument)) {
-						validated = true;
-						if (map.getMapped().containsKey(o.getKey())) {
-							mapped = true;
-							User u = (User) map.getMapped().get(o.getKey());
-							result = u.getAccountId();
-						}
-						break;
+			for (Object obj : dataList) {
+				JiraObject<?> o = (JiraObject<?>) obj;
+				if (o.jqlEquals(argument)) {
+					validated = true;
+					if (map.getMapped().containsKey(o.getInternalId())) {
+						mapped = true;
+						result = map.getMapped().get(o.getInternalId()).getJQLName();						
 					}
 				}
-				break;
-			case PROJECT:
-				for (Object obj : dataList) {
-					Project o = (Project) obj;
-					if (o.getId().equalsIgnoreCase(argument) || 
-						o.getKey().equalsIgnoreCase(argument) || 
-						o.getName().equalsIgnoreCase(argument)) {
-						validated = true;
-						if (map.getMapped().containsKey(o.getId())) {
-							mapped = true;
-							Project p = (Project) map.getMapped().get(o.getId());
-							result = p.getKey();
-						}
-						break;
-					}
-				}
-				break;
-			case ROLE:
-				for (Object obj : dataList) {
-					Role o = (Role) obj;
-					if (o.getId().equalsIgnoreCase(argument) || 
-						o.getName().equalsIgnoreCase(argument)) {
-						validated = true;
-						if (map.getMapped().containsKey(o.getId())) {
-							mapped = true;
-							Role r = (Role) map.getMapped().get(o.getId());
-							result = r.getName();
-						}
-						break;
-					}
-				}
-				break;
-			case GROUP:
-				for (Object obj : dataList) {
-					Group o = (Group) obj;
-					if (o.getName().equalsIgnoreCase(argument)) {
-						validated = true;
-						if (map.getMapped().containsKey(o.getName())) {
-							mapped = true;
-							Group grp = (Group) map.getMapped().get(o.getName());
-							result = grp.getName();
-						}
-						break;
-					}
-				}
-				break;
-			case CUSTOM_FIELD: 
-				for (Object obj : dataList) {
-					CustomField o = (CustomField) obj;
-					if (o.getName().equalsIgnoreCase(argument)) {
-						validated = true;
-						if (map.getMapped().containsKey(o.getName())) {
-							mapped = true;
-							CustomField grp = (CustomField) map.getMapped().get(o.getName());
-							result = grp.getName();
-						}
-						break;
-					}
-				}
-				break;
-			case CUSTOM_FIELD_OPTION:
-				for (Object obj : dataList) {
-					CustomFieldOption o = (CustomFieldOption) obj;
-					if (	o.getId().equalsIgnoreCase(argument) || 
-							o.getValue().equalsIgnoreCase(argument)) {
-						validated = true;
-						if (map.getMapped().containsKey(o.getId())) {
-							mapped = true;
-							CustomFieldOption grp = (CustomFieldOption) map.getMapped().get(o.getId());
-							result = grp.getValue();
-						}
-						break;
-					}
-				}
-				break;
 			}
 			if (!validated) {
 				throw new Exception("Argument [" + argument + "] not validated as " + mappingType);
@@ -415,6 +382,106 @@ public class MapFilter implements Callable<MapFilterResult> {
 		} // Else treat as string, no change
 		Log.info(LOGGER, "Argument [" + argument + "] -> [" + result + "]");
 		return result;
+	}
+	
+	private static Operand mapOperand(
+			String filterName,
+			String clauseName,
+			Map<MappingType, List<JiraObject<?>>> data,
+			Map<MappingType, Mapping> maps, 
+			MappingType mappingType,
+			CustomField mappedCustomField, 
+			Operand operand,
+			boolean ignoreFilter) throws Exception {
+		Operand clone = null;
+		if (operand instanceof SingleValueOperand) {
+			SingleValueOperand svo = (SingleValueOperand) operand;
+			// Change value
+			clone = mapValue(svo, 
+					mappingType, 
+					mappedCustomField, 
+					data, maps, 
+					filterName, clauseName, ignoreFilter);
+		} else if (operand instanceof MultiValueOperand) {
+			MultiValueOperand mvo = (MultiValueOperand) operand;
+			List<Operand> list = new ArrayList<>();
+			for (Operand item : mvo.getValues()) {
+				Operand itemClone = mapOperand(
+						filterName, 
+						clauseName, 
+						data, 
+						maps,
+						mappingType,
+						mappedCustomField, 
+						item,
+						ignoreFilter);
+				list.add(itemClone);
+			}
+			clone = new MultiValueOperand(list);
+		} else if (operand instanceof FunctionOperand) {
+			FunctionOperand fo = (FunctionOperand) operand;
+			JQLFunction func = JQLFunction.parse(fo.getName());
+			if (func == null) {
+				// Unrecognized function
+				throw new Exception("Unrecognized JQL function [" + fo.getName() + "]");
+			}
+			// Check if obsolete
+			if (func.isObsolete()) {
+				throw new Exception("JQL function [" + fo.getName() + "] is obsolete");
+			}
+			// Check arguments
+			List<String> args = new ArrayList<>();
+			JQLFuncArg[] argDefList = func.getArguments();
+			if (argDefList != null) {
+				// If argument is present, check against type and remap value if needed
+				for (int i = 0; i < fo.getArgs().size(); i++) {
+					if (i >= argDefList.length) {
+						// Too many arguments
+						throw new Exception(
+								"Too many arguments #" + i + " for JQL function [" + fo.getName() + "]");
+					}
+					JQLFuncArg argDef = argDefList[i];
+					MappingType type = argDef.getMappingType();
+					if (argDef.isVarArgs()) {
+						// Varargs, consume the rest of the arguments
+						for (int j = i; j < fo.getArgs().size(); j++) {
+							String newValue = mapArgument(
+									fo.getArgs().get(j), 
+									type, 
+									maps.get(type), 
+									data.get(type));
+							args.add(newValue);
+						}
+						break;	// for loop
+					} else {
+						// Singular argument
+						String newValue = mapArgument(
+								fo.getArgs().get(i), 
+								type, 
+								maps.get(type), 
+								data.get(type));
+						args.add(newValue);
+					}
+				}
+			} else {
+				for (String s : fo.getArgs()) {
+					args.add(s);
+				}
+			}
+			// Quote arguments if they contain space
+			List<String> quotedArgs = new ArrayList<>();
+			for (String s : args) {
+				s = sanitizeValue(s, true);
+				quotedArgs.add(s);
+			}
+			clone = new FunctionOperand(fo.getName(), quotedArgs);
+		} else if (operand instanceof EmptyOperand) {
+			clone = operand;
+		} else {
+			Log.warn(LOGGER, "Unrecognized Operand class for filter [" + filterName + "] class [" + operand + "], reusing reference");
+			clone = operand;
+		}
+		return clone;
 	}
 	
 	private static Clause mapClause(
@@ -429,7 +496,7 @@ public class MapFilter implements Callable<MapFilterResult> {
 		if (c != null) {
 			Log.debug(LOGGER, "Clause: [" + c + "], [" + c.getClass() + "]");
 			String propertyName = c.getName();
-			String newPropertyName = propertyName;
+			String newPropertyName = sanitizeValue(propertyName, true);
 			MappingType mappingType = null;
 			CustomField mappedCustomField = null;
 			if (propertyName != null) {
@@ -444,7 +511,7 @@ public class MapFilter implements Callable<MapFilterResult> {
 					if (mappedCustomField != null) {
 						Log.info(LOGGER, "Custom field recognized: [" + propertyName + "] -> " + 
 								"[" + mappedCustomField.getId() + "]");						
-						newPropertyName = mappedCustomField.getJQLName();
+						newPropertyName = sanitizeValue(mappedCustomField.getJQLName(), true);
 					} else {
 						Log.info(LOGGER, "Custom field not recognized: [" + propertyName + "]");						
 					}
@@ -467,130 +534,17 @@ public class MapFilter implements Callable<MapFilterResult> {
 				clone = new NotClause(clonedChildren.get(0));
 			} else if (c instanceof TerminalClause) {
 				TerminalClause tc = (TerminalClause) c;
-				Operand originalOperand = tc.getOperand();
-				Operand clonedOperand = null;
-				List<String> unmappedValues = new ArrayList<>();
-//				if (mappingType != null) {
-					// Modify value
-					if (originalOperand instanceof SingleValueOperand) {
-						SingleValueOperand svo = (SingleValueOperand) originalOperand;
-						// Change value
-						clonedOperand = mapValue(svo, 
-								mappingType, 
-								mappedCustomField, 
-								data, maps, 
-								filterName, tc.getName(), ignoreFilter);
-					} else if (originalOperand instanceof MultiValueOperand) {
-						MultiValueOperand mvo = (MultiValueOperand) originalOperand;
-						List<Operand> list = new ArrayList<>();
-						for (Operand item : mvo.getValues()) {
-							if (item instanceof SingleValueOperand) {
-								// Change value
-								SingleValueOperand svo = (SingleValueOperand) item;
-								try {
-									SingleValueOperand result = mapValue(
-											svo, 
-											mappingType, 
-											mappedCustomField, 
-											data, maps, 
-											filterName, tc.getName(), ignoreFilter);
-									list.add(result);
-								} catch (Exception ex) {
-									unmappedValues.add((svo.getLongValue() != null)? 
-											Long.toString(svo.getLongValue()) : 
-											svo.getStringValue());
-								}
-							} else {
-								list.add(item);
-							}
-						}
-						if (list.size() != 0) {
-							clonedOperand = new MultiValueOperand(list);
-						} else {
-							StringBuilder sb = new StringBuilder();
-							for (String s : unmappedValues) {
-								sb.append("[").append(s).append("]");
-							}
-							throw new Exception("Not all values in MultiValueOperand mapped, " + 
-									"type: " + mappingType + " " + 
-									"unmapped values: " + sb.toString());
-						}
-					} else if (originalOperand instanceof FunctionOperand) {
-						FunctionOperand fo = (FunctionOperand) originalOperand;
-						JQLFunction func = JQLFunction.parse(fo.getName());
-						if (func == null) {
-							// Unrecognized function
-							throw new Exception("Unrecognized JQL function [" + fo.getName() + "]");
-						}
-						// Check if obsolete
-						if (func.isObsolete()) {
-							throw new Exception("JQL function [" + fo.getName() + "] is obsolete");
-						}
-						// Check arguments
-						List<String> args = new ArrayList<>();
-						JQLFuncArg[] argDefList = func.getArguments();
-						if (argDefList != null) {
-							// If argument is present, check against type and remap value if needed
-							for (int i = 0; i < fo.getArgs().size(); i++) {
-								if (i >= argDefList.length) {
-									// Too many arguments
-									throw new Exception(
-											"Too many arguments #" + i + " for JQL function [" + fo.getName() + "]");
-								}
-								JQLFuncArg argDef = argDefList[i];
-								MappingType type = argDef.getMappingType();
-								if (argDef.isVarArgs()) {
-									// Varargs, consume the rest of the arguments
-									for (int j = i; j < fo.getArgs().size(); j++) {
-										String newValue = mapArgument(
-												fo.getArgs().get(j), 
-												type, 
-												maps.get(type), 
-												data.get(type));
-										args.add(newValue);
-									}
-									break;	// for loop
-								} else {
-									// Singular argument
-									String newValue = mapArgument(
-											fo.getArgs().get(i), 
-											type, 
-											maps.get(type), 
-											data.get(type));
-									args.add(newValue);
-								}
-							}
-						} else {
-							for (String s : fo.getArgs()) {
-								args.add(s);
-							}
-						}
-						// Quote arguments if they contain space
-						List<String> quotedArgs = new ArrayList<>();
-						for (String s : args) {
-							if (s.contains(" ")) {
-								s = "\"" + s + "\"";
-							}
-							quotedArgs.add(s);
-						}
-						clonedOperand = new FunctionOperand(fo.getName(), quotedArgs);
-					} else if (originalOperand instanceof EmptyOperand) {
-						clonedOperand = originalOperand;
-					} else {
-						Log.warn(LOGGER, "Unrecognized Operand class for filter [" + filterName + "] class [" + originalOperand.getClass()
-								+ "], reusing reference");
-						clonedOperand = originalOperand;
-					}
-//				} else {
-//					// No change
-//					clonedOperand = originalOperand;
-//				}
+				Operand clonedOperand = mapOperand(
+						filterName, 
+						tc.getName(), 
+						data, 
+						maps, 
+						mappingType, 
+						mappedCustomField, 
+						tc.getOperand(), 
+						ignoreFilter);
 				// Create clone
 				clone = new MyTerminalClause(newPropertyName, tc.getOperator(), clonedOperand);
-				if (unmappedValues.size() != 0) {
-					// Throw clone as NotAllValuesMappedException
-					throw new NotAllValuesMappedException(clone, unmappedValues);
-				}
 			} else if (c instanceof WasClause) {
 				WasClause wc = (WasClause) c;
 				clone = new WasClauseImpl(newPropertyName, wc.getOperator(), wc.getOperand(), wc.getPredicate());
@@ -792,6 +746,7 @@ public class MapFilter implements Callable<MapFilterResult> {
 				// So don't count them as error, just let them proceed as is
 				// If it fails on update then so be it
 				String newColumn = (cf != null)? cf.getJQLName() : ss.getField();
+				newColumn = sanitizeValue(newColumn, true);
 				SearchSort newSS = new SearchSort(
 						newColumn, ss.getProperty(), ss.getSortOrder());
 				sortList.add(newSS);
@@ -839,6 +794,8 @@ public class MapFilter implements Callable<MapFilterResult> {
 						result.setException(new Exception(msg));
 						return result;
 					}
+					Log.info(LOGGER, 
+							"Updated filter [" + outputFilter.getName() + "] (" + outputFilter.getId() + ")");
 				} else {
 					// Overwrite disabled, add to mapping but count as error
 					mappings.get(MappingType.FILTER).getMapped().put(filter.getId(), existingFilter);
@@ -854,21 +811,23 @@ public class MapFilter implements Callable<MapFilterResult> {
 				CloudFilter cloudFilter = CloudFilter.create(outputFilter);
 				cloudFilter.getEditPermissions().add(CloudPermission.create(myPermission));
 				Log.info(LOGGER, "Payload: " + OM.writeValueAsString(cloudFilter));
-				List<Filter> filterCreated = util
+				respFilter = util
 						.path("/rest/api/latest/filter")
 						.method(HttpMethod.POST)
 						.query("overrideSharePermissions", true)
 						.payload(cloudFilter)
-						.pagination(new SinglePage<Filter>(Filter.class, null))
 						.status()
-						.requestNextPage();
-				if (filterCreated == null || filterCreated.size() != 1) {
-					String msg = "Failed to create filter [" + filter.getName() + "]";
+						.request();
+				if ((respFilter.getStatus() & Status.OK.getStatusCode()) != Status.OK.getStatusCode()) {
+					String msg = "Failed to create filter [" + filter.getName() + "] " + 
+								"[" +  respFilter.readEntity(String.class) + "]";
 					result.setException(new Exception(msg));
 					return result;
 				}
+				Filter createdFilter = respFilter.readEntity(Filter.class);
+				Log.info(LOGGER, "Filter created [" + filter.getName() + "] (" + createdFilter.getId() + ")");
 				// Update id
-				outputFilter.setId(filterCreated.get(0).getId());
+				outputFilter.setId(createdFilter.getId());
 				// Change owner
 				Map<String, Object> payload = new HashMap<>();
 				payload.put("accountId", outputFilter.getOwner().getAccountId());
@@ -884,6 +843,9 @@ public class MapFilter implements Callable<MapFilterResult> {
 					result.setException(new Exception(msg));
 					return result;
 				}
+				Log.info(LOGGER, 
+						"Changed filter [" + outputFilter.getName() + "] (" + outputFilter.getId() + ") " + 
+						"owner to [" + outputFilter.getOwner().getAccountId() + "]");
 			}
 		} // else API disabled, count as success
 		// Add to mapping

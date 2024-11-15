@@ -3,10 +3,10 @@
 		"description": "Test Execution Time Tracking", 
 		"moduleKey": null,
 		"moduleKeyCompare": "MATCHES",
-		"newModuleKey": null,
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.thed.zephyr.je__test-execution-time-tracking-gadget",
 		"uri": "rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-cycle-execution-workflow-time/gadgets/cycle-execution-workflow-time.xml",
 		"uriCompare": "MATCHES",
-		"newUri": "",
+		"newUri": null,
 		"configType": "config",
         "implementationClass": "com.igsl.config.zephyrsquad.ZephyrSquad",
         "config": [

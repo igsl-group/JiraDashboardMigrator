@@ -17,6 +17,39 @@ public class CloudPermission {
 	private PermissionTarget role;
 	private PermissionTarget user;
 
+	@Override
+	public String toString() {
+		String result = "";
+		PermissionType cpt = PermissionType.parse(type);
+		switch (cpt) {
+		case GLOBAL: 
+			result = "Global";
+			break;
+		case LOGGED_IN:
+			result = "Logged in users";
+			break;
+		case PROJECT_UNKNOWN:
+			// No other fields required
+			result = "Unknown project";
+			break;
+		case GROUP:
+			result = "Group [" + group.getName() + "]";
+			break;
+		case PROJECT:
+			result = "Project (" + project.getId() + ")";
+			// Fall-through to role
+		case PROJECT_ROLE:
+			if (role != null) {
+				result += " Role (" + role.getId() + ")";
+			}
+			break;
+		case USER:
+			result = "User (" + user.getAccountId() + ")";
+			break;
+		}
+		return result;
+	}
+	
 	public CloudPermission clone() {
 		CloudPermission result = new CloudPermission();
 		result.setGroup(this.getGroup() != null? this.getGroup().clone() : null);

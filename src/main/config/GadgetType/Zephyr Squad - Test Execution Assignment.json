@@ -1,0 +1,15 @@
+[
+	{
+		"description": "Test Execution Assignment", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.thed.zephyr.je__test-execution-assignee-gadget",
+		"uri": "rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-assignee-execution-status/gadgets/assignee-execution-status.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": "config",
+        "implementationClass": "com.igsl.config.zephyrsquad.ZephyrSquad",
+        "config": [
+        ]
+	}
+]

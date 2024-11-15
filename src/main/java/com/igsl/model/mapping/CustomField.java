@@ -32,8 +32,9 @@ public class CustomField extends JiraObject<CustomField> {
 		Matcher matcher = PATTERN.matcher(id);
 		if (matcher.matches()) {
 			return "cf[" + matcher.group(1) + "]";
+		} else {
+			return id;
 		}
-		return name;
 	}
 	
 	@Override

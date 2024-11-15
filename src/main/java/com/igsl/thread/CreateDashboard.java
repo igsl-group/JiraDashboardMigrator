@@ -3,6 +3,7 @@ package com.igsl.thread;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -22,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.igsl.CloudGadgetConfigurationMapper;
 import com.igsl.DashboardMigrator;
+import com.igsl.GadgetConfigurationComparator;
 import com.igsl.GadgetOrderComparator;
 import com.igsl.Log;
 import com.igsl.config.Config;
@@ -35,6 +37,7 @@ import com.igsl.model.CloudPermission;
 import com.igsl.model.DataCenterPortalPage;
 import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.PermissionType;
+import com.igsl.model.CloudGadget.Position;
 import com.igsl.model.mapping.Group;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
@@ -57,7 +60,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 			.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 	
 	private static final String SUCCESS = "Success";
-	private static final String SPACER_GADGET_MODULE_KEY = 
+	private static final String SPACER_GADGET_URI = 
 			"rest/gadgets/1.0/g/com.atlassian.jira.atlassian-wallboard-plugin:spacer-gadget/gadgets/spacerGadget.xml";
 	
 	private Config config;
@@ -150,6 +153,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 			Log.warn(LOGGER, "Dashboard [" + dashboard.getName() + "] " + 
 					"share permission to inaccessible user [" + OM.writeValueAsString(permission) + "] " + 
 					"is excluded");
+			result = null;
 			break;
 		case PROJECT_UNKNOWN:	
 			// This happens when you share to a project you cannot access. 
@@ -158,6 +162,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 			Log.warn(LOGGER, "Dashboard [" + dashboard.getName() + "] " + 
 					"share permission to inaccessible objects [" + OM.writeValueAsString(permission) + "] " + 
 					"is excluded");
+			result = null;
 			break;
 		case GROUP:
 			if (mappings.get(MappingType.GROUP).getMapped().containsKey(permission.getGroup().getName())) {
@@ -170,6 +175,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 						"is shared to unmapped group [" + permission.getGroup().getName() + "] " + 
 						"This share is excluded";
 				Log.warn(LOGGER, msg);
+				result = null;
 			}
 			break;
 		case PROJECT:	// Fall-through
@@ -186,10 +192,12 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 							"is shared to unmapped project [" + permission.getProject().getId() + "] " + 
 							"This share is excluded";
 					Log.warn(LOGGER, msg);
+					result = null;
+					break;
 				}
 			} else if (permission.getRole() != null) {
-				// Has role, add as project-role
 				result.setType(PermissionType.PROJECT_ROLE.toString());
+				// Has role, add as project-role
 				if (mappings.get(MappingType.PROJECT).getMapped().containsKey(permission.getProject().getId())) {
 					Project r = (Project) mappings.get(MappingType.PROJECT).getMapped()
 							.get(permission.getProject().getId());
@@ -200,6 +208,8 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 							"is shared to unmapped project [" + permission.getProject().getId() + "] " + 
 							"This share is excluded";
 					Log.warn(LOGGER, msg);
+					result = null;
+					break;
 				}
 				if (mappings.get(MappingType.ROLE).getMapped().containsKey(permission.getRole().getId())) {
 					Role r = (Role) mappings.get(MappingType.ROLE).getMapped()
@@ -211,6 +221,8 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 							"is shared to unmapped role [" + permission.getRole().getId() + "] " + 
 							"This share is excluded";
 					Log.warn(LOGGER, msg);
+					result = null;
+					break;
 				}
 			}
 			break;
@@ -225,8 +237,56 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 						"is shared to unmapped user [" + permission.getUser().getAccountId() + "] " + 
 						"This share is excluded";
 				Log.warn(LOGGER, msg);
+				result = null;
 			}
 			break;
+		}
+		return result;
+	}
+	
+	/**
+	 * Fix dashboard portlets coordinates.
+	 * 
+	 * Gadget coordinates dumped form Server database can have holes in them.
+	 * We can assume holes can appear anywhere.
+	 * 
+	 * The way dashboard works is each column must be filled from top to bottom.
+	 * 
+	 * So we will sort the gadgets by original row then column.
+	 * Respect the original column, but assign a new row.
+	 * 
+	 * Returns LinkedHashMap, key is fixed gadget, value is original gadget.
+	 */
+	private Map<DataCenterPortletConfiguration, DataCenterPortletConfiguration> layoutGadgets(DataCenterPortalPage dashboard) {
+		Map<DataCenterPortletConfiguration, DataCenterPortletConfiguration> result = new LinkedHashMap<>();
+		final int MAX_COL = 1;	// 2-column layout is the default and cannot be changed via REST API
+		// Sort the gadgets
+		dashboard.getPortlets().sort(new GadgetOrderComparator(true));
+		// Clone and add to result
+		for (DataCenterPortletConfiguration gadget : dashboard.getPortlets()) {
+			result.put(gadget.clone(), gadget);
+		}
+		// Overflow and adjust row to prevent holes
+		int col0LastRow = 0;
+		int col1LastRow = 0;
+		for (DataCenterPortletConfiguration gadget : result.keySet()) {
+			int col = gadget.getColumnNumber();
+			if (col > MAX_COL) {
+				col = 0;	// Overflow to next row
+			}
+			int row;
+			switch (col) {
+			case 0:
+				row = col0LastRow;
+				col0LastRow++;
+				break;
+			default:
+				row = col1LastRow;
+				col1LastRow++;
+				break;
+			}
+			gadget.setColumnNumber(col);
+			gadget.setPositionSeq(row);
 		}
 		return result;
 	}
@@ -236,6 +296,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 	 */
 	@Override
 	public CreateDashboardResult call() throws Exception {
+		Log.info(LOGGER, "Thread start: " + this.dashboard.getPageName());
 		Map<Class<?>, Class<?>> mixinMap = new HashMap<>();
 		mixinMap.put(CloudDashboard.class, CloudDashboardMixin.class);
 		mixinMap.put(CloudGadget.class, CloudGadgetMixin.class);
@@ -276,41 +337,30 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 		// Map permission targets
 		List<CloudPermission> newEditPermissions = new ArrayList<>();
 		for (CloudPermission editPermission : cd.getEditPermissions()) {
-			newEditPermissions.add(mapPermission(cd, editPermission, mappings));
+			CloudPermission newPermission = mapPermission(cd, editPermission, mappings);
+			if (newPermission != null) {
+				newEditPermissions.add(newPermission);
+			} else {
+				result.getEditPermissionOmitted().add(editPermission);
+			}
 		}
 		cd.setEditPermissions(newEditPermissions);
 		List<CloudPermission> newSharePermissions = new ArrayList<>();
 		for (CloudPermission sharePermission : cd.getSharePermissions()) {
-			newSharePermissions.add(mapPermission(cd, sharePermission, mappings));
+			CloudPermission newPermission = mapPermission(cd, sharePermission, mappings);
+			if (newPermission != null) {
+				newSharePermissions.add(newPermission);
+			} else {
+				result.getSharePermissionOmitted().add(sharePermission);
+			}
 		}
 		cd.setSharePermissions(newSharePermissions);
 		Log.info(LOGGER, "CloudDashboard: " + OM.writeValueAsString(cd));
-		// Check if exists for current user, if it does, delete and recreate
-		List<CloudDashboard> list = util
-				.path("/rest/api/latest/dashboard/search")
-				.query("dashboardName", "\"" + dashboard.getPageName() + "\"")
-				.query("accountId", accountId)
-				.method(HttpMethod.GET)
-				.pagination(new Paged<CloudDashboard>(CloudDashboard.class).maxResults(1))
-				.requestNextPage();
-		if (list.size() != 0) {
-			// Delete dashboard
-			Response deleteResp = util
-					.path("/rest/api/latest/dashboard/{boardId}")
-					.pathTemplate("boardId", list.get(0).getId()) 
-					.method(HttpMethod.DELETE)
-					.status()
-					.request();
-			if (!checkStatusCode(deleteResp, Status.NO_CONTENT)) {
-				String msg = "Unable to delete dashboard [" + dashboard.getPageName() + "] to recreate it: " + 
-						deleteResp.readEntity(String.class);
-				Log.error(LOGGER, msg);
-				result.setDeleteDashboardResult(msg);
-				return result;
-			} else {
-				result.setDeleteDashboardResult(SUCCESS);
-			}
-		}
+		// Problems exist in Atlassian Cloud REST API that makes searching for dashboard already exists is not possible.
+		// 1. Search dashboard API cannot handle dash in names. 
+		// 2. Search dashboard API cannot handle data size change during paging calls. 
+		// So instead, we can only ensure current user has no dashboard before it all starts. 
+		// And hope change owner at the end of each thread don't fail. 
 		Log.info(LOGGER, "Creating dashboard [" + dashboard.getPageName() + "]");
 		// Create dashboard
 		Response createResp = util
@@ -335,16 +385,19 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 				newDir.resolve(dashboardFileName).toString(), 
 				cd,
 				mixinMap);
-		// It is impossible to change layout via REST, WTF Atlassian		
-		// Dashboard layout can only have 1 to 3 columns. Default is 2 columns.
-		// Overflow to next row if layout has 3 columns.
-		int maxCol = 1;
-		int rowOffset = 0;
-		for (DataCenterPortletConfiguration gadget : dashboard.getPortlets()) {
+		Map<DataCenterPortletConfiguration, DataCenterPortletConfiguration> gadgets = layoutGadgets(dashboard);
+		for (Map.Entry<DataCenterPortletConfiguration, DataCenterPortletConfiguration> gadget : gadgets.entrySet()) {
+			Log.info(LOGGER, 
+					"Gadget [" + gadget.getValue().getDashboardCompleteKey() + "]: " + 
+					"(" + gadget.getValue().getPositionSeq() + "," + gadget.getValue().getColumnNumber() + ") => " + 
+					"(" + gadget.getKey().getPositionSeq() + "," + gadget.getKey().getColumnNumber() + ")"
+					);
+		}		
+		for (Map.Entry<DataCenterPortletConfiguration, DataCenterPortletConfiguration> gadget : gadgets.entrySet()) {
 			CreateGadgetResult gadgetResult = new CreateGadgetResult();
-			gadgetResult.setOriginalGadget(gadget);
+			gadgetResult.setOriginalGadget(gadget.getValue());
 			// Map gadget
-			DataCenterPortletConfiguration clone = gadget.clone();
+			DataCenterPortletConfiguration clone = gadget.getKey().clone();
 			try {
 				CloudGadgetConfigurationMapper.mapConfiguration(clone, mappings);
 			} catch (Exception ex) {
@@ -357,19 +410,10 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 			}
 			// Add gadgets
 			CloudGadget cg = CloudGadget.create(clone, false);
-			int originalCol = cg.getPosition().getColumn();
-			int originalRow = cg.getPosition().getRow();
-			if (originalCol > maxCol) {
-				// Overflow to next row as 2nd column
-				rowOffset++;
-				cg.getPosition().setColumn(1);
-			}
-			// Add rowOffset
-			cg.getPosition().setRow(originalRow + rowOffset);
 			// Record gadget in created dashboard
 			cd.getGadgets().add(cg);
 			// Add gadget
-			Log.info(LOGGER, "DC Gadget: " + OM.writeValueAsString(gadget));
+			Log.info(LOGGER, "DC Gadget: " + OM.writeValueAsString(gadget.getValue()));
 			Log.info(LOGGER, "Cloud Gadget: " + OM.writeValueAsString(cg));
 			Response gadgetResp = util.path("/rest/api/latest/dashboard/{boardId}/gadget")
 					.pathTemplate("boardId", createdDashboard.getId())
@@ -384,8 +428,9 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 				gadgetResult.setCreateResult(msg);
 				// Add empty space instead
 				CloudGadget cgSpacer = cg.clone();
-				cgSpacer.setModuleKey(SPACER_GADGET_MODULE_KEY);
-				cgSpacer.setUri(null);
+				cgSpacer.setModuleKey(null);
+				cgSpacer.setUri(SPACER_GADGET_URI);
+				cgSpacer.setTitle(cgSpacer.getTitle() + " [Plugin not supported]");
 				Response spacerResp = util.path("/rest/api/latest/dashboard/{boardId}/gadget")
 						.pathTemplate("boardId", createdDashboard.getId())
 						.method(HttpMethod.POST)
@@ -433,9 +478,10 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 							.payload(cc)
 							.status()
 							.request();
-						if (!checkStatusCode(configResp, Response.Status.OK)) {
+						if (!checkStatusCode(configResp, Response.Status.OK, Response.Status.CREATED)) {
 							String msg = "Failed to config for gadget [" + getGadgetIdentifier(cg) + "] " + 
 									"in dashboard [" + dashboard.getPageName() + "]: " + 
+									configResp.getStatus() + " = " + 
 									configResp.readEntity(String.class);
 							Log.error(LOGGER, msg);
 							gadgetResult.getConfigurationResult().put(configType, msg);
@@ -466,11 +512,13 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 										.pathTemplate("gadgetId", createdGadget.getId())
 										.pathTemplate("key", entry.getKey())
 										.method(HttpMethod.PUT)
+										.payload(cg.getConfigurations())
 										.status()
 										.request();
-								if (!checkStatusCode(configResp, Response.Status.OK)) {
+								if (!checkStatusCode(configResp, Response.Status.OK, Response.Status.CREATED)) {
 									String msg = "Failed to config for gadget [" + getGadgetIdentifier(cg) + "] " + 
 											"in dashboard [" + dashboard.getPageName() + "]: " + 
+											configResp.getStatus() + " = " + 
 											configResp.readEntity(String.class);
 									Log.error(LOGGER, msg);
 									gadgetResult.getConfigurationResult().put(entry.getKey(), msg);
@@ -519,6 +567,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 				newDir.resolve(dashboardFileName).toString(), 
 				cd,
 				mixinMap);
+		Log.info(LOGGER, "Thread stop: " + this.dashboard.getPageName());
 		return result;
 	}
 

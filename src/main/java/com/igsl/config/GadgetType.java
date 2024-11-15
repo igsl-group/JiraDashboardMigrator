@@ -61,6 +61,7 @@ public class GadgetType {
 								MappingIterator<GadgetType> list = reader.readValues(fr);
 								while (list.hasNext()) {
 									LIST.add(list.next());
+									Log.info(LOGGER, "Gadget config [" + t.toString() + "] loaded");
 								}
 							} catch (IOException ioex) {
 								Log.error(LOGGER, 

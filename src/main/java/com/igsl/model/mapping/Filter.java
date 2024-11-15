@@ -115,7 +115,7 @@ public class Filter extends JiraObject<Filter> {
 					.method(HttpMethod.GET)
 					.query("expand", "owner,editPermissions,sharePermissions")
 					.query("overrideSharePermissions", true)	// Override permission
-					.pagination(new Paged<Filter>(Filter.class));
+					.pagination(new Paged<Filter>(Filter.class).maxResults(100));
 			}
 		} else {
 			// There is no API to list filter in Server

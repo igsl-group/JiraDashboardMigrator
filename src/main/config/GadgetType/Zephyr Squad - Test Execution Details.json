@@ -11,30 +11,22 @@
         "config": [
             {
                 "attributeNameRegex": "filterId",
-                "newAttributeNameRegex": null,
                 "mappingType": "FILTER",
                 "pattern": "([0-9]+)",
                 "targetGroup": 1,
                 "replacement": "$1",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             },
             {
                 "attributeNameRegex": "columnNames",
-                "newAttributeNameRegex": null,
                 "mappingType": "CUSTOM_FIELD",
                 "pattern": "(customfield_)([0-9]+)",
                 "targetGroup": 2,
                 "replacement": "$1$2",
-                "delimiter": null,
                 "prefix": null,
                 "suffix": null
             }
-        ],
-        "notes": [
-                "zqltext cannot be mapped",
-                "howMany?"
         ]
     }
 ]

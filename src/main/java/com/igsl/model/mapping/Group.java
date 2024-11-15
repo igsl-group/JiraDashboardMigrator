@@ -74,7 +74,7 @@ public class Group extends JiraObject<Group> {
 			Object... data)
 			throws Exception {
 		if (cloud) {
-			return super.getObjects(config, dataClass, cloud, data);
+			return super._getObjects(config, dataClass, cloud, data);
 		} else {
 			// Get from database
 			SqlSessionFactory factory = DashboardMigrator.setupMyBatis(config);

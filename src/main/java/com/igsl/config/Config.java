@@ -5,6 +5,8 @@ public class Config {
 	public static final int DEFAULT_CONNECTION_POOL_SIZE = 10;
 	public static final int DEFAULT_THREAD_COUNT = 8;
 	public static final long DEFAULT_THREAD_WAIT = 1000L;
+	public static final long DEFAULT_LIMIT = 10;
+	public static final long DEFAULT_PERIOD = 1000;
 	
 	private String sourceDatabaseURL;
 	private String sourceDatabaseUser;
@@ -23,6 +25,9 @@ public class Config {
 	private int connectionPoolSize = DEFAULT_CONNECTION_POOL_SIZE;
 	private int threadCount = DEFAULT_THREAD_COUNT;
 	private long threadWait = DEFAULT_THREAD_WAIT;
+	
+	private long limit = DEFAULT_LIMIT;
+	private long period = DEFAULT_PERIOD;
 	
 	private boolean jerseyLog = false;
 	
@@ -45,6 +50,9 @@ public class Config {
 		c.connectionPoolSize = DEFAULT_CONNECTION_POOL_SIZE;
 		c.threadCount = DEFAULT_THREAD_COUNT;
 		c.threadWait = DEFAULT_THREAD_WAIT;
+		
+		c.limit = DEFAULT_LIMIT;
+		c.period = DEFAULT_PERIOD;
 		
 		return c;
 	}
@@ -168,5 +176,21 @@ public class Config {
 
 	public void setThreadWait(long threadWait) {
 		this.threadWait = threadWait;
+	}
+
+	public long getLimit() {
+		return limit;
+	}
+
+	public void setLimit(long limit) {
+		this.limit = limit;
+	}
+
+	public long getPeriod() {
+		return period;
+	}
+
+	public void setPeriod(long period) {
+		this.period = period;
 	}
 }

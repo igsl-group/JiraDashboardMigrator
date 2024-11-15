@@ -50,10 +50,20 @@ public class CloudGadget {
 	}
 
 	@JsonInclude(value = JsonInclude.Include.NON_NULL)
-	public class Position {
+	public static class Position {
 		private int row;
 		private int column;
 
+		public Position() {
+			this.row = 0;
+			this.column = 0;
+		}
+		
+		public Position(int row, int column) {
+			this.row = row;
+			this.column = column;
+		}
+		
 		public int getRow() {
 			return row;
 		}
@@ -107,7 +117,7 @@ public class CloudGadget {
 			if (data.getDashboardCompleteKey() == null) {
 				result.uri = data.getGadgetXml();
 			}
-			result.position = result.new Position();
+			result.position = new Position();
 			result.position.row = data.getPositionSeq();
 			result.position.column = data.getColumnNumber();
 			

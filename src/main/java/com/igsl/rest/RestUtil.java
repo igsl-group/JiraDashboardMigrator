@@ -132,7 +132,7 @@ public class RestUtil<T> {
 	 * Includes:
 	 * - scheme
 	 * - host
-	 * - authenticate 
+	 * - authenticate
 	 * @param config
 	 * @throws UnsupportedEncodingException 
 	 * @throws URISyntaxException 
@@ -294,10 +294,9 @@ public class RestUtil<T> {
 	 * @param maxCall Max. no. of calls per period.
 	 * @param period Milliseconds in one period.
 	 */
-	public RestUtil<T> throttle(long maxCall, long period) {
-		this.maxCall = maxCall;
-		this.period = period;
-		return this;
+	public static void throttle(long maxCall, long period) {
+		RestUtil.maxCall = maxCall;
+		RestUtil.period = period;
 	}
 	
 	/**
@@ -414,7 +413,7 @@ public class RestUtil<T> {
 				//Log.info(LOGGER, "allowance: " + allowance);
 			}
 			if (!requestGranted) {
-				//Log.info(LOGGER, "Waiting for rate limit");
+				Log.info(LOGGER, "Waiting for rate limit");
 				try {
 					Thread.sleep(100);
 				} catch (InterruptedException e) {
@@ -438,21 +437,21 @@ public class RestUtil<T> {
 			doRetry = false;
 			try {
 				// Check rate of API calls
-				//Log.info(LOGGER, "Rate check");
+				Log.info(LOGGER, "Rate check");
 				rateCheck();
 				// Get client from pool
-				//Log.info(LOGGER, "ClientPool check");
+				Log.info(LOGGER, "ClientPool check");
 				while (client == null) {
 					client = ClientPool.get();
 					if (client == null) {
-						//Log.info(LOGGER, "Waiting for client pool");
+						Log.info(LOGGER, "Waiting for client pool");
 						try {
 							Thread.sleep(100);
 						} catch (InterruptedException e) {
 							Log.error(LOGGER, "Client pool sleep interrupted", e);
 						}
 					} else {
-						//Log.info(LOGGER, "Client received");
+						Log.info(LOGGER, "Client received");
 					}
 				}
 				client.register(JACKSON_JSON_PROVIDER);
@@ -566,8 +565,7 @@ public class RestUtil<T> {
 						t = ex.getCause();
 					}
 				}
-				Log.error(LOGGER, "Exception class: " + t.getClass());
-				Log.error(LOGGER, "Excepteion message: " + t.getMessage());
+				Log.error(LOGGER, "Exception class: " + t.getClass(), t);
 				if (retryExceptionList != null) {
 					for (Class<? extends Throwable> cls : retryExceptionList) {
 						if (cls.isAssignableFrom(t.getClass())) {
@@ -581,17 +579,24 @@ public class RestUtil<T> {
 							}
 						}
 					}
+					if (!doRetry) {
+						// Exception is not in retryable list
+						throw ex;
+					}
+				} else {
+					// No retrying, throw exception
+					throw ex;
 				}
 			} finally {
 				ClientPool.release(client);
 				client = null;
-				//Log.info(LOGGER, "Client returned to pool");
+				Log.info(LOGGER, "Client returned to pool");
 			}
 			if (doRetry) {
 				retryCount++;
 				// Put a slight delay before retrying
 				try {
-					//Log.info(LOGGER, "Waiting before retry");
+					Log.info(LOGGER, "Waiting before retry");
 					Thread.sleep(1000);
 				} catch (InterruptedException iex) {
 					Log.error(LOGGER, "Retry sleep interrutped", iex);

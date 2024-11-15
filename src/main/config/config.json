@@ -17,5 +17,7 @@
     
     "connectionPoolSize": 10,
     "threadCount": 8,
-    "threadWait": 1000
+    "threadWait": 1000,
+    "limit": 10,
+    "period": 1000
 }

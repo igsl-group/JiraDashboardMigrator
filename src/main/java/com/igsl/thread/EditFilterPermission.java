@@ -52,6 +52,7 @@ public class EditFilterPermission implements Callable<String> {
 	public String call() throws Exception {
 		String result = "";
 		Log.info(LOGGER, "Processing filter [" + filter.getName() + "] (" + filter.getId() + ")");
+		String realOwner = filter.getOwner().getAccountId();		
 		RestUtil<Object> util = RestUtil.getInstance(Object.class);
 		CloudFilter cf = CloudFilter.create(filter);
 		cf.setOwner(null);
@@ -59,7 +60,8 @@ public class EditFilterPermission implements Callable<String> {
 		cf.setJql(null);
 		cf.setName(null);
 		if (add) {
-			Log.info(LOGGER, "Adding permission");
+			Log.info(LOGGER, "Filter [" + filter.getName() + "] (" + filter.getId() + ") " +
+						"Adding permission");
 			PermissionTarget pt = new PermissionTarget();
 			pt.setAccountId(accountId);
 			CloudPermission cp = new CloudPermission();
@@ -67,7 +69,8 @@ public class EditFilterPermission implements Callable<String> {
 			cp.setUser(pt);
 			cf.getEditPermissions().add(cp);
 		} else {
-			Log.info(LOGGER, "Removing permission");
+			Log.info(LOGGER, "Filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
+						"Removing permission");
 			CloudPermission found = null;
 			for (CloudPermission cp : cf.getEditPermissions()) {
 				if ("user".equals(cp.getType()) && 
@@ -77,19 +80,19 @@ public class EditFilterPermission implements Callable<String> {
 				}
 			}
 			if (found != null) {
-				Log.info(LOGGER, "Removing found permission");
+				Log.info(LOGGER, "Filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
+						"Removing found permission");
 				cf.getEditPermissions().remove(found);
 			} else {
-				String msg = "[" + accountId + "] is already not allowed to edit " + 
-						"filter [" + filter.getName() + "] (" + filter.getId() + ")";
+				String msg = "Filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
+						"[" + accountId + "] is already not allowed to edit";
 				Log.warn(LOGGER, msg);
 				return result;
 			}
 		}
 		try {
-			Log.info(LOGGER, "Sending request");
 			Map<String, Object> payload = new HashMap<>();
-			if (add) {
+			if (add && !realOwner.equals(accountId)) {
 				// Change owner
 				payload.clear();
 				payload.put("accountId", accountId);
@@ -105,7 +108,8 @@ public class EditFilterPermission implements Callable<String> {
 					accountId);
 			}
 			// Update permission
-			Log.info(LOGGER, "Payload: [" + OM.writeValueAsString(cf) + "]");
+			Log.info(LOGGER, "Filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
+					"Payload: [" + OM.writeValueAsString(cf) + "]");
 			util.config(config, true)
 				.path("/rest/api/latest/filter/{filterId}")
 				.pathTemplate("filterId", filter.getId())
@@ -115,10 +119,10 @@ public class EditFilterPermission implements Callable<String> {
 				.status(Status.OK.getStatusCode())
 				.request();
 			Log.info(LOGGER, "Filter [" + filter.getName() + "] (" + filter.getId() + ") permission changed");
-			if (add) {
+			if (add && !realOwner.equals(accountId)) {
 				// Change owner back
 				payload.clear();
-				payload.put("accountId", filter.getOwner().getAccountId());
+				payload.put("accountId", realOwner);
 				util.config(config, true)
 					.path("/rest/api/latest/filter/{filterId}/owner")
 					.pathTemplate("filterId", filter.getId())
@@ -127,11 +131,12 @@ public class EditFilterPermission implements Callable<String> {
 					.payload(payload)
 					.status(Status.OK.getStatusCode())
 					.request();
-				Log.info(LOGGER, "Filter [" + filter.getName() + "] (" + filter.getId() + ") owner changed to " + 
+				Log.info(LOGGER, "Filter [" + filter.getName() + "] (" + filter.getId() + ") owner reverted to " + 
 						filter.getOwner().getAccountId());
 			}
 		} catch (Exception ex) {
-			String msg = "Failed to add [" + accountId + "] to edit " + 
+			String msg = "Failed to " + (add? "add " : "remove ") + 
+					"[" + accountId + "] to edit " + 
 					"filter [" + filter.getName() + "] (" + filter.getId() + "): " + 
 					ex.getMessage();
 			Log.error(LOGGER, msg, ex);

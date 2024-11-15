@@ -107,6 +107,7 @@ import com.igsl.model.CloudDashboard;
 import com.igsl.model.CloudFilter;
 import com.igsl.model.CloudGadget;
 import com.igsl.model.CloudGadgetConfiguration;
+import com.igsl.model.CloudPermission;
 import com.igsl.model.DataCenterPermission;
 import com.igsl.model.DataCenterPortalPage;
 import com.igsl.model.DataCenterPortalPermission;
@@ -231,6 +232,7 @@ public class DashboardMigrator {
 	public static <T> T readFile(String fileName, Class<? extends T> cls) throws IOException, JsonParseException {
 		ObjectReader reader = OM.readerFor(cls);
 		StringBuilder sb = new StringBuilder();
+		Log.info(LOGGER, "Loading file: [" + fileName + "] as [" + cls.getCanonicalName() + "]");
 		for (String line : Files.readAllLines(Paths.get(fileName), DEFAULT_CHARSET)) {
 			sb.append(line).append(NEWLINE);
 		}
@@ -645,8 +647,6 @@ public class DashboardMigrator {
 							throw new Exception("All values in MultiValueOperand cannot be mapped");
 						}
 					} else if (originalOperand instanceof FunctionOperand) {
-						// TODO Throw error for unsupported function?
-						// TODO Remap arguments?
 						FunctionOperand fo = (FunctionOperand) originalOperand;
 						List<String> args = new ArrayList<>();
 						for (String s : fo.getArgs()) {
@@ -913,7 +913,7 @@ public class DashboardMigrator {
 			category = "Filter";
 			resolution = "Won't fix";
 			notes = "Not all values can be mapped";
-		}
+		} 
 		CSV.printRecord(printer, filter.getName(), filter.getId(), filter.getJql(), 
 				message, category, resolution, notes);
 	}
@@ -1019,6 +1019,74 @@ public class DashboardMigrator {
 		return result;
 	}
 	
+	private static String[] analyzeMessage(Exception ex) {
+		return analyzeMessage((ex != null)? ex.getMessage() : "");
+	}
+	private static String[] analyzeMessage(String msg) {
+		String[] result = new String[] {"", ""};
+		if (msg != null) {
+			if (msg.contains("Value not mapped") || 
+				msg.contains("Not all values in MultiValueOperand mapped") || 
+				msg.contains("Unable to map value for filter")) {
+				result[0] = "N";
+				result[1] = "Referenced object(s) not in Cloud";
+			} else if (msg.contains("Value not validated")) {
+				result[0] = "N";
+				result[1] = "Referenced object(s) not in Server";
+			} else if (msg.contains("issueFunction is no longer supported")) {
+				result[0] = "N";
+				result[1] = "Issue function not supported in Cloud";
+			} else if (msg.contains("Unrecognized JQL function")) {
+				result[0] = "N";
+				result[1] = "Plugin-provided issue function not supported in Cloud";
+			} else if (msg.contains("owned by unmapped user")) {
+				result[0] = "N";
+				result[1] = "Filter owned by user not in Cloud";
+			} else if (msg.contains("cannot be shared with the public anymore")) {
+				result[0] = "N";
+				result[1] = "Filter shared to public is no longer supported in Cloud";
+			} else if (msg.contains("FilterNotMappedException")) {
+				result[0] = "N";
+				result[1] = "Referenced filter(s) not in Cloud";
+			} else if (	msg.contains("Custom field [cf[") &&
+						msg.contains("]] cannot be mapped")) {
+				result[0] = "N";
+				result[1] = "Referenced custom field(s) not in Cloud";
+			} else if (msg.contains("cannot be shared with the public anymore")) {
+				result[0] = "N";
+				result[1] = "Filter/dashboard cannot be shared with public";
+			} else if (msg.matches(".+Field '.+' does not exist or you do not have permission to view it.+")) {
+				result[0] = "N";
+				result[1] = "Custom field is not in Cloud";
+			} else if (msg.matches(".+Argument \\[.+\\] not mapped as .+")) {
+				result[0] = "N";
+				result[1] = "Referenced object(s) not in Cloud";
+			} else if (	msg.contains("Issue does not exist or you do not have permission to see it") || 
+						msg.contains("No issues have a parent epic with key or name") || 
+						msg.matches(".+Issue '.+' could not be found in function.+")) {
+				result[0] = "N";
+				result[1] = "Referenced issue(s) not in Cloud";
+			} else if (msg.contains("Not able to sort using field")) {
+				result[0] = "N";
+				result[1] = "Field does not exist or does have sort template in Cloud";
+			} else if (msg.matches(".+Field '.+' does not support sorting.+")) {
+				result[0] = "N";
+				result[1] = "Field does not support sorting in Cloud";
+			} else if (msg.contains("The operator '=' is not supported by the")) {
+				result[0] = "N";
+				result[1] = "In Jira Cloud, text fields can only use ~ operator";
+			} else if (msg.matches(".+The option '.+' for field '.+' does not exist.+") || 
+						msg.matches(".+The value '.+' does not exist for the field.+")) {
+				result[0] = "N";
+				result[1] = "Option value or custom field not in Cloud";
+			} else if (msg.matches(".+Sprint with name '.+' does not exist.+")) {
+				result[0] = "N";
+				result[1] = "Some Sprints are not migrated by JCMA";
+			}
+		}
+		return result;
+	}
+	
 	private static void mapFiltersV4(
 			Config conf, boolean callApi, boolean overwriteFilter, boolean allValuesMapped) 
 			throws Exception {
@@ -1036,7 +1104,9 @@ public class DashboardMigrator {
 										"Cloud JQL",
 										"Action", 
 										"Result", 
-										"Error")
+										"Error",
+										"Bug",
+										"Notes")
 						)
 				)) {
 			String dirName = new SimpleDateFormat("yyyyMMdd-HHmmss").format(now);
@@ -1054,13 +1124,18 @@ public class DashboardMigrator {
 					Log.info(LOGGER, 
 							"Filter [" + entry.getKey().getName() + "] (" + entry.getKey().getId() + ") " + 
 							"Value = [" + entry.getValue() + "]");
+					String[] analyzeResult = analyzeMessage(entry.getValue());
+					String bug = analyzeResult[0];
+					String notes = analyzeResult[1];
 					csvPrinter.printRecord(
 							entry.getKey().getName(),
 							null, null, 
 							entry.getKey().getId(), entry.getKey().getJql(), 
 							"Add Edit Permission",
 							((entry.getValue() != null && entry.getValue().isEmpty())? "Success" : "Fail"),
-							entry.getValue());
+							entry.getValue(),
+							bug, 
+							notes);
 				}
 			}
 			Log.info(LOGGER, "Reading DC filters from file");
@@ -1197,6 +1272,9 @@ public class DashboardMigrator {
 							MapFilterResult r = future.get(conf.getThreadWait(), TimeUnit.MILLISECONDS);
 							if (r != null) {
 								toRemove.add(entry.getKey());
+								String[] analyzeResult = analyzeMessage(r.getException());
+								String bug = analyzeResult[0];
+								String notes = analyzeResult[1];
 								csvPrinter.printRecord(
 										r.getOriginal().getName(),
 										r.getOriginal().getId(), r.getOriginal().getJql(), 
@@ -1204,7 +1282,9 @@ public class DashboardMigrator {
 										(r.getTarget() != null? r.getTarget().getJql() : ""),
 										"Map filter",
 										(r.getException() == null? "Success" : "Fail"),
-										(r.getException() == null? "" : r.getException().getMessage())
+										(r.getException() == null? "" : r.getException().getMessage()),
+										bug, 
+										notes
 										);
 								Log.info(LOGGER, 
 										"Mapped filter [" + r.getOriginal().getName() + "] " + 
@@ -1216,6 +1296,9 @@ public class DashboardMigrator {
 						} catch (TimeoutException tex) {
 							// Ignore
 						} catch (Exception ex) {
+							String[] analyzeResult = analyzeMessage(ex);
+							String bug = analyzeResult[0];
+							String notes = analyzeResult[1];
 							toRemove.add(entry.getKey());
 							csvPrinter.printRecord(
 									entry.getKey().getName(),
@@ -1223,7 +1306,9 @@ public class DashboardMigrator {
 									"", "",
 									"Map filter",
 									"Fail",
-									ex.getMessage()
+									ex.getMessage(),
+									bug,
+									notes
 									);
 							Log.error(LOGGER, 
 									"Filter mapping thread execution failed for " + 
@@ -1253,13 +1338,18 @@ public class DashboardMigrator {
 					Log.info(LOGGER, 
 							"Filter [" + entry.getKey().getName() + "] (" + entry.getKey().getId() + ") " + 
 							"Value = [" + entry.getValue() + "]");
+					String[] analyzeResult = analyzeMessage(entry.getValue());
+					String bug = analyzeResult[0];
+					String notes = analyzeResult[1];
 					csvPrinter.printRecord(
 							entry.getKey().getName(),
 							null, null, 
 							entry.getKey().getId(), entry.getKey().getJql(), 
 							"Remove Edit Permission",
 							((entry.getValue() != null && entry.getValue().isEmpty())? "Success" : "Fail"),
-							entry.getValue());
+							entry.getValue(),
+							bug, 
+							notes);
 				}
 			}
 		}
@@ -1854,6 +1944,60 @@ public class DashboardMigrator {
 		return true;
 	}
 	
+	private static String[] analyzeDashboardResult(String msg) {
+		String bug = "";
+		String notes = "";
+		if (msg != null) {
+			if (msg.contains("rest/gadgets/1.0/g/com.thed.zephyr.je:zephyr-je-gadget-cycle-execution-status/gadgets/cycle-execution-status.xml")) {
+				bug = "N";
+				notes = "Zephyr Squad gadget Test Execution Progress not supported in Cloud";
+			} else if (msg.contains("rest/gadgets/1.0/g/com.arsenalesystems.dataplane:")) {
+				bug = "N";
+				notes = "AppFire gadget Dataplane Reports is not installed in Cloud";
+			} else if (msg.contains("owned by user [") && msg.contains("] not found in Cloud")) {
+				bug = "N";
+				notes = "Owner is not a user in Cloud";
+			} else if (msg.contains("rest/gadgets/1.0/g/com.atlassian.jira.gadgets:text-gadget/gadgets/text-gadget.xml")) {
+				bug = "N";
+				notes = "Text gadget is not supported in Cloud";
+			} else if (msg.contains("Dashboards and filters in this Jira instance cannot be shared with the public anymore")) {
+				bug = "N";
+				notes = "Dashboard cannot be shared to public";
+			} else if (msg.contains("rest/gadgets/1.0/g/com.akelesconsulting.jira.plugins.GaugeGadget:")) {
+				bug = "N";
+				notes = "Gauge Gadget is not installed in Cloud";
+			} else if (msg.contains("rest/gadgets/1.0/g/com.idalko.pivotgadget:")) {
+				bug = "N";
+				notes = "Idalko Pivot Gadget is not installed in Cloud";
+			} else if (msg.contains("rest/gadgets/1.0/g/com.atlassian.jirafisheyeplugin:crucible-charting-gadget/gadgets/crucible-charting-gadget.xml")) {
+				bug = "N";
+				notes = "Crucible Chart is not supported in Cloud";
+			} else if (msg.contains("rest/gadgets/1.0/g/performance-objectives-for-jira:")) {
+				bug = "N";
+				notes = "Performance Objectives is not installed in Cloud";
+			} else if (msg.contains("com.jiraworkcalendar.ujg:ujg-item")) {
+				bug = "N";
+				notes = "Jira Calendar Plugin is not supported in Cloud";
+			} else if (msg.contains("rest/gadgets/1.0/g/com.coresoftlabs.sla_powerbox.sla_powerbox:")) {
+				bug = "N";
+				notes = "SLA Powerbox has no gadgets in Cloud";
+			} else if (msg.contains("rest/gadgets/1.0/g/com.codedoers.jira.smart-ql:")) {
+				bug = "N";
+				notes = "SmartQL is not supported in Cloud";
+			} else if (msg.contains("rest/gadgets/1.0/g/com.pyxis.greenhopper.jira:greenhopper-gadget-version-report/gadgets/greenhopper-version-report.xml")) {
+				bug = "N";
+				notes = "Version Report gadget is not supported in Cloud";
+			} else if (msg.contains("rest/gadgets/1.0/g/com.pyxis.greenhopper.jira:greenhopper-gadget-rapid-view/gadgets/greenhopper-rapid-view.xml")) {
+				bug = "N";
+				notes = "Agile Wallboard gadget is not supported in Cloud";
+			} else if (msg.contains("rest/gadgets/1.0/g/burn-up-chart:estimate-react-gadget/estgadget/estimate-gadget.xml")) {
+				bug = "N";
+				notes = "Advanced Burndown Chart Dashboard Gadget for Jira is not installed in Cloud";
+			}
+		}
+		return new String[] { bug, notes };
+	}
+	
 	private static void createDashboardsV2(Config config) throws Exception {
 		Log.info(LOGGER, "Creating dashboards...");
 		String myAccountId = getUserAccountId(config, config.getTargetUser());
@@ -1899,8 +2043,11 @@ public class DashboardMigrator {
 				"Cloud ID", "Cloud Name", 
 				"Action",
 				"Gadget",
+				"Cloud Gadget ID",
 				"Configuration",
-				"Result"
+				"Result",
+				"Bug",
+				"Notes"
 				));
 		try (	FileWriter fw = new FileWriter(MappingType.DASHBOARD.getCSV(now)); 
 				CSVPrinter csv = new CSVPrinter(fw, csvFormat)) {
@@ -1917,6 +2064,7 @@ public class DashboardMigrator {
 				}
 				// Wait for results
 				while (futureMap.size() != 0) {
+					Log.info(LOGGER, "Waiting for threads to end, remaining count: " + futureMap.size());
 					List<DataCenterPortalPage> toRemove = new ArrayList<>();
 					for (Map.Entry<DataCenterPortalPage, Future<CreateDashboardResult>> entry : 
 						futureMap.entrySet()) {
@@ -1927,14 +2075,21 @@ public class DashboardMigrator {
 							toRemove.add(entry.getKey());
 						} catch (TimeoutException tex) {
 							// Ignore and wait
+							Log.info(LOGGER, "Thread for [" + entry.getKey().getPageName()  + "] still running");
 						} catch (Exception ex) {
 							result = new CreateDashboardResult();
 							result.setOriginalDashboard(entry.getKey());
-							result.setCreateDashboardResult("Thread execution failed: " + ex.getMessage());
+							result.setCreateDashboardResult(
+									"Thread execution for [" + entry.getKey().getPageName()  + "] " + 
+									"failed: " + ex.getMessage());
 							toRemove.add(entry.getKey());
 						}
 						if (result != null) {
+							Log.info(LOGGER, "Processing output for [" + entry.getKey().getPageName() + "]");
 							if (result.getDeleteDashboardResult() != null) {
+								String[] analyze = analyzeDashboardResult(result.getDeleteDashboardResult());
+								String bug = analyze[0];
+								String notes = analyze[1];
 								csv.printRecord(
 										result.getOriginalDashboard().getUsername(),
 										result.getOriginalDashboard().getId(),
@@ -1944,10 +2099,48 @@ public class DashboardMigrator {
 										"Delete dashboard",
 										"N/A",
 										"N/A",
-										result.getDeleteDashboardResult()
+										"N/A",
+										result.getDeleteDashboardResult(),
+										bug,
+										notes
+										);
+							}
+							for (CloudPermission permission : result.getSharePermissionOmitted()) {
+								csv.printRecord(
+										result.getOriginalDashboard().getUsername(),
+										result.getOriginalDashboard().getId(),
+										result.getOriginalDashboard().getPageName(),
+										(result.getCreatedDashboard() != null? result.getCreatedDashboard().getId(): ""),
+										(result.getCreatedDashboard() != null? result.getCreatedDashboard().getName(): ""),
+										"Omitted Share Permission",
+										"N/A",
+										"N/A",
+										"N/A",
+										permission.toString(),
+										"N",
+										""
+										);
+							}
+							for (CloudPermission permission : result.getEditPermissionOmitted()) {
+								csv.printRecord(
+										result.getOriginalDashboard().getUsername(),
+										result.getOriginalDashboard().getId(),
+										result.getOriginalDashboard().getPageName(),
+										(result.getCreatedDashboard() != null? result.getCreatedDashboard().getId(): ""),
+										(result.getCreatedDashboard() != null? result.getCreatedDashboard().getName(): ""),
+										"Omitted Edit Permission",
+										"N/A",
+										"N/A",
+										"N/A",
+										permission.toString(),
+										"N",
+										""
 										);
 							}
 							if (result.getCreateDashboardResult() != null) {
+								String[] analyze = analyzeDashboardResult(result.getCreateDashboardResult());
+								String bug = analyze[0];
+								String notes = analyze[1];
 								csv.printRecord(
 										result.getOriginalDashboard().getUsername(),
 										result.getOriginalDashboard().getId(),
@@ -1957,13 +2150,23 @@ public class DashboardMigrator {
 										"Create dashboard",
 										"N/A",
 										"N/A",
-										result.getCreateDashboardResult()
+										"N/A",
+										result.getCreateDashboardResult(),
+										bug,
+										notes
 										);
 							}
 							for (Map.Entry<String, CreateGadgetResult> gadgetEntry : 
 								result.getCreateGadgetResults().entrySet()) {
-								String identifier = gadgetEntry.getKey();
+								String gadgetIdentifier = gadgetEntry.getKey();
+								String gadgetId = "";
+								if (gadgetEntry.getValue().getCreatedGadget() != null) {
+									gadgetId = gadgetEntry.getValue().getCreatedGadget().getId();
+								}
 								CreateGadgetResult r = gadgetEntry.getValue();
+								String[] analyze = analyzeDashboardResult(r.getCreateResult());
+								String bug = analyze[0];
+								String notes = analyze[1];
 								csv.printRecord(
 										result.getOriginalDashboard().getUsername(),
 										result.getOriginalDashboard().getId(),
@@ -1973,12 +2176,18 @@ public class DashboardMigrator {
 										(result.getCreatedDashboard() != null? 
 												result.getCreatedDashboard().getName(): ""),
 										"Create gadget",
-										identifier,
+										gadgetIdentifier,
+										gadgetId,
 										"N/A",
-										r.getCreateResult()
+										r.getCreateResult(),
+										bug,
+										notes
 										);
 								for (Map.Entry<String, String> configEntry : 
 									r.getConfigurationResult().entrySet()) {
+									String[] analyze1 = analyzeDashboardResult(configEntry.getValue());
+									String bug1 = analyze1[0];
+									String notes1 = analyze1[1];
 									csv.printRecord(
 											result.getOriginalDashboard().getUsername(),
 											result.getOriginalDashboard().getId(),
@@ -1988,13 +2197,19 @@ public class DashboardMigrator {
 											(result.getCreatedDashboard() != null? 
 													result.getCreatedDashboard().getName(): ""),
 											"Configure gadget",
-											identifier,
+											gadgetIdentifier,
+											gadgetId,
 											configEntry.getKey(),
-											configEntry.getValue()
+											configEntry.getValue(),
+											bug1,
+											notes1
 											);
 								}
 							}
 							// Dashboard change owner
+							String[] analyze = analyzeDashboardResult(result.getChangeOwnerResult());
+							String bug = analyze[0];
+							String notes = analyze[1];
 							csv.printRecord(
 									result.getOriginalDashboard().getUsername(),
 									result.getOriginalDashboard().getId(),
@@ -2006,15 +2221,21 @@ public class DashboardMigrator {
 									"Change dashboard owner",
 									"N/A",
 									"N/A",
-									result.getChangeOwnerResult()
+									"N/A",
+									result.getChangeOwnerResult(),
+									bug, 
+									notes
 									);
-						}			
+							Log.info(LOGGER, "Processed output for [" + entry.getKey().getPageName() + "]");
+						}
 					}
 					for (DataCenterPortalPage item : toRemove) {
+						Log.info(LOGGER, "Thread for [" + item.getPageName() + "] ended");
 						futureMap.remove(item);
 					}
 				}
 				// Shutdown
+				Log.info(LOGGER, "Shutting down execution service");
 				service.shutdownNow();
 			}	// For each batch
 		}	// CSV try
@@ -3158,6 +3379,86 @@ public class DashboardMigrator {
 		ClientPool.close();
 	}
 	
+	private static void modifyFilterPermission(Config conf, boolean add) throws Exception {
+		String myAccountId = "";
+		// Add self to edit permission for all filters
+		Log.info(LOGGER, "Getting account id");
+		myAccountId = getUserAccountId(conf, conf.getTargetUser());
+		String action = "Add";
+		if (!add) {
+			action = "Remove";
+		}
+		Log.info(LOGGER, action + " filter edit permission");
+		Map<Filter, String> modifyPermissionResult = setFilterEditPermission(conf, add, myAccountId);
+		for (Map.Entry<Filter, String> entry : modifyPermissionResult.entrySet()) {
+			Log.info(LOGGER, 
+					"Filter [" + entry.getKey().getName() + "] (" + entry.getKey().getId() + ") " + 
+					"Action = " + action + 
+					"Result = " + 
+					((entry.getValue() != null && entry.getValue().isEmpty())? "Success" : "Fail"));
+		}
+	}
+	
+	private static void deleteMyDashboard(Config conf) throws Exception {
+		String accountId = getUserAccountId(conf, conf.getTargetUser());
+		RestUtil<CloudDashboard> util = RestUtil
+				.getInstance(CloudDashboard.class)
+				.config(conf, true);
+		Log.info(LOGGER, "Getting dashbords owned by current user [" + accountId + "]...");
+		List<CloudDashboard> list = util.path("/rest/api/latest/dashboard/search")
+								.method(HttpMethod.GET)
+								.query("accountId", accountId)
+								.pagination(new Paged<CloudDashboard>(CloudDashboard.class).maxResults(100))
+								.requestAllPages();
+		Log.info(LOGGER, "Dashboard count: " + list.size());
+		int deleteCount = 0;
+		for (CloudDashboard board : list) {
+			Response resp = util.path("/rest/api/latest/dashboard/{id}")
+								.pathTemplate("id", board.getId())
+								.method(HttpMethod.DELETE)
+								.status()
+								.request();
+			if (checkStatusCode(resp, Status.OK)) {
+				deleteCount++;
+				Log.info(LOGGER, "Dashboard [" + board.getName() + "] (" + board.getId() + ") deleted");
+			} else {
+				Log.info(LOGGER, "Failed to delete dashboard [" + board.getName() + "] (" + board.getId() + "): " + 
+						resp.readEntity(String.class));
+			}
+		}
+		Log.info(LOGGER, "Delete count: " + deleteCount + "/" + list.size());
+	}
+	
+	private static void deleteMyFilters(Config conf) throws Exception {
+		String accountId = getUserAccountId(conf, conf.getTargetUser());
+		RestUtil<Filter> util = RestUtil
+				.getInstance(Filter.class)
+				.config(conf, true);
+		Log.info(LOGGER, "Getting filters owned by current user [" + accountId + "]...");
+		List<Filter> list = util.path("/rest/api/latest/filter/search")
+								.method(HttpMethod.GET)
+								.query("accountId", accountId)
+								.pagination(new Paged<Filter>(Filter.class).maxResults(100))
+								.requestAllPages();
+		Log.info(LOGGER, "Filter count: " + list.size());
+		int deleteCount = 0;
+		for (Filter filter : list) {
+			Response resp = util.path("/rest/api/latest/filter/{id}")
+								.pathTemplate("id", filter.getId())
+								.method(HttpMethod.DELETE)
+								.status()
+								.request();
+			if (checkStatusCode(resp, Status.OK)) {
+				deleteCount++;
+				Log.info(LOGGER, "Filter [" + filter.getName() + "] (" + filter.getId() + ") deleted");
+			} else {
+				Log.info(LOGGER, "Failed to delete filter [" + filter.getName() + "] (" + filter.getId() + "): " + 
+						resp.readEntity(String.class));
+			}
+		}
+		Log.info(LOGGER, "Delete count: " + deleteCount + "/" + list.size());
+	}
+	
 	@SuppressWarnings("incomplete-switch")
 	public static void main(String[] args) {
 		Instant startTime = Instant.now();
@@ -3172,6 +3473,8 @@ public class DashboardMigrator {
 			if (conf == null) {
 				return;
 			}
+			// Initialize throttle
+			RestUtil.throttle(conf.getLimit(), conf.getPeriod());
 			// Initialize client pool
 			ClientPool.setMaxPoolSize(conf.getConnectionPoolSize());
 			// Process options
@@ -3235,6 +3538,12 @@ public class DashboardMigrator {
 							}
 						}
 						break;
+					case DELETE_MY_FILTER:
+						deleteMyFilters(conf);
+						break;
+					case DELETE_MY_DASHBOARD:
+						deleteMyDashboard(conf);
+						break;
 					case CREATE_FILTER: 
 						boolean allValuesMapped = cli.hasOption(CLI.ALLVALUESMAPPED_OPTION);
 						boolean overwriteFilter = cli.hasOption(CLI.OVERWRITEFILTER_OPTION);
@@ -3245,6 +3554,12 @@ public class DashboardMigrator {
 						}
 //						mapFiltersV3(conf, callApi, overwriteFilter, allValuesMapped);
 						mapFiltersV4(conf, callApi, overwriteFilter, allValuesMapped);
+						break;
+					case ADD_FILTER_PERMISSION: 
+						modifyFilterPermission(conf, true);
+						break;
+					case REMOVE_FILTER_PERMISSION:
+						modifyFilterPermission(conf, false);
 						break;
 					case TEST_FILTER: 
 						String filterFolder = cli.getOptionValue(CLI.TESTFILTER_OPTION);

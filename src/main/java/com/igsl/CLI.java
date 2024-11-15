@@ -21,11 +21,15 @@ public class CLI {
 		DUMP_DC(DUMPDC_OPTION),
 		DUMP_CLOUD(DUMPCLOUD_OPTION),
 		MAP_OBJECT(MAPOBJECT_OPTION),
+		DELETE_MY_FILTER(DELETEMYFILTER_OPTION),
 		CREATE_FILTER(CREATEFILTER_OPTION),
+		ADD_FILTER_PERMISSION(ADDFILTERPERMISSION_OPTION),
+		REMOVE_FILTER_PERMISSION(REMOVEFILTERPERMISSION_OPTION),
 		TEST_FILTER(TESTFILTER_OPTION),
 		DELETE_FILTER(DELETEFILTER_OPTION),
 		LIST_FILTER(LISTFILTER_OPTION),
 		MAP_DASHBOARD(MAPDASHBOARD_OPTION),
+		DELETE_MY_DASHBOARD(DELETEMYDASHBOARD_OPTION),
 		CREATE_DASHBOARD(CREATEDASHBOARD_OPTION),
 		DELETE_DASHBOARD(DELETEDASHBOARD_OPTION),
 		LIST_DASHBOARD(LISTDASHBOARD_OPTION),
@@ -123,6 +127,18 @@ public class CLI {
 			.hasArg()
 			.build();
 	
+	public static final Option DELETEMYDASHBOARD_OPTION = Option.builder()
+			.desc("Delete all dashboards owned by current user.")
+			.option("dmd")
+			.longOpt("deleteMyDashboard")
+			.build();
+	
+	public static final Option DELETEMYFILTER_OPTION = Option.builder()
+			.desc("Delete all filters owned by current user.")
+			.option("dmf")
+			.longOpt("deleteMyFilter")
+			.build();
+	
 	public static final Option CREATEFILTER_OPTION = Option.builder()
 			.desc(	"Create filters in Cloud. " + 
 					"Optionally specify true/false to call/disable REST API calls. Default false." + 
@@ -131,6 +147,18 @@ public class CLI {
 			.longOpt("createFilter")
 			.hasArg()
 			.optionalArg(true)
+			.build();
+	
+	public static final Option ADDFILTERPERMISSION_OPTION = Option.builder()
+			.desc("Add current user to filter permission.")
+			.option("afp")
+			.longOpt("addFilterPermission")
+			.build();
+
+	public static final Option REMOVEFILTERPERMISSION_OPTION = Option.builder()
+			.desc("Remove current user from filter permission.")
+			.option("rfp")
+			.longOpt("removeFilterPermission")
 			.build();
 	
 	public static final Option ALLVALUESMAPPED_OPTION = Option.builder()
@@ -202,7 +230,11 @@ public class CLI {
 			.addOption(OBJECTTYPE_OPTION)
 			.addOption(TESTFILTER_OPTION)
 			.addOption(EXACTMATCH_OPTION)
+			.addOption(DELETEMYFILTER_OPTION)
+			.addOption(DELETEMYDASHBOARD_OPTION)
 			.addOption(CREATEFILTER_OPTION)
+			.addOption(ADDFILTERPERMISSION_OPTION)
+			.addOption(REMOVEFILTERPERMISSION_OPTION)
 			.addOption(TESTFILTER_OPTION)
 			.addOption(ALLVALUESMAPPED_OPTION)
 			.addOption(OVERWRITEFILTER_OPTION)

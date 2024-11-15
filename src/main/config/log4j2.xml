@@ -6,7 +6,8 @@
         </Console>
         <RollingFile name="RollingFile" 
             fileName="JiraDashboardMigrator.log" 
-            filePattern="JiraDashboardMigrator.%d{yyyy-MM-dd-HH-mm-ss}.log.gz">
+            filePattern="JiraDashboardMigrator.%d{yyyy-MM-dd-HH-mm-ss}.log.gz"
+            immediateFlush="true">
             <PatternLayout>
                 <Pattern>%d %p %c{1.} [%tid] %m%n</Pattern>
             </PatternLayout>

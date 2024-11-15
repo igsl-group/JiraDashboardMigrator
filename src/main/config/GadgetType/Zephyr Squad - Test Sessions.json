@@ -1,0 +1,15 @@
+[
+	{
+		"description": "Test Sessions", 
+		"moduleKey": null,
+		"moduleKeyCompare": "MATCHES",
+		"newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:com.atlassian.bonfire.plugin__test-sessions-gadget",
+		"uri": "rest/gadgets/1.0/g/com.atlassian.bonfire.plugin:bonfire-test-sessions-gadget/gadget/bonfire-sessions-gadget.xml",
+		"uriCompare": "MATCHES",
+		"newUri": null,
+		"configType": "itemkey",
+		"implementationClass": "com.igsl.config.zephyrsquad.ZephyrSquad",
+		"config": [
+		]
+	}
+]

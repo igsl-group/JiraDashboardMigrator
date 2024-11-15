@@ -11,18 +11,13 @@
 		"config": [
 			{
 				"attributeNameRegex": ".+",
-				"newAttributeNameRegex": null,
 				"mappingType": null,
 				"pattern": "\\\"(.+)\\\"",
 				"targetGroup": 1,
 				"replacement": "$1",
-				"delimiter": null,
 				"prefix": null,
 				"suffix": null
 			}
-		],
-		"notes": [
-		      "report: [0-9]+ cannot be mapped"
 		]
 	}
 ]
