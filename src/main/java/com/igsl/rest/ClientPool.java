@@ -7,6 +7,8 @@ import javax.ws.rs.client.ClientBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.glassfish.jersey.client.ClientConfig;
+import org.glassfish.jersey.client.ClientProperties;
 
 import com.igsl.Log;
 
@@ -17,14 +19,17 @@ import com.igsl.Log;
  */
 public class ClientPool  {
 	private static final Logger LOGGER = LogManager.getLogger();
-	private static final int DEFAULT_MAX_SIZE = 50;
+	private static final int DEFAULT_MAX_SIZE = 10;
 	private static LinkedBlockingQueue<Client> pool = new LinkedBlockingQueue<>(DEFAULT_MAX_SIZE);
 	
-	public static void setMaxPoolSize(int maxSize) {
+	public static void setMaxPoolSize(int maxSize, int connectTimeout, int readTimeout) {
+		ClientConfig configuration = new ClientConfig()
+				.property(ClientProperties.CONNECT_TIMEOUT, connectTimeout)
+				.property(ClientProperties.READ_TIMEOUT, readTimeout); 
 		if (pool.isEmpty()) {
 			pool = new LinkedBlockingQueue<Client>(maxSize);
 			for (int i = 0; i < maxSize; i++) {
-				Client c = ClientBuilder.newClient();
+				Client c = ClientBuilder.newClient(configuration);
 				pool.add(c);
 			}
 			Log.info(LOGGER, "ClientPool initialized, size: " + pool.size());

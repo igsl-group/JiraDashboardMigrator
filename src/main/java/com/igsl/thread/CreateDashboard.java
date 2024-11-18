@@ -13,6 +13,7 @@ import javax.ws.rs.HttpMethod;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
+import org.apache.commons.httpclient.HttpStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -28,13 +29,12 @@ import com.igsl.Log;
 import com.igsl.config.Config;
 import com.igsl.config.GadgetType;
 import com.igsl.model.CloudDashboard;
-import com.igsl.model.CloudDashboardMixin;
 import com.igsl.model.CloudGadget;
 import com.igsl.model.CloudGadgetConfiguration;
-import com.igsl.model.CloudGadgetMixin;
 import com.igsl.model.CloudPermission;
 import com.igsl.model.DataCenterPortalPage;
 import com.igsl.model.DataCenterPortletConfiguration;
+import com.igsl.model.JacksonView;
 import com.igsl.model.PermissionType;
 import com.igsl.model.mapping.Group;
 import com.igsl.model.mapping.JiraObject;
@@ -125,10 +125,12 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 	}
 	
 	private boolean checkStatusCode(Response resp, int... successCodes) {
-		if (successCodes != null) {
-			for (int code : successCodes) {
-				if ((resp.getStatus() & code) == code) {
-					return true;
+		if (resp != null) {
+			if (successCodes != null) {
+				for (int code : successCodes) {
+					if ((resp.getStatus() & code) == code) {
+						return true;
+					}
 				}
 			}
 		}
@@ -294,9 +296,6 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 	@Override
 	public CreateDashboardResult call() throws Exception {
 		Log.info(LOGGER, "Thread start: " + this.dashboard.getPageName());
-		Map<Class<?>, Class<?>> mixinMap = new HashMap<>();
-		mixinMap.put(CloudDashboard.class, CloudDashboardMixin.class);
-		mixinMap.put(CloudGadget.class, CloudGadgetMixin.class);
 		CreateDashboardResult result = new CreateDashboardResult();
 		result.setOriginalDashboard(dashboard);
 		String dashboardFileName = DashboardMigrator.sanitizePath(
@@ -308,7 +307,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 		DashboardMigrator.saveFile(
 				originalDir.resolve(dashboardFileName).toString(), 
 				original,
-				mixinMap);
+				JacksonView.Detailed.class);
 		RestUtil<CloudDashboard> util = RestUtil.getInstance(CloudDashboard.class)
 				.config(config, true);
 		// Create dashboard under current user
@@ -364,7 +363,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 				.path("/rest/api/latest/dashboard")
 				.query("extendAdminPermissions", true)
 				.method(HttpMethod.POST)
-				.payload(cd)
+				.payload(cd, JacksonView.Simple.class)
 				.status()
 				.request();
 		if (!checkStatusCode(createResp, Status.OK)) {
@@ -381,7 +380,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 		DashboardMigrator.saveFile(
 				newDir.resolve(dashboardFileName).toString(), 
 				cd,
-				mixinMap);
+				JacksonView.Simple.class);
 		Map<DataCenterPortletConfiguration, DataCenterPortletConfiguration> gadgets = layoutGadgets(dashboard);
 		for (Map.Entry<DataCenterPortletConfiguration, DataCenterPortletConfiguration> gadget : gadgets.entrySet()) {
 			Log.info(LOGGER, 
@@ -415,7 +414,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 			Response gadgetResp = util.path("/rest/api/latest/dashboard/{boardId}/gadget")
 					.pathTemplate("boardId", createdDashboard.getId())
 					.method(HttpMethod.POST)
-					.payload(cg)
+					.payload(cg, JacksonView.Simple.class)
 					.status()
 					.request();
 			if (!checkStatusCode(gadgetResp, Status.OK)) {
@@ -431,7 +430,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 				Response spacerResp = util.path("/rest/api/latest/dashboard/{boardId}/gadget")
 						.pathTemplate("boardId", createdDashboard.getId())
 						.method(HttpMethod.POST)
-						.payload(cgSpacer)
+						.payload(cgSpacer, JacksonView.Simple.class)
 						.status()
 						.request();
 				if (checkStatusCode(spacerResp, Status.OK)) {
@@ -449,10 +448,33 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 					gadgetResult.setCreateResult(msg);
 				}
 			} else {
-				// Configure gadget
+				// Grab gadget id
 				CloudGadget createdGadget = gadgetResp.readEntity(CloudGadget.class);
 				gadgetResult.setCreatedGadget(createdGadget);
 				gadgetResult.setCreateResult(SUCCESS);
+				// Ensure gadget is ready
+				// Even after the success returned in create gadget, 
+				// Atlassian REST API can still return 404 on config gadget
+				// Only to return to normal the next call
+				// So, we loop a check here and make sure it's not 404
+				boolean gadgetCreationConfirmed = false; 
+				do {
+					Response checkResp = util
+							.path("/rest/api/latest/dashboard/{boardId}/items/{gadgetId}/properties")
+							.pathTemplate("boardId", createdDashboard.getId())
+							.pathTemplate("gadgetId", createdGadget.getId())
+							.method(HttpMethod.GET)
+							.status()
+							.request();
+					if (checkStatusCode(checkResp, HttpStatus.SC_NOT_FOUND)) {
+						Log.info(LOGGER, "Gadget [" + getGadgetIdentifier(createdGadget) + "] " + 
+								"not confirmed in dashboard [" + dashboard.getPageName() + "]");
+					} else {
+						Log.info(LOGGER, "Gadget [" + getGadgetIdentifier(createdGadget) + "] " + 
+								"confirmed in dashboard [" + dashboard.getPageName() + "]");
+						gadgetCreationConfirmed = true;
+					}
+				} while (!gadgetCreationConfirmed);
 				// Gadget configuration
 				CloudGadgetConfiguration cc = CloudGadgetConfiguration.create(
 						clone.getGadgetConfigurations());
@@ -563,7 +585,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 		DashboardMigrator.saveFile(
 				newDir.resolve(dashboardFileName).toString(), 
 				cd,
-				mixinMap);
+				JacksonView.Detailed.class);
 		Log.info(LOGGER, "Thread stop: " + this.dashboard.getPageName());
 		return result;
 	}

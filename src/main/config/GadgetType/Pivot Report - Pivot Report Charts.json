@@ -1,0 +1,14 @@
+[
+    {
+        "description": "Pivot Report Charts",
+        "moduleKey": "biz.epicreport.epicreports:dashboard-charts",
+        "moduleKeyCompare": "MATCHES",
+        "newModuleKey": "com.atlassian.plugins.atlassian-connect-plugin:biz.epicreport.epicreports__dashboard-item-charts",
+        "uri": null,
+        "uriCompare": "MATCHES",
+        "newUri": null,
+        "configType": "config",
+        "config": [
+        ]
+    }
+]

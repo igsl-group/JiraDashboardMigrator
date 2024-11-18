@@ -261,20 +261,23 @@ public class DashboardMigrator {
 	public static void saveFile(String fileName, Object content) throws IOException {
 		saveFile(fileName, content, null);
 	}
-	public static void saveFile(String fileName, Object content, Map<Class<?>, Class<?>> mixin) 
+	public static void saveFile(String fileName, Object content, Class<?> jacksonView) 
 			throws IOException {
 		try (FileWriter fw = new FileWriter(fileName, DEFAULT_CHARSET)) {
-			if (mixin != null) {
-				OM.setMixIns(mixin);
+			ObjectWriter writer = null;
+			if (jacksonView != null) {
+				writer = OM
+					.writerWithView(jacksonView)
+					.with(new DefaultPrettyPrinter()
+							.withObjectIndenter(new DefaultIndenter()
+									.withLinefeed(NEWLINE)));
+			} else {
+				writer = OM.writer(new DefaultPrettyPrinter()
+									.withObjectIndenter(new DefaultIndenter()
+										.withLinefeed(NEWLINE)));
 			}
-			ObjectWriter writer = OM.writer(new DefaultPrettyPrinter()
-					.withObjectIndenter(
-							new DefaultIndenter().withLinefeed(NEWLINE)));
 			String s = writer.writeValueAsString(content);
 			fw.write(s);
-			if (mixin != null) {
-				OM.setMixIns(null);
-			}
 		}
 		Log.info(LOGGER, "File " + fileName + " saved");
 	}
@@ -3479,7 +3482,7 @@ public class DashboardMigrator {
 			// Initialize throttle
 			RestUtil.throttle(conf.getLimit(), conf.getPeriod());
 			// Initialize client pool
-			ClientPool.setMaxPoolSize(conf.getConnectionPoolSize());
+			ClientPool.setMaxPoolSize(conf.getConnectionPoolSize(), conf.getConnectTimeout(), conf.getReadTimeout());
 			// Process options
 			if (cli.hasOption(CLI.GRANT_OPTION)) {
 				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {

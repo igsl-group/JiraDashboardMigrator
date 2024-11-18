@@ -33,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
 import com.fasterxml.jackson.jaxrs.json.JacksonJsonProvider;
@@ -302,6 +303,20 @@ public class RestUtil<T> {
 		this.payload = payload;
 		return this;
 	}
+
+	/**
+	 * Set payload for the request, with Jackson view. 
+	 * @param payload Object.
+	 */
+	public RestUtil<T> payload(Object payload, Class<?> jacksonView) throws Exception {
+		if (jacksonView == null) {
+			return payload(payload);
+		}
+		ObjectWriter writer = OM.writerWithView(jacksonView);
+		String s = writer.writeValueAsString(payload);
+		this.payload = OM.readTree(s);
+		return this;
+	}
 	
 	/**
 	 * Control the max. rate for REST API calls. 
@@ -524,7 +539,7 @@ public class RestUtil<T> {
 				case HttpMethod.PUT:
 					if (payload != null) {
 						if (String.class.isAssignableFrom(payload.getClass())) {
-							response = builder.post(Entity.entity(payload, MediaType.TEXT_PLAIN));
+							response = builder.put(Entity.entity(payload, MediaType.TEXT_PLAIN));
 						} else {
 							response = builder.put(Entity.entity(payload, MediaType.APPLICATION_JSON));
 						}

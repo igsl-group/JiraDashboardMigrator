@@ -5,17 +5,23 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonView;
 
 @JsonInclude(value = JsonInclude.Include.NON_NULL)
 public class CloudDashboard {
+	@JsonView(JacksonView.Simple.class)
 	private String id;
+	@JsonView(JacksonView.Simple.class)
 	private String name;
+	@JsonView(JacksonView.Simple.class)
 	private String description;
+	@JsonView(JacksonView.Simple.class)
 	private List<CloudPermission> sharePermissions;
+	@JsonView(JacksonView.Simple.class)
 	private List<CloudPermission> editPermissions;
 	@JsonIgnore
 	private String accountId;
-	@JsonIgnore
+	@JsonView(JacksonView.Detailed.class)
 	private List<CloudGadget> gadgets = new ArrayList<>();
 
 	public static CloudDashboard create(DataCenterPortalPage data, boolean includeGadgets) {

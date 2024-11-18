@@ -3,84 +3,13 @@ package com.igsl.model;
 import java.util.Map;
 import java.util.TreeMap;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.annotation.JsonView;
 
 @JsonInclude(value = JsonInclude.Include.NON_NULL)
 public class CloudGadget {
-	// Maps Data Center color# to Cloud colors
-	public enum Color {
-		BLUE("blue", "color1"), RED("red", "color2"), YELLOW("yellow", "color3"), GREEN("green", "color4"),
-		CYAN("cyan", "color5"), PURPLE("purple", "color6"), GRAY("gray", "color7"), WHITE("white", "color8");
-
-		private String cloudValue;
-		private String dataCenterValue;
-
-		private Color(String c, String d) {
-			this.cloudValue = c;
-			this.dataCenterValue = d;
-		}
-
-		public static Color parse(String s) {
-			for (Color c : Color.values()) {
-				if (c.dataCenterValue.equals(s)) {
-					return c;
-				}
-			}
-			return BLUE;
-		}
-
-		@JsonCreator
-		public static Color forValue(String value) {
-			for (Color c : Color.values()) {
-				if (c.cloudValue.equals(value)) {
-					return c;
-				}
-			}
-			return BLUE;
-		}
-
-		@JsonValue
-		@Override
-		public String toString() {
-			return this.cloudValue;
-		}
-	}
-
-	@JsonInclude(value = JsonInclude.Include.NON_NULL)
-	public static class Position {
-		private int row;
-		private int column;
-
-		public Position() {
-			this.row = 0;
-			this.column = 0;
-		}
-		
-		public Position(int row, int column) {
-			this.row = row;
-			this.column = column;
-		}
-		
-		public int getRow() {
-			return row;
-		}
-
-		public void setRow(int row) {
-			this.row = row;
-		}
-
-		public int getColumn() {
-			return column;
-		}
-
-		public void setColumn(int column) {
-			this.column = column;
-		}
-	}
-
+	
 	public CloudGadget clone() {
 		CloudGadget result = new CloudGadget();
 		result.setId(this.id);
@@ -96,14 +25,21 @@ public class CloudGadget {
 		return result;
 	}
 	
+	@JsonView(JacksonView.Simple.class)
 	private String id;
+	@JsonView(JacksonView.Simple.class)
 	private Color color;
+	@JsonView(JacksonView.Simple.class)
 	private boolean ignoreUriAndModuleKeyValidation = false;
+	@JsonView(JacksonView.Simple.class)
 	private String title;
+	@JsonView(JacksonView.Simple.class)
 	private String moduleKey;
+	@JsonView(JacksonView.Simple.class)
 	private String uri;
+	@JsonView(JacksonView.Simple.class)
 	private Position position;
-	@JsonIgnore
+	@JsonView(JacksonView.Detailed.class)
 	private Map<String, Object> configurations;
 	
 	public static CloudGadget create(DataCenterPortletConfiguration data, boolean includeConfiguration) {

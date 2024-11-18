@@ -8,6 +8,9 @@ public class Config {
 	public static final long DEFAULT_LIMIT = 10;
 	public static final long DEFAULT_PERIOD = 1000;
 	
+	public static final int DEFAULT_CONNECT_TIMEOUT = 0;
+	public static final int DEFAULT_READ_TIMEOUT = 0;
+	
 	private String sourceDatabaseURL;
 	private String sourceDatabaseUser;
 	private String sourceDatabasePassword;
@@ -28,6 +31,9 @@ public class Config {
 	
 	private long limit = DEFAULT_LIMIT;
 	private long period = DEFAULT_PERIOD;
+	
+	private int readTimeout = DEFAULT_READ_TIMEOUT;
+	private int connectTimeout = DEFAULT_CONNECT_TIMEOUT;
 	
 	private boolean jerseyLog = false;
 	
@@ -192,5 +198,21 @@ public class Config {
 
 	public void setPeriod(long period) {
 		this.period = period;
+	}
+
+	public int getReadTimeout() {
+		return readTimeout;
+	}
+
+	public void setReadTimeout(int readTimeout) {
+		this.readTimeout = readTimeout;
+	}
+
+	public int getConnectTimeout() {
+		return connectTimeout;
+	}
+
+	public void setConnectTimeout(int connectTimeout) {
+		this.connectTimeout = connectTimeout;
 	}
 }
