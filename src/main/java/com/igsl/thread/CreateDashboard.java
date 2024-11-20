@@ -426,7 +426,13 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 				CloudGadget cgSpacer = cg.clone();
 				cgSpacer.setModuleKey(null);
 				cgSpacer.setUri(SPACER_GADGET_URI);
-				cgSpacer.setTitle(cgSpacer.getTitle() + " [Plugin not supported]");
+				cgSpacer.setTitle(
+						((cg.getTitle() != null)? cg.getTitle() + " " : "") + 	
+						"[Gadget not supported: " + 
+								((cg.getUri() != null)? cg.getUri() + ":" : "") + 
+								":" + 
+								((cg.getModuleKey() != null)? cg.getModuleKey() : "") + 
+						"]");
 				Response spacerResp = util.path("/rest/api/latest/dashboard/{boardId}/gadget")
 						.pathTemplate("boardId", createdDashboard.getId())
 						.method(HttpMethod.POST)
