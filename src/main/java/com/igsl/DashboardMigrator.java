@@ -1085,6 +1085,10 @@ public class DashboardMigrator {
 			} else if (msg.matches(".+Sprint with name '.+' does not exist.+")) {
 				result[0] = "N";
 				result[1] = "Some Sprints are not migrated by JCMA";
+			} else if (	msg.contains("Argument") && 
+						msg.contains("not mapped")) {
+				result[0] = "N";
+				result[1] = "Argument references object not in Cloud";
 			}
 		}
 		return result;

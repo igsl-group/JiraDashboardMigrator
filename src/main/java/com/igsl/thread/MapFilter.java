@@ -139,10 +139,13 @@ public class MapFilter implements Callable<MapFilterResult> {
 			for (CustomField cf : matchedFields) {
 				if (!cf.isCustom()) {
 					originalFieldId = cf.getId();
+					break;
 				}
 			}
-			// No system field, just use first result
-			originalFieldId = matchedFields.get(0).getId();
+			if (originalFieldId == null) {
+				// No system field, just use first result
+				originalFieldId = matchedFields.get(0).getId();
+			}
 		}
 		// If data is customfield_#
 		if (map.containsKey(name)) {
@@ -570,7 +573,7 @@ public class MapFilter implements Callable<MapFilterResult> {
 	public MapFilterResult call() throws Exception {
 		MapFilterResult result = new MapFilterResult();
 		result.setOriginal(filter);
-		Log.info(LOGGER, "Processing filter " + filter.getName() + " [" + filter.getJql() + "]");
+		Log.info(LOGGER, "Mapping filter " + filter.getName() + " [" + filter.getJql() + "]");
 		String filterFileName = DashboardMigrator.sanitizePath(
 				filter.getName() + "." + filter.getId() + ".json");
 		DashboardMigrator.saveFile(
