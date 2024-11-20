@@ -55,7 +55,6 @@ import com.igsl.model.DataCenterPermission;
 import com.igsl.model.PermissionTarget;
 import com.igsl.model.PermissionType;
 import com.igsl.model.mapping.CustomField;
-import com.igsl.model.mapping.CustomFieldOption;
 import com.igsl.model.mapping.Filter;
 import com.igsl.model.mapping.Group;
 import com.igsl.model.mapping.JQLFuncArg;
@@ -123,42 +122,46 @@ public class MapFilter implements Callable<MapFilterResult> {
 			List<JiraObject<?>> data,
 			String name) 
 			throws Exception {
+		String originalFieldId = null;
 		// If data matches custom field display name
 		List<CustomField> matchedFields = new ArrayList<>();
 		for (JiraObject<?> obj : data) {
-			if (obj.getDisplay().equals(name)) {
+			if (obj.getDisplay().equalsIgnoreCase(name)) {
 				// Translate to customfield_#
 				matchedFields.add((CustomField) obj);
 			}
 		}
 		if (matchedFields.size() == 1) {
 			// Single match, return field
-			return matchedFields.get(0);
+			originalFieldId = matchedFields.get(0).getId();
 		} else if (matchedFields.size() > 1) {
 			// Prioritize system field, use the first found that is not custom
 			for (CustomField cf : matchedFields) {
 				if (!cf.isCustom()) {
-					return cf;
+					originalFieldId = cf.getId();
 				}
 			}
 			// No system field, just use first result
-			return matchedFields.get(0);
+			originalFieldId = matchedFields.get(0).getId();
 		}
 		// If data is customfield_#
 		if (map.containsKey(name)) {
 			CustomField cf = (CustomField) map.get(name);
-			return cf;
+			originalFieldId = cf.getId();
 		}
 		// If data is cf[#]
 		Matcher m = CUSTOM_FIELD_CF.matcher(name);
 		if (m.matches()) {
-			if (map.containsKey(CUSTOM_FIELD + m.group(1))) {
-				CustomField cf = (CustomField) map.get(CUSTOM_FIELD + m.group(1));
-				return cf;
+			originalFieldId = CUSTOM_FIELD + m.group(1);
+		}
+		// Map field
+		if (originalFieldId != null) {
+			if (map.containsKey(originalFieldId)) {
+				return (CustomField) map.get(originalFieldId);
 			} else {
 				throw new Exception("Custom field [" + name + "] cannot be mapped");
 			}
-		}
+ 		}
 		// This can be issue function name, return null
 		return null;
 	}
@@ -727,35 +730,43 @@ public class MapFilter implements Callable<MapFilterResult> {
 			} else {
 				clone = navmex.getClause();
 			}
+		} catch (Exception ex) {
+			result.setException(ex);
+			return result;
 		}
 		// Handler order clause
 		OrderBy orderClone = null;
-		if (qr.order != null) {
-			Log.info(LOGGER, "Orignal order by [" + qr.order.toString() + "]");
-			List<SearchSort> sortList = new ArrayList<>();
-			for (SearchSort ss : qr.order.getSearchSorts()) {
-				Log.info(LOGGER, "Order clause " + 
-						"[" + ss.toString() + "] " + 
-						"Field [" + ss.getField() + "] " + 
-						"Property [" + ss.getProperty() + "]");
-				CustomField cf = mapCustomFieldName(
-						mappings.get(MappingType.CUSTOM_FIELD).getMapped(), 
-						data.get(MappingType.CUSTOM_FIELD),
-						ss.getField());
-				// Some order by items are indeed not custom fields, e.g. key
-				// So don't count them as error, just let them proceed as is
-				// If it fails on update then so be it
-				String newColumn = (cf != null)? cf.getJQLName() : ss.getField();
-				newColumn = sanitizeValue(newColumn, true);
-				SearchSort newSS = new SearchSort(
-						newColumn, ss.getProperty(), ss.getSortOrder());
-				sortList.add(newSS);
-				Log.info(LOGGER, "Mapped sort column for filter [" + filter.getName() + "] " + 
-						"column [" + ss.getField() + "] => [" + newColumn + "]");
+		try {
+			if (qr.order != null) {
+				Log.info(LOGGER, "Orignal order by [" + qr.order.toString() + "]");
+				List<SearchSort> sortList = new ArrayList<>();
+				for (SearchSort ss : qr.order.getSearchSorts()) {
+					Log.info(LOGGER, "Order clause " + 
+							"[" + ss.toString() + "] " + 
+							"Field [" + ss.getField() + "] " + 
+							"Property [" + ss.getProperty() + "]");
+					CustomField cf = mapCustomFieldName(
+							mappings.get(MappingType.CUSTOM_FIELD).getMapped(), 
+							data.get(MappingType.CUSTOM_FIELD),
+							ss.getField());
+					// Some order by items are indeed not custom fields, e.g. key
+					// So don't count them as error, just let them proceed as is
+					// If it fails on update then so be it
+					String newColumn = (cf != null)? cf.getJQLName() : ss.getField();
+					newColumn = sanitizeValue(newColumn, true);
+					SearchSort newSS = new SearchSort(
+							newColumn, ss.getProperty(), ss.getSortOrder());
+					sortList.add(newSS);
+					Log.info(LOGGER, "Mapped sort column for filter [" + filter.getName() + "] " + 
+							"column [" + ss.getField() + "] => [" + newColumn + "]");
+				}
+				orderClone = new OrderByImpl(sortList);
 			}
-			orderClone = new OrderByImpl(sortList);
+			outputFilter.setJql(clone + ((orderClone != null) ? " " + orderClone : ""));
+		} catch (Exception ex) {
+			result.setException(ex);
+			return result;
 		}
-		outputFilter.setJql(clone + ((orderClone != null) ? " " + orderClone : ""));
 		Log.info(LOGGER, "Updated JQL for filter [" + outputFilter.getName() + "]: " + 
 				"[" + filter.getJql() + "] => [" + outputFilter.getJql() + "]");
 		result.setTarget(outputFilter);

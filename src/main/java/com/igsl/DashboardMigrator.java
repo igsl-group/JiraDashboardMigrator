@@ -1051,8 +1051,8 @@ public class DashboardMigrator {
 			} else if (msg.contains("FilterNotMappedException")) {
 				result[0] = "N";
 				result[1] = "Referenced filter(s) not in Cloud";
-			} else if (	msg.contains("Custom field [cf[") &&
-						msg.contains("]] cannot be mapped")) {
+			} else if (	msg.contains("Custom field [") &&
+						msg.contains("] cannot be mapped")) {
 				result[0] = "N";
 				result[1] = "Referenced custom field(s) not in Cloud";
 			} else if (msg.contains("cannot be shared with the public anymore")) {
@@ -1158,9 +1158,9 @@ public class DashboardMigrator {
 			Log.info(LOGGER, "Sorting filters into batches");
 			// Sort filters into batches based on filter dependency
 			int batchNo = 0;
-			Map<Integer, List<Filter>> filterBatches = new TreeMap<>();
+			Map<Integer, Map<String, Filter>> filterBatches = new TreeMap<>();
 			while (!filterDependencies.isEmpty()) {
-				filterBatches.put(batchNo, new ArrayList<>());
+				filterBatches.put(batchNo, new HashMap<>());
 				List<Filter> filterToRemove = new ArrayList<>();
 				for (Map.Entry<Filter, List<FilterValue>> entry : filterDependencies.entrySet()) {
 					// Look in previous batches for referenced filters, remove them.
@@ -1168,7 +1168,7 @@ public class DashboardMigrator {
 					for (FilterValue ref : entry.getValue()) {
 						for (int i = batchNo -1; i >= 0; i--) {
 							boolean found = false;
-							for (Filter f : filterBatches.get(i)) {
+							for (Filter f : filterBatches.get(i).values()) {
 								if (ref.equals(f)) {
 									found = true;
 									refToRemove.add(ref);
@@ -1181,10 +1181,22 @@ public class DashboardMigrator {
 						}
 					}
 					entry.getValue().removeAll(refToRemove);
+					// Check for name clash in current batch
+					boolean nameClashed = false;
+					for (String filterName : filterBatches.get(batchNo).keySet()) {
+						if (filterName.equalsIgnoreCase(entry.getKey().getName())) {
+							nameClashed = true;
+							break;
+						}
+					}
+					if (nameClashed) {
+						// Leave this filter for next batch
+						continue;
+					}
 					// If no more reference, add to current batch
 					if (entry.getValue().size() == 0) {
-						List<Filter> list = filterBatches.get(batchNo);
-						list.add(entry.getKey());
+						Map<String, Filter> list = filterBatches.get(batchNo);
+						list.put(entry.getKey().getName(), entry.getKey());
 						filterToRemove.add(entry.getKey());
 						filterBatches.put(batchNo, list);
 						Log.info(LOGGER, 
@@ -1253,11 +1265,11 @@ public class DashboardMigrator {
 			// Add filter mapping, to be filled as we go
 			mappings.put(MappingType.FILTER, result);
 			// Launch threads on each batch to map and update JQL
-			for (Map.Entry<Integer, List<Filter>> batch : filterBatches.entrySet()) {
+			for (Map.Entry<Integer, Map<String, Filter>> batch : filterBatches.entrySet()) {
 				Log.info(LOGGER, "Remapping filters in batch #" + batch.getKey());
 				ExecutorService executorService = Executors.newFixedThreadPool(conf.getThreadCount());
 				Map<Filter, Future<MapFilterResult>> batchResults = new HashMap<>();
-				for (Filter filter : batch.getValue()) {
+				for (Filter filter : batch.getValue().values()) {
 					MapFilter mapFilter = new MapFilter(
 							conf, myAccountId, 
 							originalDir, newDir, 
