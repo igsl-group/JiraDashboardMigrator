@@ -59,6 +59,7 @@ import com.igsl.model.mapping.Filter;
 import com.igsl.model.mapping.Group;
 import com.igsl.model.mapping.JQLFuncArg;
 import com.igsl.model.mapping.JQLFunction;
+import com.igsl.model.mapping.JQLKeyword;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
@@ -122,6 +123,11 @@ public class MapFilter implements Callable<MapFilterResult> {
 			List<JiraObject<?>> data,
 			String name) 
 			throws Exception {
+		// Check if name is a JQL keyword, these take priority over custom field names
+		JQLKeyword keyword = JQLKeyword.parse(name);
+		if (keyword != null) {
+			return null;
+		}
 		String originalFieldId = null;
 		// If data matches custom field display name
 		List<CustomField> matchedFields = new ArrayList<>();
@@ -728,7 +734,7 @@ public class MapFilter implements Callable<MapFilterResult> {
 						.append(s)
 						.append("] ");
 				}
-				result.setException(new Exception(msg.toString()));
+				result.setException(navmex);
 				return result;
 			} else {
 				clone = navmex.getClause();

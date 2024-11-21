@@ -10,4 +10,8 @@ public class FilterNotMappedException extends Exception {
 	public String getReferencedFilter() {
 		return referencedFilter;
 	}
+	@Override
+	public String getMessage() {
+		return "Filter [" + referencedFilter + "] is not found";
+	}
 }

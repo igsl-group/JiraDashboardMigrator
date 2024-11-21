@@ -1033,6 +1033,10 @@ public class DashboardMigrator {
 				msg.contains("Unable to map value for filter")) {
 				result[0] = "N";
 				result[1] = "Referenced object(s) not in Cloud";
+			} else if (	msg.contains("Filter") && 
+						msg.contains("is not found")) {
+				result[0] = "N";
+				result[1] = "Referenced filter(s) not in Cloud";
 			} else if (msg.contains("Value not validated")) {
 				result[0] = "N";
 				result[1] = "Referenced object(s) not in Server";
@@ -1212,11 +1216,22 @@ public class DashboardMigrator {
 				// If current batch is empty, that means the remaining filters references invalid filters
 				if (filterBatches.get(batchNo).isEmpty()) {
 					for (Filter f : filterDependencies.keySet()) {
-						Log.error(LOGGER, 
+						String msg = 	
 								"Batch #" + batchNo + " " + 
 								"Filter [" + f.getName() + "] (" + f.getId() + ") " + 
-								"references invalid filters = [" + f.getJql() + "]");
+								"references invalid filters = [" + f.getJql() + "]";
+						Log.error(LOGGER, msg);
+						csvPrinter.printRecord(
+								f.getName(),
+								f.getId(), f.getJql(), 
+								null, null, 
+								"Map Filter",
+								"Fail",
+								msg,
+								"N", 
+								"References invalid filter(s)");
 					}
+					// Stop processing
 					break;
 				}
 				// Remove resolved filters
@@ -1713,7 +1728,7 @@ public class DashboardMigrator {
 										.payload(cloudFilter)
 										.status()
 										.request();
-							}
+							} 
 							Log.info(LOGGER, "Filter payload: [" + OM.writeValueAsString(cloudFilter) + "]");
 							if (!checkStatusCode(respFilter, Response.Status.OK)) {
 								String msg = respFilter.readEntity(String.class);
