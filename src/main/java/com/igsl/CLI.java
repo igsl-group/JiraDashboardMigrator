@@ -17,7 +17,6 @@ public class CLI {
 	// Enum so we can use switch on Option
 	public static enum CLIOptions {
 		CONFIG(null),
-		TEST(TEST_OPTION),
 		DUMP_DC(DUMPDC_OPTION),
 		DUMP_CLOUD(DUMPCLOUD_OPTION),
 		MAP_OBJECT(MAPOBJECT_OPTION),
@@ -28,7 +27,6 @@ public class CLI {
 		TEST_FILTER(TESTFILTER_OPTION),
 		DELETE_FILTER(DELETEFILTER_OPTION),
 		LIST_FILTER(LISTFILTER_OPTION),
-		MAP_DASHBOARD(MAPDASHBOARD_OPTION),
 		DELETE_MY_DASHBOARD(DELETEMYDASHBOARD_OPTION),
 		CREATE_DASHBOARD(CREATEDASHBOARD_OPTION),
 		DELETE_DASHBOARD(DELETEDASHBOARD_OPTION),
@@ -190,12 +188,6 @@ public class CLI {
 			.longOpt("listFilter")
 			.build();
 
-	public static final Option MAPDASHBOARD_OPTION = Option.builder()
-			.desc("Map dashboards")
-			.option("md")
-			.longOpt("mapDashboard")
-			.build();
-
 	public static final Option CREATEDASHBOARD_OPTION = Option.builder()
 			.desc("Create dashboards in Cloud")
 			.option("cd")
@@ -214,14 +206,7 @@ public class CLI {
 			.longOpt("listDashboard")
 			.build();
 
-	public static final Option TEST_OPTION = Option.builder()
-			.desc(	"Multithread test.")
-			.option("t")
-			.longOpt("test")
-			.build();
-
 	public static final Options MAIN_OPTIONS = new Options()
-			.addOption(TEST_OPTION)
 			.addOption(CONFIG_OPTION)
 			.addOption(DUMPDC_OPTION)
 			.addOption(DUMPCLOUD_OPTION)
@@ -240,7 +225,6 @@ public class CLI {
 			.addOption(OVERWRITEFILTER_OPTION)
 			.addOption(DELETEFILTER_OPTION)
 			.addOption(LISTFILTER_OPTION)
-			.addOption(MAPDASHBOARD_OPTION)
 			.addOption(CREATEDASHBOARD_OPTION)
 			.addOption(DELETEDASHBOARD_OPTION)
 			.addOption(LISTDASHBOARD_OPTION)

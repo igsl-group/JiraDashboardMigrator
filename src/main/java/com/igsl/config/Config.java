@@ -11,6 +11,8 @@ public class Config {
 	public static final int DEFAULT_CONNECT_TIMEOUT = 0;
 	public static final int DEFAULT_READ_TIMEOUT = 0;
 	
+	private String defaultOwner;
+	
 	private String sourceDatabaseURL;
 	private String sourceDatabaseUser;
 	private String sourceDatabasePassword;
@@ -60,6 +62,8 @@ public class Config {
 		c.limit = DEFAULT_LIMIT;
 		c.period = DEFAULT_PERIOD;
 		
+		c.defaultOwner = "[Cloud account ID to be used as a replacement owner of filters and dashboards if the owner is not a user in Cloud]";
+
 		return c;
 	}
 	
@@ -214,5 +218,13 @@ public class Config {
 
 	public void setConnectTimeout(int connectTimeout) {
 		this.connectTimeout = connectTimeout;
+	}
+
+	public String getDefaultOwner() {
+		return defaultOwner;
+	}
+
+	public void setDefaultOwner(String defaultOwner) {
+		this.defaultOwner = defaultOwner;
 	}
 }

@@ -44,6 +44,7 @@ import com.igsl.model.mapping.Project;
 import com.igsl.model.mapping.Role;
 import com.igsl.model.mapping.User;
 import com.igsl.rest.RestUtil;
+import com.igsl.rest.SinglePage;
 
 public class CreateDashboard implements Callable<CreateDashboardResult> {
 
@@ -56,7 +57,6 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 			// Allow attributes missing in POJO
 			.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 	
-	private static final String SUCCESS = "Success";
 	private static final String SPACER_GADGET_URI = 
 			"rest/gadgets/1.0/g/com.atlassian.jira.atlassian-wallboard-plugin:spacer-gadget/gadgets/spacerGadget.xml";
 	
@@ -145,6 +145,10 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 		PermissionType permissionType = PermissionType.parse(permission.getType());
 		switch (permissionType) {
 		case GLOBAL: // Fall-thru
+			Log.warn(LOGGER, "Dashboard [" + dashboard.getName() + "] " + 
+					"share permission to public is excluded");
+			result = null;
+			break;
 		case LOGGED_IN:	// Fall-thru
 			// Add permission unchanged
 			break;
@@ -308,6 +312,8 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 				originalDir.resolve(dashboardFileName).toString(), 
 				original,
 				JacksonView.Detailed.class);
+		RestUtil<CloudGadget> gadgetUtil = RestUtil.getInstance(CloudGadget.class)
+				.config(config, true);
 		RestUtil<CloudDashboard> util = RestUtil.getInstance(CloudDashboard.class)
 				.config(config, true);
 		// Create dashboard under current user
@@ -326,9 +332,15 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 			String msg = "Dashboard [" + dashboard.getPageName() + "] " + 
 					"owned by user [" + dashboard.getUsername() + "] " + 
 					"not found in Cloud";
-			Log.error(LOGGER, msg);
-			result.setCreateDashboardResult(msg);
-			return result;
+			if (config.getDefaultOwner() != null) {
+				msg += ", replaced with default owner [" + config.getDefaultOwner() + "]";
+				cd.setAccountId(config.getDefaultOwner());
+				result.setNewOwner(config.getDefaultOwner());
+			} else {
+				Log.error(LOGGER, msg);
+				result.setCreateDashboardResult(msg);
+				return result;
+			}
 		}
 		// Map permission targets
 		List<CloudPermission> newEditPermissions = new ArrayList<>();
@@ -374,13 +386,33 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 			return result;
 		}
 		CloudDashboard createdDashboard = (CloudDashboard) createResp.readEntity(CloudDashboard.class);
-		result.setCreateDashboardResult(SUCCESS);
+		result.setCreateDashboardResult(CreateDashboardResult.SUCCESS);
 		result.setCreatedDashboard(createdDashboard);
 		// Save dashboard (without gadgets)
 		DashboardMigrator.saveFile(
 				newDir.resolve(dashboardFileName).toString(), 
 				cd,
 				JacksonView.Simple.class);
+		// Confirm dashboard is created
+		boolean createDashboardConfirmed = false;
+		do {
+			try {
+				List<CloudGadget> gadgetList = gadgetUtil
+						.path("/rest/api/latest/dashboard/{boardId}/gadget")
+						.pathTemplate("boardId", createdDashboard.getId())
+						.method(HttpMethod.GET)
+						.pagination(new SinglePage<CloudGadget>(CloudGadget.class, "gadgets"))
+						.requestAllPages();
+				createDashboardConfirmed = true;
+				Log.info(LOGGER, 
+						"Confirmed dashboard creation [" + createdDashboard.getName() + "] " + 
+						"(" + createdDashboard.getId() + ")");
+			} catch (Exception ex) {
+				Log.info(LOGGER, 
+						"Confirming dashboard creation [" + createdDashboard.getName() + "] " + 
+						"(" + createdDashboard.getId() + ")");
+			}
+		} while (!createDashboardConfirmed);
 		Map<DataCenterPortletConfiguration, DataCenterPortletConfiguration> gadgets = layoutGadgets(dashboard);
 		for (Map.Entry<DataCenterPortletConfiguration, DataCenterPortletConfiguration> gadget : gadgets.entrySet()) {
 			Log.info(LOGGER, 
@@ -388,14 +420,14 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 					"(" + gadget.getValue().getPositionSeq() + "," + gadget.getValue().getColumnNumber() + ") => " + 
 					"(" + gadget.getKey().getPositionSeq() + "," + gadget.getKey().getColumnNumber() + ")"
 					);
-		}		
+		}
 		for (Map.Entry<DataCenterPortletConfiguration, DataCenterPortletConfiguration> gadget : gadgets.entrySet()) {
 			CreateGadgetResult gadgetResult = new CreateGadgetResult();
 			gadgetResult.setOriginalGadget(gadget.getValue());
 			// Map gadget
 			DataCenterPortletConfiguration clone = gadget.getKey().clone();
 			try {
-				CloudGadgetConfigurationMapper.mapConfiguration(clone, mappings);
+				CloudGadgetConfigurationMapper.mapConfiguration(clone, mappings, gadgetResult);
 			} catch (Exception ex) {
 				String msg = "Failed to map dashboard [" + dashboard.getPageName() + "] " + 
 							"gadget [" + getGadgetIdentifier(clone) + "]: " + ex.getMessage();
@@ -456,7 +488,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 				// Grab gadget id
 				CloudGadget createdGadget = gadgetResp.readEntity(CloudGadget.class);
 				gadgetResult.setCreatedGadget(createdGadget);
-				gadgetResult.setCreateResult(SUCCESS);
+				gadgetResult.setCreateResult(CreateDashboardResult.SUCCESS);
 				// Ensure gadget is ready
 				// Even after the success returned in create gadget, 
 				// Atlassian REST API can still return 404 on config gadget
@@ -510,7 +542,8 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 							Log.error(LOGGER, msg);
 							gadgetResult.getConfigurationResult().put(configType, msg);
 						} else {
-							gadgetResult.getConfigurationResult().put(configType, SUCCESS);
+							gadgetResult.getConfigurationResult().put(
+									configType, CreateDashboardResult.SUCCESS);
 						}
 					} else {
 						cg.setConfigurations(new TreeMap<>());
@@ -547,7 +580,8 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 									Log.error(LOGGER, msg);
 									gadgetResult.getConfigurationResult().put(entry.getKey(), msg);
 								} else {
-									gadgetResult.getConfigurationResult().put(entry.getKey(), SUCCESS);
+									gadgetResult.getConfigurationResult().put(
+											entry.getKey(), CreateDashboardResult.SUCCESS);
 								}
 							}
 						}	// For each property
@@ -578,7 +612,7 @@ public class CreateDashboard implements Callable<CreateDashboardResult> {
 			Log.info(LOGGER, "Board [" + createdDashboard.getName() + "](" + createdDashboard.getId() + ") " + 
 					"owner changed from [" + dashboard.getUsername() + "] " + 
 					"to [" + cd.getAccountId() + "]");
-			result.setChangeOwnerResult(SUCCESS);
+			result.setChangeOwnerResult(CreateDashboardResult.SUCCESS);
 		} else {
 			String msg = "Failed to change owner of [" + createdDashboard.getName() + "]" + 
 					"(" + createdDashboard.getId() + ") to " + 

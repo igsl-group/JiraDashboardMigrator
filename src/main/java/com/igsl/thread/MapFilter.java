@@ -575,6 +575,112 @@ public class MapFilter implements Callable<MapFilterResult> {
 	}
 	
 	@SuppressWarnings("incomplete-switch")
+	private DataCenterPermission mapPermission(DataCenterPermission share) throws Exception {
+		DataCenterPermission result = null;
+		PermissionType permissionType = PermissionType.parse(share.getType());
+		switch (permissionType) {
+		case GLOBAL: // Fall-thru
+			Log.warn(LOGGER, "Filter [" + filter.getName() + "] " + 
+					"share permission to public is excluded");
+			break;
+		case LOGGED_IN:	// Fall-thru
+			// Add permission unchanged
+			result = share;
+			break;
+		case USER_UNKNOWN:
+			Log.warn(LOGGER, "Filter [" + filter.getName() + "] " + 
+					"share permission to inaccessible user [" + OM.writeValueAsString(share) + "] " + 
+					"is excluded");
+			break;
+		case PROJECT_UNKNOWN:	
+			// This happens when you share to a project you cannot access. 
+			// This type of permissions cannot be created via REST.
+			// So this is excluded.
+			Log.warn(LOGGER, "Filter [" + filter.getName() + "] " + 
+					"share permission to inaccessible objects [" + OM.writeValueAsString(share) + "] " + 
+					"is excluded");
+			break;
+		case GROUP:
+			if (mappings.get(MappingType.GROUP).getMapped().containsKey(share.getGroup().getName())) {
+				Group grp = (Group) mappings.get(MappingType.GROUP).getMapped()
+						.get(share.getGroup().getName());
+				String newId = grp.getName();
+				result = share.clone();
+				result.getGroup().setName(newId);
+			} else {
+				String msg = "Filter [" + filter.getName() + "] " + 
+						"is shared to unmapped group [" + share.getGroup().getName() + "] " + 
+						"This share is excluded";
+				Log.warn(LOGGER, msg);
+			}
+			break;
+		case PROJECT:
+			if (share.getRole() == null) {
+				// No role, add as project
+				if (mappings.get(MappingType.PROJECT).getMapped().containsKey(share.getProject().getId())) {
+					Project p = (Project) mappings.get(MappingType.PROJECT).getMapped()
+							.get(share.getProject().getId());
+					String newId = p.getId();
+					result = share.clone();
+					result.getProject().setId(newId);
+				} else {
+					String msg = "Filter [" + filter.getName() + "] " + 
+							"is shared to unmapped project [" + share.getProject().getId() + "] " + 
+							"This share is excluded";
+					Log.warn(LOGGER, msg);
+				}
+			} else if (share.getRole() != null) {
+				// Has role, add as project-role
+				if (mappings.get(MappingType.PROJECT).getMapped().containsKey(share.getProject().getId())) {
+					Project r = (Project) mappings.get(MappingType.PROJECT).getMapped()
+							.get(share.getProject().getId());
+					String newId = r.getId();
+					result = share.clone();
+					result.getProject().setId(newId);
+				} else {
+					String msg = "Filter [" + filter.getName() + "] " + 
+							"is shared to unmapped project [" + share.getProject().getId() + "] " + 
+							"This share is excluded";
+					Log.warn(LOGGER, msg);
+					// If project fails, abandon role
+					break;
+				}
+				if (mappings.get(MappingType.ROLE).getMapped().containsKey(share.getRole().getId())) {
+					Role r = (Role) mappings.get(MappingType.ROLE).getMapped()
+							.get(share.getRole().getId());
+					String newId = r.getId();
+					// Change type to PROJECT_ROLE
+					result.setType(PermissionType.PROJECT_ROLE.toString());
+					PermissionTarget newTarget = new PermissionTarget();
+					newTarget.setId(newId);
+					result.setRole(newTarget);
+				} else {
+					String msg = "Filter [" + filter.getName() + "] " + 
+							"is shared to unmapped role [" + share.getRole().getId() + "] " + 
+							"This share is excluded";
+					Log.warn(LOGGER, msg);
+				}
+			}
+			break;
+		case USER:
+			if (mappings.get(MappingType.USER).getMapped().containsKey(share.getUser().getKey())) {
+				User u = (User) mappings.get(MappingType.USER).getMapped()
+						.get(share.getUser().getKey());
+				String newId = u.getAccountId();
+				result = share.clone();
+				result.getUser().setAccountId(newId);
+			} else {
+				String msg = "Filter [" + filter.getName() + "] " + 
+						"is shared to unmapped user [" + share.getUser().getKey() + "] " + 
+						"This share is excluded";
+				Log.warn(LOGGER, msg);
+			}
+			break;
+		}
+		return result;
+	}
+	
+	@SuppressWarnings("incomplete-switch")
 	@Override
 	public MapFilterResult call() throws Exception {
 		MapFilterResult result = new MapFilterResult();
@@ -588,118 +694,47 @@ public class MapFilter implements Callable<MapFilterResult> {
 		Filter outputFilter = this.filter.clone();
 		// Verify and map owner
 		String originalOwner = filter.getOwner().getKey();
-		String newOwner = null;
 		if (!mappings.get(MappingType.USER).getMapped().containsKey(originalOwner)) {
 			String msg = "Filter [" + filter.getName() + "] " + 
 					"owned by unmapped user [" + originalOwner + "]";
-			result.setException(new Exception(msg));
-			return result;
+			if (config.getDefaultOwner() != null) {
+				msg += ", replaced by [" + config.getDefaultOwner() + "]";
+				outputFilter.getOwner().setAccountId(config.getDefaultOwner());
+				result.setNewOwner(config.getDefaultOwner());
+				Log.info(LOGGER, msg);
+			} else {
+				result.setException(new Exception(msg));
+				return result;
+			}
+		} else {
+			User newUser = (User) mappings.get(MappingType.USER).getMapped().get(originalOwner);
+			outputFilter.getOwner().setAccountId(newUser.getAccountId());
 		}
-		User newUser = (User) mappings.get(MappingType.USER).getMapped().get(originalOwner);
-		outputFilter.getOwner().setAccountId(newUser.getAccountId());
-		// Verify and map share permissions
-		List<DataCenterPermission> newPermissions = new ArrayList<>();
-		for (DataCenterPermission share: filter.getSharePermissions()) {
-			PermissionType permissionType = PermissionType.parse(share.getType());
-			switch (permissionType) {
-			case GLOBAL: // Fall-thru
-			case LOGGED_IN:	// Fall-thru
-				// Add permission unchanged
-				newPermissions.add(share);
-				break;
-			case USER_UNKNOWN:
-				Log.warn(LOGGER, "Filter [" + filter.getName() + "] " + 
-						"share permission to inaccessible user [" + OM.writeValueAsString(share) + "] " + 
-						"is excluded");
-				break;
-			case PROJECT_UNKNOWN:	
-				// This happens when you share to a project you cannot access. 
-				// This type of permissions cannot be created via REST.
-				// So this is excluded.
-				Log.warn(LOGGER, "Filter [" + filter.getName() + "] " + 
-						"share permission to inaccessible objects [" + OM.writeValueAsString(share) + "] " + 
-						"is excluded");
-				break;
-			case GROUP:
-				if (mappings.get(MappingType.GROUP).getMapped().containsKey(share.getGroup().getName())) {
-					Group grp = (Group) mappings.get(MappingType.GROUP).getMapped()
-							.get(share.getGroup().getName());
-					String newId = grp.getName();
-					share.getGroup().setName(newId);
-					newPermissions.add(share);
+		// Verify and map share/edit permissions
+		List<DataCenterPermission> newSharePermissions = new ArrayList<>();
+		if (filter.getSharePermissions() != null) {
+			for (DataCenterPermission share: filter.getSharePermissions()) {
+				DataCenterPermission newShare = mapPermission(share);
+				if (newShare != null) {
+					newSharePermissions.add(newShare);
 				} else {
-					String msg = "Filter [" + filter.getName() + "] " + 
-							"is shared to unmapped group [" + share.getGroup().getName() + "] " + 
-							"This share is excluded";
-					Log.warn(LOGGER, msg);
+					result.getRemovedSharePermissions().add(share);
 				}
-				break;
-			case PROJECT:
-				if (share.getRole() == null) {
-					// No role, add as project
-					if (mappings.get(MappingType.PROJECT).getMapped().containsKey(share.getProject().getId())) {
-						Project p = (Project) mappings.get(MappingType.PROJECT).getMapped()
-								.get(share.getProject().getId());
-						String newId = p.getId();
-						share.getProject().setId(newId);
-						newPermissions.add(share);
-					} else {
-						String msg = "Filter [" + filter.getName() + "] " + 
-								"is shared to unmapped project [" + share.getProject().getId() + "] " + 
-								"This share is excluded";
-						Log.warn(LOGGER, msg);
-					}
-				} else if (share.getRole() != null) {
-					// Has role, add as project-role
-					if (mappings.get(MappingType.PROJECT).getMapped().containsKey(share.getProject().getId())) {
-						Project r = (Project) mappings.get(MappingType.PROJECT).getMapped()
-								.get(share.getProject().getId());
-						String newId = r.getId();
-						share.getProject().setId(newId);
-					} else {
-						String msg = "Filter [" + filter.getName() + "] " + 
-								"is shared to unmapped project [" + share.getProject().getId() + "] " + 
-								"This share is excluded";
-						Log.warn(LOGGER, msg);
-					}
-					if (mappings.get(MappingType.ROLE).getMapped().containsKey(share.getRole().getId())) {
-						Role r = (Role) mappings.get(MappingType.ROLE).getMapped()
-								.get(share.getRole().getId());
-						String newId = r.getId();
-						DataCenterPermission newItem = new DataCenterPermission();
-						newItem.setEdit(share.isEdit());
-						newItem.setView(share.isView());
-						newItem.setType(PermissionType.PROJECT_ROLE.toString());
-						newItem.setProject(share.getProject());
-						PermissionTarget newTarget = new PermissionTarget();
-						newTarget.setId(newId);
-						newItem.setRole(newTarget);
-						newPermissions.add(newItem);
-					} else {
-						String msg = "Filter [" + filter.getName() + "] " + 
-								"is shared to unmapped role [" + share.getRole().getId() + "] " + 
-								"This share is excluded";
-						Log.warn(LOGGER, msg);
-					}
-				}
-				break;
-			case USER:
-				if (mappings.get(MappingType.USER).getMapped().containsKey(share.getUser().getKey())) {
-					User u = (User) mappings.get(MappingType.USER).getMapped()
-							.get(share.getUser().getKey());
-					String newId = u.getAccountId();
-					share.getUser().setAccountId(newId);
-					newPermissions.add(share);
-				} else {
-					String msg = "Filter [" + filter.getName() + "] " + 
-							"is shared to unmapped user [" + share.getUser().getKey() + "] " + 
-							"This share is excluded";
-					Log.warn(LOGGER, msg);
-				}
-				break;
-			}			
+			}
 		}
-		outputFilter.setSharePermissions(newPermissions);
+		outputFilter.setSharePermissions(newSharePermissions);
+		List<DataCenterPermission> newEditPermissions = new ArrayList<>();
+		if (filter.getEditPermissions() != null) {
+			for (DataCenterPermission share: filter.getEditPermissions()) {
+				DataCenterPermission newShare = mapPermission(share);
+				if (newShare != null) {
+					newEditPermissions.add(newShare);
+				} else {
+					result.getRemovedEditPermissions().add(share);
+				}
+			}
+		}
+		outputFilter.setEditPermissions(newEditPermissions);
 		// Add current user to permission. This will need to be removed after all batches are done.
 		DataCenterPermission myPermission = new DataCenterPermission();
 		myPermission.setType("user");
@@ -795,12 +830,13 @@ public class MapFilter implements Callable<MapFilterResult> {
 				// Update
 				Log.info(LOGGER, 
 						"Updating filter [" + outputFilter.getName() + "] (" + outputFilter.getId() + ")");
+				Log.info(LOGGER, "Original filter: " + OM.writeValueAsString(filter));
 				outputFilter.setId(existingFilter.getId());
 				CloudFilter cloudFilter = CloudFilter.create(outputFilter);
 				cloudFilter.getEditPermissions().add(CloudPermission.create(myPermission));
 				if (overwriteFilter) {
 					cloudFilter.setId(existingFilter.getId());
-					Log.info(LOGGER, "Payload: " + OM.writeValueAsString(cloudFilter));
+					Log.info(LOGGER, "New Filter: " + OM.writeValueAsString(cloudFilter));
 					respFilter = util
 							.path("/rest/api/latest/filter/{filterId}")
 							.pathTemplate("filterId", cloudFilter.getId())

@@ -20,12 +20,15 @@ import com.igsl.model.DataCenterPortletConfiguration;
 import com.igsl.model.mapping.JiraObject;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
+import com.igsl.thread.CreateGadgetResult;
 
 public class CloudGadgetConfigurationMapper {
 
 	private static final Logger LOGGER = LogManager.getLogger(CloudGadgetConfigurationMapper.class);
 
-	public static void mapConfiguration(DataCenterPortletConfiguration gadget, Map<MappingType, Mapping> mappings) {
+	public static void mapConfiguration(
+			DataCenterPortletConfiguration gadget, Map<MappingType, Mapping> mappings,
+			CreateGadgetResult result) {
 		GadgetType type = GadgetType.parse(gadget.getDashboardCompleteKey(), gadget.getGadgetXml());
 		if (type != null) {
 			// Replace moduleKey and Uri if configured
@@ -52,16 +55,22 @@ public class CloudGadgetConfigurationMapper {
 					CustomGadgetConfigMapper mapper = CustomGadgetConfigMapper.class.cast(mapperObj);
 					mapper.process(gadget, mappings);
 				} catch (Exception e) {
+					String msg = "Implementaton class [" + type.getImplementationClass() + "] " + 
+							"cannot be instantiated: " + e.getMessage();
 					Log.error(LOGGER, 
-							"Implementaton class [" + type.getImplementationClass() + "] " + 
-							"cannot be instantiated", e);
+							msg, e);
+					result.getMappingErrors().add(msg);
 				}
 			} else {
 				// Organize gadget configurations into a map
 				Map<String, String> configMap = new HashMap<>();
 				for (DataCenterGadgetConfiguration item : gadget.getGadgetConfigurations()) {
 					if (configMap.containsKey(item.getUserPrefKey())) {
-						Log.error(LOGGER, "Duplicate gadget configuration found: " + item.getUserPrefKey());
+						String msg = "Duplicate gadget configuration found: " + 
+								"[" + item.getUserPrefKey() +  "] = " + 
+								"[" + item.getUserPrefValue() + "] ignored";
+						Log.error(LOGGER, msg);
+						result.getMappingWarnings().add(msg);
 					} else {
 						configMap.put(item.getUserPrefKey(), item.getUserPrefValue());
 					}
@@ -80,12 +89,13 @@ public class CloudGadgetConfigurationMapper {
 				for (DataCenterGadgetConfiguration item : clonedMap.values()) {
 					List<GadgetConfigMapping> confList = type.getConfigs(item.getUserPrefKey());
 					if (confList.size() == 0) {
-						Log.warn(LOGGER, 
-									"Gadget [" + gadget.getId() + "] " + 
-									"ModuleKey [" + gadget.getDashboardCompleteKey() + "] " + 
-									"Uri [" + gadget.getGadgetXml() + "] " + 
-									"Key [" + item.getUserPrefKey() + "] " + 
-									"has no mapping configured");
+						String msg = 	"Gadget [" + gadget.getId() + "] " + 
+										"ModuleKey [" + gadget.getDashboardCompleteKey() + "] " + 
+										"Uri [" + gadget.getGadgetXml() + "] " + 
+										"Key [" + item.getUserPrefKey() + "] " + 
+										"has no mapping configured";
+						Log.warn(LOGGER, msg);
+						result.getMappingWarnings().add(msg);
 					} else {
 						for (GadgetConfigMapping conf : confList) {
 							// Check conditions
@@ -171,12 +181,14 @@ public class CloudGadgetConfigurationMapper {
 										// Update map
 										groupValues.put(conf.getTargetGroup(), newValue);
 									} else {
-										Log.warn(LOGGER, 
+										String msg = 
 												"Gadget: [" + gadget.getId() + "] " + 
 												"ModuleKey: [" + gadget.getDashboardCompleteKey() + "] " + 
 												"Uri: [" + gadget.getGadgetXml() + "] " + 
 												"has no mapping for key [" + item.getUserPrefKey() + "] " + 
-												"value [" + newValue + "]");
+												"value [" + newValue + "]";
+										Log.warn(LOGGER, msg);
+										result.getMappingErrors().add(msg);
 									}
 								}
 								String replacementConf = conf.getReplacement();
@@ -272,11 +284,12 @@ public class CloudGadgetConfigurationMapper {
 				gadget.setGadgetConfigurations(list);
 			}
 		} else {
-			Log.warn(	LOGGER, 
-						"Gadget: [" + gadget.getId() + "] " + 
-						"ModuleKey: [" + gadget.getDashboardCompleteKey() + "] " + 
-						"Uri: [" + gadget.getGadgetXml() + "] " + 
-						"is not configured");
+			String msg = 	"Gadget: [" + gadget.getId() + "] " + 
+							"ModuleKey: [" + gadget.getDashboardCompleteKey() + "] " + 
+							"Uri: [" + gadget.getGadgetXml() + "] " + 
+							"is not configured";
+			Log.warn(LOGGER, msg);
+			result.getMappingErrors().add(msg);
 		}
 	}
 }

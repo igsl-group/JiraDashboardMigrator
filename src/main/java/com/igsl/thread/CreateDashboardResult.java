@@ -11,14 +11,15 @@ import com.igsl.model.DataCenterPortalPage;
 
 public class CreateDashboardResult {
 
+	public static final String SUCCESS = "Success";
 	private DataCenterPortalPage originalDashboard;
 	private CloudDashboard createdDashboard;
-	private String deleteDashboardResult;
 	private String createDashboardResult;
 	private List<CloudPermission> editPermissionOmitted = new ArrayList<>();
 	private List<CloudPermission> sharePermissionOmitted = new ArrayList<>();
 	// Gadget id to result message(s)
 	private Map<String, CreateGadgetResult> createGadgetResults = new LinkedHashMap<>();
+	private String newOwner;
 	private String changeOwnerResult;
 	public String getCreateDashboardResult() {
 		return createDashboardResult;
@@ -50,12 +51,6 @@ public class CreateDashboardResult {
 	public void setCreatedDashboard(CloudDashboard createdDashboard) {
 		this.createdDashboard = createdDashboard;
 	}
-	public String getDeleteDashboardResult() {
-		return deleteDashboardResult;
-	}
-	public void setDeleteDashboardResult(String deleteDashboardResult) {
-		this.deleteDashboardResult = deleteDashboardResult;
-	}
 	public List<CloudPermission> getEditPermissionOmitted() {
 		return editPermissionOmitted;
 	}
@@ -67,5 +62,11 @@ public class CreateDashboardResult {
 	}
 	public void setSharePermissionOmitted(List<CloudPermission> sharePermissionOmitted) {
 		this.sharePermissionOmitted = sharePermissionOmitted;
+	}
+	public String getNewOwner() {
+		return newOwner;
+	}
+	public void setNewOwner(String newOwner) {
+		this.newOwner = newOwner;
 	}
 }

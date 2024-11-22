@@ -1,6 +1,8 @@
 package com.igsl.thread;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.igsl.model.CloudGadget;
@@ -11,6 +13,8 @@ public class CreateGadgetResult {
 	private CloudGadget createdGadget;
 	private String createResult;
 	private Map<String, String> configurationResult = new HashMap<>();
+	private List<String> mappingWarnings = new ArrayList<>();
+	private List<String> mappingErrors = new ArrayList<>();
 	public DataCenterPortletConfiguration getOriginalGadget() {
 		return originalGadget;
 	}
@@ -34,5 +38,17 @@ public class CreateGadgetResult {
 	}
 	public void setConfigurationResult(Map<String, String> configurationResult) {
 		this.configurationResult = configurationResult;
+	}
+	public List<String> getMappingWarnings() {
+		return mappingWarnings;
+	}
+	public void setMappingWarnings(List<String> mappingWarnings) {
+		this.mappingWarnings = mappingWarnings;
+	}
+	public List<String> getMappingErrors() {
+		return mappingErrors;
+	}
+	public void setMappingErrors(List<String> mappingErrors) {
+		this.mappingErrors = mappingErrors;
 	}
 }
