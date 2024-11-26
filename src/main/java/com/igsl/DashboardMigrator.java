@@ -447,6 +447,7 @@ public class DashboardMigrator {
 						fw, 
 						CSV.getCSVWriteFormat(
 								Arrays.asList(
+										"Owner",
 										"Filter Name", 
 										"Server Id", 
 										"Server JQL",
@@ -478,6 +479,7 @@ public class DashboardMigrator {
 					String bug = analyzeResult[0];
 					String notes = analyzeResult[1];
 					csvPrinter.printRecord(
+							entry.getKey().getOwner().getAccountId(),
 							entry.getKey().getName(),
 							null, null, 
 							entry.getKey().getId(), entry.getKey().getJql(), 
@@ -561,6 +563,7 @@ public class DashboardMigrator {
 								"references invalid filters = [" + f.getJql() + "]";
 						Log.error(LOGGER, msg);
 						csvPrinter.printRecord(
+								f.getOwner().getKey(),
 								f.getName(),
 								f.getId(), f.getJql(), 
 								null, null, 
@@ -650,6 +653,7 @@ public class DashboardMigrator {
 								String notes = analyzeResult[1];
 								if (r.getNewOwner() != null) {
 									csvPrinter.printRecord(
+											r.getOriginal().getOwner().getKey(),
 											r.getOriginal().getName(),
 											r.getOriginal().getId(), r.getOriginal().getJql(), 
 											(r.getTarget() != null? r.getTarget().getId() : ""),
@@ -665,6 +669,7 @@ public class DashboardMigrator {
 								}
 								for (DataCenterPermission perm : r.getRemovedSharePermissions()) {
 									csvPrinter.printRecord(
+											r.getOriginal().getOwner().getKey(),
 											r.getOriginal().getName(),
 											r.getOriginal().getId(), r.getOriginal().getJql(), 
 											(r.getTarget() != null? r.getTarget().getId() : ""),
@@ -678,6 +683,7 @@ public class DashboardMigrator {
 								}
 								for (DataCenterPermission perm : r.getRemovedEditPermissions()) {
 									csvPrinter.printRecord(
+											r.getOriginal().getOwner().getKey(),
 											r.getOriginal().getName(),
 											r.getOriginal().getId(), r.getOriginal().getJql(), 
 											(r.getTarget() != null? r.getTarget().getId() : ""),
@@ -690,6 +696,7 @@ public class DashboardMigrator {
 											);
 								}
 								csvPrinter.printRecord(
+										r.getOriginal().getOwner().getKey(),
 										r.getOriginal().getName(),
 										r.getOriginal().getId(), r.getOriginal().getJql(), 
 										(r.getTarget() != null? r.getTarget().getId() : ""),
@@ -715,6 +722,7 @@ public class DashboardMigrator {
 							String notes = analyzeResult[1];
 							toRemove.add(entry.getKey());
 							csvPrinter.printRecord(
+									entry.getKey().getOwner().getKey(),
 									entry.getKey().getName(),
 									entry.getKey().getId(), entry.getKey().getJql(), 
 									"", "",
@@ -756,6 +764,7 @@ public class DashboardMigrator {
 					String bug = analyzeResult[0];
 					String notes = analyzeResult[1];
 					csvPrinter.printRecord(
+							entry.getKey().getOwner().getAccountId(),
 							entry.getKey().getName(),
 							null, null, 
 							entry.getKey().getId(), entry.getKey().getJql(), 
