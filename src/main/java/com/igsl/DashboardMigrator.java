@@ -943,6 +943,12 @@ public class DashboardMigrator {
 			} else if (msg.contains("rest/gadgets/1.0/g/burn-up-chart:estimate-react-gadget/estgadget/estimate-gadget.xml")) {
 				bug = "N";
 				notes = "Advanced Burndown Chart Dashboard Gadget for Jira is not installed in Cloud";
+			} else if (msg.contains("has no mapping")) {
+				bug = "N";
+				notes = "The gadget has no configuration to map";
+			} else if (msg.contains("is not configured")) {
+				bug = "N";
+				notes = "The gadget is not recognized";
 			}
 		}
 		return new String[] { bug, notes };
