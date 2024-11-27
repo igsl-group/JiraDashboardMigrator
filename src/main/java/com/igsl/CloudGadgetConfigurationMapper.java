@@ -186,6 +186,7 @@ public class CloudGadgetConfigurationMapper {
 												"ModuleKey: [" + gadget.getDashboardCompleteKey() + "] " + 
 												"Uri: [" + gadget.getGadgetXml() + "] " + 
 												"has no mapping for key [" + item.getUserPrefKey() + "] " + 
+												"type [" + map.getType() + "] " + 
 												"value [" + newValue + "]";
 										Log.warn(LOGGER, msg);
 										result.getMappingErrors().add(msg);
