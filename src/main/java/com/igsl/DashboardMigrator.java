@@ -1069,7 +1069,7 @@ public class DashboardMigrator {
 												"[" + result.getOriginalDashboard().getUsername() + "]" + 
 												" to " + 
 												"[" + result.getNewOwner() + "]",
-										"",
+										"N",
 										""
 										);
 							}
@@ -1158,6 +1158,9 @@ public class DashboardMigrator {
 										notes
 										);
 								for (String warning : gadgetEntry.getValue().getMappingWarnings()) {
+									String[] analyze1 = analyzeDashboardResult(warning);
+									String bug1 = analyze1[0];
+									String notes1 = analyze1[1];
 									csv.printRecord(
 											result.getOriginalDashboard().getUsername(),
 											result.getOriginalDashboard().getId(),
@@ -1172,11 +1175,14 @@ public class DashboardMigrator {
 											"N/A",
 											"Warning",
 											warning,
-											"",
-											""
+											bug1,
+											notes1
 											);
 								}
 								for (String error : gadgetEntry.getValue().getMappingErrors()) {
+									String[] analyze1 = analyzeDashboardResult(error);
+									String bug1 = analyze1[0];
+									String notes1 = analyze1[1];
 									csv.printRecord(
 											result.getOriginalDashboard().getUsername(),
 											result.getOriginalDashboard().getId(),
@@ -1191,8 +1197,8 @@ public class DashboardMigrator {
 											"N/A",
 											"Fail",
 											error,
-											"",
-											""
+											bug1,
+											notes1
 											);
 								}
 								for (Map.Entry<String, String> configEntry : 
