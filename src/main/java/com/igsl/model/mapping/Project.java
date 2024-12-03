@@ -23,6 +23,11 @@ public class Project extends JiraObject<Project> {
 	}
 
 	@Override
+	public String getAdditionalDetails() {
+		return null;
+	}
+
+	@Override
 	public String getJQLName() {
 		return key;
 	}

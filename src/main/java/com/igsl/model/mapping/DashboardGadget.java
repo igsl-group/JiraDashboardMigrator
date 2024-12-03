@@ -21,6 +21,11 @@ public class DashboardGadget extends JiraObject<DashboardGadget> {
 	}
 
 	@Override
+	public String getAdditionalDetails() {
+		return null;
+	}
+
+	@Override
 	public String getJQLName() {
 		return moduleKey;
 	}

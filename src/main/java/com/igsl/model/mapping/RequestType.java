@@ -30,6 +30,11 @@ public class RequestType extends JiraObject<RequestType> {
 	}
 
 	@Override
+	public String getAdditionalDetails() {
+		return "Project: " + projectKey;
+	}
+
+	@Override
 	public String getJQLName() {
 		return name;
 	}

@@ -68,7 +68,19 @@ public class Filter extends JiraObject<Filter> {
 	public String getInternalId() {
 		return id;
 	}
-
+	
+	@Override
+	public String getAdditionalDetails() {
+		if (owner != null) {
+			if (owner.getAccountId() != null) {
+				return "Owner: " + owner.getDisplayName() + " (" + owner.getAccountId() + ")";
+			} else {
+				return "Owner: " + owner.getDisplayName() + " (" + owner.getKey() + ")";
+			}
+		}
+		return null;
+	}
+	
 	@Override
 	public String getJQLName() {
 		return id;

@@ -33,6 +33,11 @@ public class Group extends JiraObject<Group> {
 	}
 
 	@Override
+	public String getAdditionalDetails() {
+		return null;
+	}
+	
+	@Override
 	public String getJQLName() {
 		return name;
 	}

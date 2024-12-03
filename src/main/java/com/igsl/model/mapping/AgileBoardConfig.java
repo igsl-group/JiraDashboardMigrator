@@ -22,6 +22,11 @@ public class AgileBoardConfig extends JiraObject<AgileBoardConfig> {
 	}
 
 	@Override
+	public String getAdditionalDetails() {
+		return null;
+	}
+
+	@Override
 	public String getJQLName() {
 		return filter.getJQLName();
 	}

@@ -27,6 +27,11 @@ public class ProjectComponent extends JiraObject<ProjectComponent> {
 	public String getInternalId() {
 		return id;
 	}
+	
+	@Override
+	public String getAdditionalDetails() {
+		return "Project: " + project;
+	}
 
 	@Override
 	public String getJQLName() {

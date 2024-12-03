@@ -54,6 +54,10 @@ public class CustomFieldOption extends JiraObject<CustomFieldOption> {
 		return id;
 	}
 	@Override
+	public String getAdditionalDetails() {
+		return "Custom field: " + customFieldId;
+	}
+	@Override
 	public String getJQLName() {
 		return value;
 	}

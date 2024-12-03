@@ -16,6 +16,11 @@ public class Dashboard extends JiraObject<Dashboard> {
 	}
 
 	@Override
+	public String getAdditionalDetails() {
+		return null;
+	}
+
+	@Override
 	public String getJQLName() {
 		return id;
 	}

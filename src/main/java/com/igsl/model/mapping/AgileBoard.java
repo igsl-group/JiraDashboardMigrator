@@ -27,6 +27,11 @@ public class AgileBoard extends JiraObject<AgileBoard> {
 	public String getInternalId() {
 		return id;
 	}
+	
+	@Override
+	public String getAdditionalDetails() {
+		return "Filter name: " + filterName;
+	}
 
 	@Override
 	public String getJQLName() {

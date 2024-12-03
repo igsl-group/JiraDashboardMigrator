@@ -30,6 +30,11 @@ public class Sprint extends JiraObject<Sprint> {
 	public String getInternalId() {
 		return id;
 	}
+	
+	@Override
+	public String getAdditionalDetails() {
+		return "Board: " + originBoardId;
+	}
 
 	@Override
 	public String getJQLName() {

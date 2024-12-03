@@ -17,6 +17,7 @@ public class CLI {
 	// Enum so we can use switch on Option
 	public static enum CLIOptions {
 		CONFIG(null),
+		DUMP_OBJECT_MAPPING(DUMPOBJECTMAPING_OPTION),
 		DUMP_DC(DUMPDC_OPTION),
 		DUMP_CLOUD(DUMPCLOUD_OPTION),
 		MAP_OBJECT(MAPOBJECT_OPTION),
@@ -24,7 +25,6 @@ public class CLI {
 		CREATE_FILTER(CREATEFILTER_OPTION),
 		ADD_FILTER_PERMISSION(ADDFILTERPERMISSION_OPTION),
 		REMOVE_FILTER_PERMISSION(REMOVEFILTERPERMISSION_OPTION),
-		TEST_FILTER(TESTFILTER_OPTION),
 		DELETE_FILTER(DELETEFILTER_OPTION),
 		LIST_FILTER(LISTFILTER_OPTION),
 		DELETE_MY_DASHBOARD(DELETEMYDASHBOARD_OPTION),
@@ -58,6 +58,12 @@ public class CLI {
 			.longOpt("conf")
 			.required()
 			.hasArg()
+			.build();
+	
+	public static final Option DUMPOBJECTMAPING_OPTION = Option.builder()
+			.desc("Dump object mapping to CSV")
+			.option("dom")
+			.longOpt("dumpObjectMapping")
 			.build();
 	
 	public static final Option RESETFILTER_OPTION = Option.builder()
@@ -115,14 +121,6 @@ public class CLI {
 			.option("ot")
 			.longOpt("objectType")
 			.hasArgs()
-			.build();
-	
-	public static final Option TESTFILTER_OPTION = Option.builder()
-			.desc(	"Test filter created in -createFilter false. " + 
-					"Requires specifying the [Timestamp]-NewFilter folder.")
-			.option("tf")
-			.longOpt("testFilter")
-			.hasArg()
 			.build();
 	
 	public static final Option DELETEMYDASHBOARD_OPTION = Option.builder()
@@ -208,19 +206,18 @@ public class CLI {
 
 	public static final Options MAIN_OPTIONS = new Options()
 			.addOption(CONFIG_OPTION)
+			.addOption(DUMPOBJECTMAPING_OPTION)
 			.addOption(DUMPDC_OPTION)
 			.addOption(DUMPCLOUD_OPTION)
 			.addOption(MAPOBJECT_OPTION)
 			.addOption(USERCSV_OPTION)
 			.addOption(OBJECTTYPE_OPTION)
-			.addOption(TESTFILTER_OPTION)
 			.addOption(EXACTMATCH_OPTION)
 			.addOption(DELETEMYFILTER_OPTION)
 			.addOption(DELETEMYDASHBOARD_OPTION)
 			.addOption(CREATEFILTER_OPTION)
 			.addOption(ADDFILTERPERMISSION_OPTION)
 			.addOption(REMOVEFILTERPERMISSION_OPTION)
-			.addOption(TESTFILTER_OPTION)
 			.addOption(ALLVALUESMAPPED_OPTION)
 			.addOption(OVERWRITEFILTER_OPTION)
 			.addOption(DELETEFILTER_OPTION)

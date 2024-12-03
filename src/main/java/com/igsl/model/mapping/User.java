@@ -36,6 +36,11 @@ public class User extends JiraObject<User> {
 	}
 
 	@Override
+	public String getAdditionalDetails() {
+		return emailAddress;
+	}
+
+	@Override
 	public String getJQLName() {
 		return accountId;
 	}

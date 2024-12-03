@@ -21,6 +21,11 @@ public class ProjectCategory extends JiraObject<ProjectCategory> {
 	}
 
 	@Override
+	public String getAdditionalDetails() {
+		return null;
+	}
+
+	@Override
 	public String getJQLName() {
 		return name;
 	}

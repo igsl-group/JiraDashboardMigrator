@@ -19,6 +19,11 @@ public class Status extends JiraObject<Status> {
 	public String getInternalId() {
 		return id;
 	}
+	
+	@Override
+	public String getAdditionalDetails() {
+		return null;
+	}
 
 	@Override
 	public String getJQLName() {

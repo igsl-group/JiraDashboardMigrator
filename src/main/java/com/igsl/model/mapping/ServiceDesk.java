@@ -22,6 +22,11 @@ public class ServiceDesk extends JiraObject<ServiceDesk> {
 	public String getInternalId() {
 		return id;
 	}
+	
+	@Override
+	public String getAdditionalDetails() {
+		return "Project: " + projectKey;
+	}
 
 	@Override
 	public String getJQLName() {

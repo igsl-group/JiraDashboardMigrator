@@ -18,7 +18,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.igsl.DashboardMigrator;
-import com.igsl.Log;
 import com.igsl.config.Config;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;
@@ -39,6 +38,10 @@ public class CustomFieldContext extends JiraObject<CustomFieldContext> {
 	@Override
 	public String getInternalId() {
 		return id;
+	}
+	@Override
+	public String getAdditionalDetails() {
+		return "Custom field: " + customFieldId;
 	}
 	@Override
 	public String getJQLName() {

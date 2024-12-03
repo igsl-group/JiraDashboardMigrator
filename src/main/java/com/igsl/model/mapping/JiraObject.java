@@ -71,6 +71,13 @@ public abstract class JiraObject<T> implements Comparable<T> {
 	public abstract boolean jqlEquals(String value);
 	
 	/**
+	 * Return additional details of this object for display.
+	 * e.g. Custom field type for custom field
+	 */
+	@JsonIgnore
+	public abstract String getAdditionalDetails();
+	
+	/**
 	 * Return display name of this object. 
 	 * Usually this is .getName().
 	 */

@@ -28,6 +28,11 @@ public class Priority extends JiraObject<Priority> {
 	}
 
 	@Override
+	public String getAdditionalDetails() {
+		return null;
+	}
+	
+	@Override
 	public String getJQLName() {
 		return name;
 	}

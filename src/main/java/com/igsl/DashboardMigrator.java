@@ -585,7 +585,7 @@ public class DashboardMigrator {
 			}
 			Log.info(LOGGER, "Loading object mappings");
 			// Load object mappings
-			Map<MappingType, Mapping> mappings = loadMappings(MappingType.FILTER, MappingType.DASHBOARD);
+			Map<MappingType, Mapping> mappings = loadAllMappings(MappingType.FILTER, MappingType.DASHBOARD);
 			// Load object data
 			Map<MappingType, List<JiraObject<?>>> data = new HashMap<>();
 			for (MappingType type : MappingType.values()) {
@@ -986,7 +986,7 @@ public class DashboardMigrator {
 			batchNo++;
 		}
 		// Load object mappings
-		Map<MappingType, Mapping> mappings = loadMappings(MappingType.DASHBOARD);
+		Map<MappingType, Mapping> mappings = loadAllMappings(MappingType.DASHBOARD);
 		// Load object data
 		Map<MappingType, List<JiraObject<?>>> data = new HashMap<>();
 		for (MappingType type : MappingType.values()) {
@@ -1265,7 +1265,17 @@ public class DashboardMigrator {
 		}	// CSV try
 	}
 	
-	public static Map<MappingType, Mapping> loadMappings(MappingType... excludes) throws Exception {
+	public static Mapping loadMapping(MappingType include) throws Exception {
+		Mapping result = null;
+		if (Files.exists(Paths.get(include.getMap()))) {
+			result = readFile(include.getMap(), Mapping.class);
+		} else {
+			Log.warn(LOGGER, "Mapping [" + include.getMap() + "] cannot be loaded");
+		}
+		return result;
+	}
+	
+	public static Map<MappingType, Mapping> loadAllMappings(MappingType... excludes) throws Exception {
 		List<MappingType> excludeList = new ArrayList<>();
 		for (MappingType e : excludes) {
 			excludeList.add(e);
@@ -1658,76 +1668,6 @@ public class DashboardMigrator {
 		return result;
 	}
 	
-	private static void testFilter(Config conf, String filterFolder) throws Exception {
-		final SimpleDateFormat SDF = new SimpleDateFormat("yyyyMMdd-HHmmss");
-		RestUtil<Object> util = RestUtil.getInstance(Object.class)
-				.config(conf, true);
-		Path folder = Paths.get(filterFolder);
-		if (!folder.toFile().exists() || !folder.toFile().isDirectory()) {
-			throw new IOException("[" + filterFolder + "] does not exist or is not a directory");
-		}
-		Path outputFile = folder.resolve("FilterCheck." + SDF.format(new Date()) + ".csv");
-		String[] filterFileList = folder.toFile().list(new FilenameFilter() {
-			@Override
-			public boolean accept(File dir, String name) {
-				if (name.toLowerCase().endsWith(".json")) {
-					return true;
-				}
-				return false;
-			}
-		});
-		CSVFormat csvFormat = CSV.getCSVWriteFormat(Arrays.asList(
-				"Filter Name", "Filter ID", "JQL", "Result", "Message"));
-		int total = filterFileList.length;
-		int success = 0;
-		try (	FileWriter fw = CSV.getCSVFileWriter(outputFile); 
-				CSVPrinter csvPrinter = new CSVPrinter(fw, csvFormat)) {
-			for (String filterFile : filterFileList) {
-				try (FileInputStream fis = new FileInputStream(
-						Paths.get(filterFolder).resolve(filterFile).toFile())) {
-					Filter filter = OM.readValue(fis, Filter.class);
-					// Execute filter
-					Response resp = util
-							.path("/rest/api/3/search")
-							.query("jql", filter.getJql())
-							.query("failFast", true)
-							.query("startAt", 0)
-							.query("maxResults", 1)
-							.method(HttpMethod.GET)
-							.status()
-							.request();
-					if (checkStatusCode(resp, Response.Status.OK)) {
-						Log.info(LOGGER, 
-								"Filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
-								"JQL: [" + filter.getJql() + "]: SUCCESS");
-						success++;
-						csvPrinter.printRecord(
-								filter.getName(), 
-								filter.getId(),
-								filter.getJql(),
-								"Success",
-								"");
-					} else {
-						Log.error(LOGGER, 
-								"Filter [" + filter.getName() + "] (" + filter.getId() + ") " + 
-								"JQL: [" + filter.getJql() + "]: ERROR");
-						csvPrinter.printRecord(
-								filter.getName(), 
-								filter.getId(),
-								filter.getJql(),
-								"Failed",
-								resp.readEntity(String.class));
-					}
-				} catch (JsonParseException | JsonMappingException ex) {
-					Log.error(LOGGER, "Error parsing filter file: [" + filterFile + "]", ex);
-				} catch (IOException ex) {
-					Log.error(LOGGER, "Error reading filter file: [" + filterFile + "]", ex);
-				}
-			}
-		}
-		Log.info(LOGGER, "Filter test result: " + success + "/" + total);
-	}
-	
 	private static void resetFilter(Config conf, String listFile) throws Exception {
 		RestUtil<Filter> util = RestUtil.getInstance(Filter.class).config(conf, true);
 		String myAccountId = getUserAccountId(conf, conf.getTargetUser());
@@ -1897,6 +1837,136 @@ public class DashboardMigrator {
 		Log.info(LOGGER, "Delete count: " + deleteCount + "/" + list.size());
 	}
 	
+	@SuppressWarnings("unchecked")
+	private static void dumpObjectMapping(Config conf) {
+		CSVFormat fmt = CSV.getCSVWriteFormat(Arrays.asList(
+				"Match Type",
+				"Server ID", "Server Name", "Server Details", 
+				"Cloud ID", "Cloud Name", "Cloud Details"
+				));
+		Date now = new Date();
+		for (MappingType type : MappingType.values()) {
+			// Exclude filter and dashboard, those two do not output .Map anymore
+			if (type == MappingType.FILTER || 
+				type == MappingType.DASHBOARD) {
+				continue;
+			}
+			String cloudFile = type.getCloud();
+			String dcFile = type.getDC();
+			String mappingFile = type.getMap();
+			if (!Files.exists(Paths.get(cloudFile))) {
+				Log.warn(LOGGER, type.toString() + " Cloud file missing");
+				continue;
+			}
+			if (!Files.exists(Paths.get(dcFile))) {
+				Log.warn(LOGGER, type.toString() + " Server file missing");
+				continue;
+			}
+			if (!Files.exists(Paths.get(mappingFile))) {
+				Log.warn(LOGGER, type.toString() + " Mapping file missing");
+				continue;
+			}
+			// Read data center objects
+			Map<String, JiraObject<?>> cloudList = new HashMap<>();
+			Map<String, JiraObject<?>> dcList = new HashMap<>();
+			Mapping mapping = null;
+			try {
+				List<JiraObject<?>> list = (List<JiraObject<?>>) 
+						readValuesFromFile(cloudFile, type.getDataClass());
+				for (JiraObject<?> obj : list) {
+					cloudList.put(obj.getInternalId(), obj);
+				}
+			} catch (Exception ex) {
+				Log.error(LOGGER, "Error reading " + type + " Cloud file", ex);
+				continue;
+			}
+			try {
+				List<JiraObject<?>> list = (List<JiraObject<?>>)
+						readValuesFromFile(dcFile, type.getDataClass());
+				for (JiraObject<?> obj : list) {
+					dcList.put(obj.getInternalId(), obj);
+				}
+			} catch (Exception ex) {
+				Log.error(LOGGER, "Error reading " + type + " Server file", ex);
+				continue;
+			}
+			try {
+				mapping = loadMapping(type);
+			} catch (Exception ex) {
+				Log.error(LOGGER, "Error reading " + type + " Mapping file", ex);
+				continue;
+			}
+			try (	FileWriter fw = CSV.getCSVFileWriter(type.getMapping());
+					CSVPrinter csv = new CSVPrinter(fw, fmt)) {
+				// Output mapped items
+				for (Map.Entry<String, JiraObject<?>> entry : mapping.getMapped().entrySet()) {
+					String serverId = entry.getKey();
+					JiraObject<?> cloudObj = entry.getValue();
+					JiraObject<?> dcObj = dcList.get(serverId);
+					if (dcObj == null) {
+						Log.error(LOGGER, "Server object " + serverId + " not found");
+					} else {
+						dcList.remove(dcObj.getInternalId());
+						cloudList.remove(cloudObj.getInternalId());
+						csv.printRecord(
+								"Matched",
+								dcObj.getInternalId(), 
+								dcObj.getDisplay(),
+								dcObj.getAdditionalDetails(),
+								cloudObj.getInternalId(),
+								cloudObj.getDisplay(),
+								cloudObj.getAdditionalDetails()
+								);
+					}
+				}
+				// Output conflicted items
+				for (Map.Entry<String, List<JiraObject<?>>> entry : mapping.getConflict().entrySet()) {
+					String serverId = entry.getKey();
+					JiraObject<?> dcObj = dcList.get(serverId);
+					if (dcObj == null) {
+						Log.error(LOGGER, "Server object " + serverId + " not found");
+					} else {
+						dcList.remove(dcObj.getInternalId());
+						for (JiraObject<?> cloudObj : entry.getValue()) {
+							cloudList.remove(cloudObj.getInternalId());
+							csv.printRecord(
+									"Conflict",
+									dcObj.getInternalId(), 
+									dcObj.getDisplay(),
+									dcObj.getAdditionalDetails(),
+									cloudObj.getInternalId(),
+									cloudObj.getDisplay(),
+									cloudObj.getAdditionalDetails()
+									);
+						}
+					}
+				}
+				// Output remaining objects in Server/Cloud
+				for (JiraObject<?> obj : dcList.values()) {
+					csv.printRecord(
+							"Unmapped",
+							obj.getInternalId(), 
+							obj.getDisplay(),
+							obj.getAdditionalDetails(),
+							"", "", ""
+							);
+				}
+				for (JiraObject<?> obj : cloudList.values()) {
+					csv.printRecord(
+							"Unmapped",
+							"", "", "",
+							obj.getInternalId(), 
+							obj.getDisplay(),
+							obj.getAdditionalDetails()
+							);
+				}
+				Log.info(LOGGER, type + " mapping saved to " + type.getMapping());
+			} catch (Exception ex) {
+				Log.error(LOGGER, "Error processing " + type, ex);
+			}
+		}	// For each MappingType
+	}
+	
 	@SuppressWarnings("incomplete-switch")
 	public static void main(String[] args) {
 		Instant startTime = Instant.now();
@@ -1942,6 +2012,10 @@ public class DashboardMigrator {
 						continue;
 					}
 					switch (opt) {
+					case DUMP_OBJECT_MAPPING: {
+						dumpObjectMapping(conf);
+						break;
+					}
 					case RESET_FILTER: {
 						String listFile = cli.getOptionValue(CLI.RESETFILTER_OPTION);
 						resetFilter(conf, listFile);
@@ -1993,10 +2067,6 @@ public class DashboardMigrator {
 						break;
 					case REMOVE_FILTER_PERMISSION:
 						modifyFilterPermission(conf, false);
-						break;
-					case TEST_FILTER: 
-						String filterFolder = cli.getOptionValue(CLI.TESTFILTER_OPTION);
-						testFilter(conf, filterFolder);
 						break;
 					case CREATE_DASHBOARD: 
 						try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {

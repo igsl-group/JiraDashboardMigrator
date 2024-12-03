@@ -124,6 +124,9 @@ public enum MappingType {
 	public String getCSV(Date date) {
 		return name + "." + SDF.format(date) + ".csv";
 	}
+	public String getMapping() {
+		return name + ".Mapping.csv";
+	}
 	public String getOwner() {
 		return name + ".Owner" + EXTENSION;
 	}

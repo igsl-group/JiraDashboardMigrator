@@ -35,6 +35,11 @@ public class ProjectVersion extends JiraObject<ProjectVersion> {
 	}
 
 	@Override
+	public String getAdditionalDetails() {
+		return "Project: " + projectKey;
+	}
+
+	@Override
 	public String getJQLName() {
 		return name;
 	}

@@ -20,6 +20,11 @@ public class IssueType extends JiraObject<IssueType> {
 	public String getInternalId() {
 		return id;
 	}
+	
+	@Override
+	public String getAdditionalDetails() {
+		return null;
+	}
 
 	@Override
 	public String getJQLName() {

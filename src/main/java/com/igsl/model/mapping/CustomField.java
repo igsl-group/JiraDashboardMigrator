@@ -26,6 +26,15 @@ public class CustomField extends JiraObject<CustomField> {
 	public String getInternalId() {
 		return id;
 	}
+	
+	@Override
+	public String getAdditionalDetails() {
+		if (schema != null) {
+			return schema.getCustom();
+		} else {
+			return (custom)? "Custom" : "Standard";
+		}
+	}
 
 	@Override
 	public String getJQLName() {
