@@ -192,6 +192,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -m [-ot <Object t
         * Create/update filter in Cloud.
         * Change created filter owner.
     * Remove current user as editor for all filters in Cloud.
+- The -dmf switch deletes filters owned by current user. It is required to avoid filter name clashing. 
 - You can perform a test run by specifying -cf false. This disables all REST API calls, so nothing will be modified. But as a result, filters referring other filters will not be fully translated.  
 - For JQL clause with multiple object references, by default the algorithm will drop invalid references and continue translating. You can require all object references be resolved by specifying -avm (all values mapped). 
 - The algorithm will automatically omit view/edit permissions that is not valid in Jira Cloud (e.g. shared to a user/group/project not found in Cloud). A log entry will be recorded.
@@ -221,7 +222,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -m [-ot <Object t
 - Filters are also stored as JSON files in folders ```[Timestamp]-OriginalFilter``` and ```[Timestamp]-NewFilter```. You can use diff tools to compare the translated filters. 
 - Filters are parsed using an ANTLR library provided in Jira Data Center. The classes are packaged in \lib\JiraClasses.jar. Atlassian stated they don't use this library themselves but provide it just to be nice. 
 ```
-java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -cf [true|false] [-avm] [-of]
+java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -dmf -cf [true|false] [-avm] [-of]
 ```
 
 ##### Migrate Dashboard
@@ -234,6 +235,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -cf [true|false] 
             * Add gadget to dashboard.
             * Configure gadget. 
             * Change dashboard owner.
+- The -dmd switch deletes any dashboards owned by current user. It is required to avoid dashboard name clashing.
 - Due to Atlassian not providing a REST API to change dashboard layout, migrated dashboards are stuck using the 2-column layout. If the original dashboard is using other layouts, the gadgets will be adjusted to fit into 2-column layout. i.e. 3-column layout will result in the 3rd column becoming a new row.
 - Gadgets that cannot be found in Cloud will be replaced by a spacer gadget. The title will indicate the original uri/module key.
 - This will output Dashboard.Map.json and Dashboard.[Timestamp].csv. The CSV file contains all the information of the mapping results. 
@@ -266,7 +268,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -cf [true|false] 
 - Dashboards are also stored as JSON files in folders ```[Timestamp]-OriginalDashboard``` and ```[Timestamp]-NewDashboard```. You can use diff tools to compare the translated dashboards. 
 - Atlassian does not allow modifying dashboard permissions via REST API. As a result, we cannot modify existing dashboards. If a dashboard already exists, when changing owner, the created dashboard will be renamed by adding timestamp as a suffix. 
 ```
-java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -cd
+java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -dmd -cd
 ```
 
 ##### Export Mapping
