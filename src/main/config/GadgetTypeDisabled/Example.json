@@ -1,6 +1,6 @@
 [
 	{
-		"description": "<Description of this gadget configuration, used for readability only>", 
+		"description": "<Description of this gadget configuration, used for logging only>", 
 		"moduleKey": "<Module key of the gadget, can be null>",
 		"moduleKeyCompare": "<MATCHES | CONTAINS | BEGINS | ENDS to control how module key is compared>",
 		"newModuleKey": "<New value of moduleKey. Null to set to null, blank to not change value>",
