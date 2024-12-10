@@ -9,6 +9,11 @@ This tool was created because official Jira Cloud Migration Assistant does not s
 1. Network access to Jira DC/Server for REST API calls and network access to Jira database for database queries.
 1. Network access to Jira Cloud for REST API calls.
 
+## Limitations
+1. You need to define a mapping configuration for each dashboard gadget type. 
+1. Atlassian REST API only supports creating dashboard in 2-column layout.
+1. Some object types cannot be mapped due to having no uniquely identifiable properties (agile board, sprint). 
+
 ## Configuration
 Edit config.json and update source and target information. 
 1. ```"sourceDatabaseURL": "jdbc:mysql://[IP]:[Port]/[Database Name]"```
@@ -173,6 +178,8 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -dcloud [Object t
 - This will output [Object type].Map.json files.
 - You will need to manually inspect the results. It is a JSON containing "matched", "conflict" and "unmapped" properties. 
 - You should resolve the entries in "conflict" by selecting which Cloud object to use, and add them to "matched".
+- Important object types, e.g. status, issue type, project, custom field, should have all conflicts resolved. 
+- Some object types are not possible to match. e.g. Agile Board and Sprint. These objects have no uniquely identifiable properties, two sprints can have the exact same properties, making matching impossible. But it is not a fatal error if nothing references them. 
 ```
 java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -m [-ot <Object types>] [-uc <CSV>] [-em]
 ```
@@ -233,7 +240,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -rfp
 ```
 
 ## Migration Steps
-1. Grant Roles.
+1. [Grant Roles](#####grant_roles).
 1. Dump Data Center Objects.
 1. Dump Cloud Objects.
 1. Map Objects.
