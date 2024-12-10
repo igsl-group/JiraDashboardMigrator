@@ -194,8 +194,31 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -m [-ot <Object t
     * Remove current user as editor for all filters in Cloud.
 - You can perform a test run by specifying -cf false. This disables all REST API calls, so nothing will be modified. But as a result, filters referring other filters will not be fully translated.  
 - For JQL clause with multiple object references, by default the algorithm will drop invalid references and continue translating. You can require all object references be resolved by specifying -avm (all values mapped). 
+- The algorithm will automatically omit view/edit permissions that is not valid in Jira Cloud (e.g. shared to a user/group/project not found in Cloud). A log entry will be recorded.
 - By default existing filters will not be modified. Specify -of (overwrite filter) to update existing filters.
 - This will output Filter.Map.json and Filter.[Timestamp].csv. The CSV file contains all the information of the mapping results. 
+- CSV columns: 
+    * Owner - User key of the owner of the filter in Jira Server\Data Center.
+    * Filter Name - Name of filter.
+    * Server ID - Filter Id in Jira Server\Data Center.
+    * Server JQL - JQL of the filter in Jira Server\Data Center.
+    * Cloud ID - Filter Id in Jira Cloud. 
+    * Cloud JQL - JQL of the filter in Jira Cloud.
+    * Action - One of:
+        * Add Edit Permission - This row is about adding edit permission.
+        * Map Filter - This row is about translating JQL. 
+        * Owner changed - This filter is owned by a user not in Cloud, and has been reassigned to another user.
+        * Remove Edit Permission - This row is about removing edit permission. 
+        * Share Permission omitted - This row is about invalid share permissions omitted.
+    * Result - One of:
+        * Success
+        * Fail
+        * Warning
+    * Error - Error message logged.
+    * Bug - Automatic analysis of if this entry is a bug or not.
+    * Notes - Automatic analysis result.
+- You should verify the results by filtering for Result = Fail and Bug = (blank). Any rows that match should be inspected. 
+- Filters are also stored as JSON files in folders ```[Timestamp]-OriginalFilter``` and ```[Timestamp]-NewFilter```. You can use diff tools to compare the translated filters. 
 - Filters are parsed using an ANTLR library provided in Jira Data Center. The classes are packaged in \lib\JiraClasses.jar. Atlassian stated they don't use this library themselves but provide it just to be nice. 
 ```
 java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -cf [true|false] [-avm] [-of]
@@ -214,6 +237,33 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -cf [true|false] 
 - Due to Atlassian not providing a REST API to change dashboard layout, migrated dashboards are stuck using the 2-column layout. If the original dashboard is using other layouts, the gadgets will be adjusted to fit into 2-column layout. i.e. 3-column layout will result in the 3rd column becoming a new row.
 - Gadgets that cannot be found in Cloud will be replaced by a spacer gadget. The title will indicate the original uri/module key.
 - This will output Dashboard.Map.json and Dashboard.[Timestamp].csv. The CSV file contains all the information of the mapping results. 
+- CSV columns:
+    * Owner - User key of the owner of dashboard.
+    * Server ID - ID of dashboard in Jira Server\Data Center.
+    * Server Name - Name of dashboard in Jira Server\Data Center.
+    * Cloud ID - ID of dashboard in Jira Cloud.
+    * Cloud Name - Name of dashboard in Jira Cloud.
+    * Action - One of:
+        * Change dashboard owner - This row is about assigning dashbaord to its real owner.
+        * Configure gadget - Update gadget configuration.
+        * Create dashboard - Create dashboard.
+        * Create gadget - Create gadget in dashboard.
+        * Map gadget configuration - Mapping gadget configuration.
+        * Omitted Edit permission - Invalid edit permission omitted.
+        * Omitted Share permission - Invalid share permission omitted.
+        * Owner Change - Dashboard is owned by user not in Cloud and has been reassigned. 
+    * Gadget - Gadget uri/module key.
+    * Cloud Gadget ID - ID of gadget in Jira Cloud.
+    * Configuration - Configuration key being mapped.
+    * Result - One of:
+        * Success
+        * Fail
+        * Warning
+    * Message - Error message logged.
+    * Bug - Automatic analysis of if this entry is a bug or not.
+    * Notes - Automatic analysis result.
+- You should verify the results by filtering for Result = Fail and Bug = (blank). Any rows that match should be inspected. 
+- Dashboards are also stored as JSON files in folders ```[Timestamp]-OriginalDashboard``` and ```[Timestamp]-NewDashboard```. You can use diff tools to compare the translated dashboards. 
 - Atlassian does not allow modifying dashboard permissions via REST API. As a result, we cannot modify existing dashboards. If a dashboard already exists, when changing owner, the created dashboard will be renamed by adding timestamp as a suffix. 
 ```
 java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -cd
