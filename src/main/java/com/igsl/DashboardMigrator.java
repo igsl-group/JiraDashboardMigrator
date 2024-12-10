@@ -138,6 +138,8 @@ public class DashboardMigrator {
 			.enable(SerializationFeature.INDENT_OUTPUT)
 			// Allow comments
 			.configure(Feature.ALLOW_COMMENTS, true)	
+			// Sort map by key
+			.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
 			// Allow attributes missing in POJO
 			.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) 
 			// Add custom deserializer for JiraObject
