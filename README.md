@@ -293,6 +293,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -rfp
 ```
 
 ## Migration Steps
+1. Complete migration using JCMA. 
 1. Grant Roles.
 1. Dump Data Center Objects.
 1. Dump Cloud Objects.
