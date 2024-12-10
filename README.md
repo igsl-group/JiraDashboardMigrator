@@ -234,7 +234,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -dmf -cf [true|fa
             * Map gadget configurations.  
             * Add gadget to dashboard.
             * Configure gadget. 
-            * Change dashboard owner.
+        * Change dashboard owner.
 - The -dmd switch deletes any dashboards owned by current user. It is required to avoid dashboard name clashing.
 - Due to Atlassian not providing a REST API to change dashboard layout, migrated dashboards are stuck using the 2-column layout. If the original dashboard is using other layouts, the gadgets will be adjusted to fit into 2-column layout. i.e. 3-column layout will result in the 3rd column becoming a new row.
 - Gadgets that cannot be found in Cloud will be replaced by a spacer gadget. The title will indicate the original uri/module key.
