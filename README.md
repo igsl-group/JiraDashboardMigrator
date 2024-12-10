@@ -211,6 +211,13 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -cf [true|false] 
 java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -cd
 ```
 
+##### Export Mapping
+- Export object ID mappings as CSV files. 
+- This will output [Object type].Mapping.csv files. A convenient CSV for looking up Data Center to Cloud object references. 
+```
+java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -dom
+```
+
 ##### Add Filter Permission
 - Add current user as editor for all filters in Cloud. 
 - This is provided for convenience.
@@ -231,6 +238,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -rfp
 1. Dump Cloud Objects.
 1. Map Objects.
 1. Manually fix conflicts in [Object type].Map.json files.
+1. [Optional] Export Mapping.
 1. Migrate Filter.
 1. Migrate Dashboard.
 1. Revoke Roles. 
