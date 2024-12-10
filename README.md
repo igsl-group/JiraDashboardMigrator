@@ -196,6 +196,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -m [-ot <Object t
 - For JQL clause with multiple object references, by default the algorithm will drop invalid references and continue translating. You can require all object references be resolved by specifying -avm (all values mapped). 
 - By default existing filters will not be modified. Specify -of (overwrite filter) to update existing filters.
 - This will output Filter.Map.json and Filter.[Timestamp].csv. The CSV file contains all the information of the mapping results. 
+- Filters are parsed using an ANTLR library provided in Jira Data Center. The classes are packaged in \lib\JiraClasses.jar. Atlassian stated they don't use this library themselves but provide it just to be nice. 
 ```
 java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -cf [true|false] [-avm] [-of]
 ```
@@ -240,7 +241,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -rfp
 ```
 
 ## Migration Steps
-1. [Grant Roles](#####grant_roles).
+1. Grant Roles.
 1. Dump Data Center Objects.
 1. Dump Cloud Objects.
 1. Map Objects.
@@ -249,3 +250,15 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -rfp
 1. Migrate Filter.
 1. Migrate Dashboard.
 1. Revoke Roles. 
+
+## Build Instructions
+1. You need to import \lib\JiraClasses.jar into a local repository:
+    * Run this command: 
+    ```
+    mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file \
+        -Dfile=.\lib\JiraClasses.jar -DgroupId=Atlassian \ 
+        -DartifactId=JiraClasses -Dversion=1.0.0 \
+        -Dpackaging=jar -DlocalRepositoryPath=.\localRepository
+    ```
+    * Or use Maven build configuration to run goal ```install:install-file```.
+1. Build with Maven.
