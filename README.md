@@ -92,6 +92,38 @@ com.igsl.config.countergadget
 com.igsl.config.zephyrsquad
 ```
 
+### Gadget Mapping Configuration
+1. JSON files in ```\src\main\config\GadgetType``` will be loaded as gadget mapping configurations. 
+1. Each file contains an array of objects. The properties of each object: 
+    - ```description``` - A descriptive name for logging.
+    - ```moduleKey``` - The module key of this gadget in Jira Server/Data Center. Some gadgets use URI instead and you can leave this as null.
+    - ```moduleKeyCompare``` - MATCHES|CONTAINS|BEGINS|ENDS, to allow you to use partial moduleKey. 
+    - ```newModuleKey``` - The module key of this gadget in Jira Cloud. Use null to indicate no moduleKey. Use empty string to indicate no change.
+    - ```uri``` - The URI of this gadget in Jira Server/Data Center. Between moduleKey and uri, one must be defined.
+    - ```uriCompare``` - MATCHES|CONTAINS|BEGINS|ENDS, to allow you to use partial uri.
+    - ```newUri``` - The URI of this gadget in Jira Cloud. Use null to indicate no URI. Use empty string to indicate no change. Between newModuleKey and newUri, one must be defined.
+    - ```configType``` - Many Jira gadgets changed the way their configurations are stored. In Jira Server/Data Center, they are stored as separate key-value pairs, but in Cloud they are stored as a JSON map under a single property key. Leave configType as null to keep using separate key-value pairs, or specify a property key name to store as JSON map.
+    - ```implementationClass``` - If the mechanisms provided are insufficient to map a gadget, you can specify an implementation of CustomGadgetMapper here, to override the mapping algorithm. Otherwise leave as null.
+    - ```config``` - an array of mapping configuration with these properties:
+        - ```attributeNameRegex``` - Regular expression to match whole property key.
+        - ```conditions``` - Allows optional execution of mapping configuration. It is an array of conditions:
+            - ```attributeName``` - Attribute name (not regex) to check.
+            - ```condition``` - EQU|NEQ|GTE|GTR|LTE|LTR|IN|CONTAIN|START_WITH|END_WITH to control how to compare the value.
+            - ```attributeValue``` - An array of values.
+        - ```mappingType``` - Define the object type of the value being mapped. Possible values: PROJECT|ROLE|USER|GROUP|CUSTOM_FIELD|FILTER|DASHBOARD. Algorithm will convert object references from Server/Data Center to Cloud. Specify null to not map the value. 
+        - ```pattern``` - Regular expression to capture a part of the value to be updated. You can capture multiple parts within the same value. Use ^ and $ to match the whole string.
+        - ```targetGroup``` - Group number to be used. Each group will be converted according to mappingType.
+        - ```replacement``` - Regular expression replacement.
+        - ```prefix``` - A static prefix to add after regex replacements.
+        - ```suffix``` - A static suffix to add after regex replacements.
+        - ```additions``` - To create new properties. An array of objects with these properties: 
+            - ```attributeName``` - New attribute name.
+            - ```mode``` - APPEND|REPLACE. APPEND allows the new attribute value to contain multiple values.
+            - ```delimiter``` - Delimiter to use in APPEND.
+            - ```replacement``` - Regular expression replacement. Groups refer to the parent's pattern.
+            - ```prefix``` - A static prefix to add after regex replacement.
+            - ```suffix``` - A static suffix to add after regex replacement.
+
 ## Usage
 ##### Print Help
 ```

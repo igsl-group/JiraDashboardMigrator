@@ -27,7 +27,7 @@
 				"suffix": "<Suffix to add to the whole value>",
 				"additions": [
 				    {
-				        "attributeName": "<Attribute name to add to",
+				        "attributeName": "<Attribute name to add to>",
 				        "mode": "<APPEND|REPLACE Append or replace attribute value. Append is useful when parent regex has multiple matches>",
 				        "delimiter": "<Delimiter for APPEND mode>",
 				        "replacement": "<Regular expression replacement. $# refers to parent capture groups>",
