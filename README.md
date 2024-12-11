@@ -106,7 +106,7 @@ com.igsl.config.zephyrsquad
     - ```implementationClass``` - If the mechanisms provided are insufficient to map a gadget, you can specify an implementation of CustomGadgetMapper here, to override the mapping algorithm. Otherwise leave as null.
     - ```config``` - an array of mapping configuration with these properties:
         - ```attributeNameRegex``` - Regular expression to match whole property key.
-        - ```conditions``` - Allows optional execution of mapping configuration. It is an array of conditions:
+        - ```conditions``` - Allows optional execution of mapping configuration. If it evaluates to false, then the parent config is not executed. It only checks the original properties, not ones updated by other config. It is an array of conditions with these properties:
             - ```attributeName``` - Attribute name (not regex) to check.
             - ```condition``` - EQU|NEQ|GTE|GTR|LTE|LTR|IN|CONTAIN|START_WITH|END_WITH to control how to compare the value.
             - ```attributeValue``` - An array of values.
@@ -131,7 +131,7 @@ java -jar JiraDashboardMigrator-[version].jar
 ```
 
 ##### Grant Roles
-- To grant roles in Jira Cloud.
+- To grant roles in all projects in Jira Cloud.
 - Roles are referenced by name, e.g. jira-administrator.
 - Specify multiple roles by delimiting with space.
 - If -u is not specified, the roles will be granted to targetUser in config.json. 
@@ -140,7 +140,7 @@ java -jar JiraDashboardMigrator-<version>.jar -c <config.json> -gr -r <Role name
 ```
 
 ##### Revoke Roles
-- To revoke roles in Jira Cloud.
+- To revoke roles in all projects in Jira Cloud.
 - Roles are referenced by name, e.g. jira-administrator.
 - Specify multiple roles by delimiting with space.
 - If -u is not specified, the roles will be revoked from targetUser in config.json. 
