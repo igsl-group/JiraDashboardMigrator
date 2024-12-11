@@ -10,9 +10,16 @@ This tool was created because official Jira Cloud Migration Assistant does not s
 1. Network access to Jira Cloud for REST API calls.
 
 ## Limitations
+### Object Mapping
+1. Some object types cannot be mapped due to having no uniquely identifiable properties (agile board, sprint). 
+### Filter
+1. Jira Cloud no longer support issueFunction in JQL. So you can expect filters to be not migrated.
+1. JQL functions introduced by plugins are also not supported in Jira Cloud.
+1. Object references in JQL functions will be translated to display name if possible. If that object type's display name can clash, then it will be translated to object id. 
+### Dashboard
 1. You need to define a mapping configuration for each dashboard gadget type. 
 1. Atlassian REST API only supports creating dashboard in 2-column layout.
-1. Some object types cannot be mapped due to having no uniquely identifiable properties (agile board, sprint). 
+1. There's no REST API to modify dashboard permissions. As a result, we cannot update existing dashboards. Instead, a new dashboard is created and its owner changed to target user. If a dashboard with same name already exists, the new dashboard will be renamed by appending timestamp as suffix. 
 
 ## Configuration
 Edit config.json and update source and target information. 
