@@ -434,6 +434,9 @@ public class DashboardMigrator {
 						msg.contains("not mapped")) {
 				result[0] = "N";
 				result[1] = "Argument references object not in Cloud";
+			} else if (msg.contains("already exists, will not overwrite")) {
+				result[0] = "N";
+				result[1] = "Filter migrated by JCMA or created by";
 			}
 		}
 		return result;
