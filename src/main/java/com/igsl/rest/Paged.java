@@ -123,12 +123,12 @@ public class Paged<T> extends Pagination<T> {
 	@Override
 	public void setup(RestUtil<?> util) {
 		if (this.startAtParameterName != null && 
-			!this.startAtParameterName.isBlank() &&
+			!this.startAtParameterName.trim().isEmpty() &&
 			this.startAt != null) {
 			util.query(this.startAtParameterName, this.startAt);
 		}
 		if (this.maxResultsParameterName != null && 
-			!this.maxResultsParameterName.isBlank() && 
+			!this.maxResultsParameterName.trim().isEmpty() && 
 			this.maxResults != null) {
 			util.query(this.maxResultsParameterName, this.maxResults);
 		}
@@ -143,14 +143,14 @@ public class Paged<T> extends Pagination<T> {
 		JsonNode root = om.readTree(jsonString);
 		// Total
 		total = null;
-		if (this.totalParameterName != null && !this.totalParameterName.isBlank()) {
+		if (this.totalParameterName != null && !this.totalParameterName.trim().isEmpty()) {
 			JsonNode totalNode = root.get(totalParameterName);
 			if (totalNode != null && totalNode.isInt()) {
 				total = totalNode.asInt();
 			}
 		}
 		// Values
-		if (valuesParameterName != null && !valuesParameterName.isBlank()) {
+		if (valuesParameterName != null && !valuesParameterName.trim().isEmpty()) {
 			JsonNode valuesNode = root.get(valuesParameterName);
 			if (valuesNode != null) {
 				this.values = new ArrayList<>();

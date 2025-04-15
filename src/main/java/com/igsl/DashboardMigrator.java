@@ -236,7 +236,7 @@ public class DashboardMigrator {
 	}
 	public static void saveFile(String fileName, Object content, Class<?> jacksonView) 
 			throws IOException {
-		try (FileWriter fw = new FileWriter(fileName, DEFAULT_CHARSET)) {
+		try (FileWriter fw = new FileWriter(fileName)) {
 			ObjectWriter writer = null;
 			if (jacksonView != null) {
 				writer = OM
@@ -2123,11 +2123,21 @@ public class DashboardMigrator {
 		Duration elapsed = Duration.between(
 				LocalTime.from(startTime.atZone(ZoneId.systemDefault())), 
 				LocalTime.from(endTime.atZone(ZoneId.systemDefault())));
-		Log.info(LOGGER, "Elapsed: " + 
-				elapsed.toDaysPart() + " day(s) " + 
-				elapsed.toHoursPart() + " hour(s) " + 
-				elapsed.toMinutesPart() + " minute(s) " + 
-				elapsed.toSecondsPart() + " second(s) " + 
-				elapsed.toMillisPart() + " millisecond(s) ");
+		Log.info(LOGGER, "Elapsed: " + calculateTime(elapsed));
+	}
+	
+	private static String calculateTime(Duration duration) {
+		long seconds = duration.getSeconds();
+	    int day = (int) TimeUnit.SECONDS.toDays(seconds);
+	    long hours = TimeUnit.SECONDS.toHours(seconds) -
+	                 TimeUnit.DAYS.toHours(day);
+	    long minute = TimeUnit.SECONDS.toMinutes(seconds) -
+	                  TimeUnit.HOURS.toMinutes(TimeUnit.SECONDS.toHours(seconds));
+	    long second = TimeUnit.SECONDS.toSeconds(seconds) -
+	                  TimeUnit.MINUTES.toSeconds(TimeUnit.SECONDS.toMinutes(seconds));
+	    return 	day + " day(s) " + 
+	          	hours + " hour(s) " + 
+	          	minute + " minute(s) " + 
+	          	second + " second(s)";
 	}
 }

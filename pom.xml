@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.igsl</groupId>
     <artifactId>JiraDashboardMigrator</artifactId>
-    <version>0.0.20</version>
+    <version>0.0.21</version>
 
     <organization>
         <name>Integrated Global Solutions Limited</name>
@@ -347,17 +347,29 @@
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
-                    <descriptors>
-                        <descriptor>src/main/assembly/zip.xml</descriptor>
-                    </descriptors>
                 </configuration>
                 <executions>
                     <execution>
-                        <id>make-assembly</id> <!-- this is used for inheritance merges -->
+                        <id>jar</id> <!-- this is used for inheritance merges -->
                         <phase>install</phase> <!-- append to the packaging phase. -->
                         <goals>
                             <goal>single</goal> <!-- goals == mojos -->
                         </goals>
+                        <configuration>
+                            <finalName>${project.artifactId}-${project.version}</finalName>
+                            <descriptor>src/main/assembly/zip.xml</descriptor>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>source</id> <!-- this is used for inheritance merges -->
+                        <phase>install</phase> <!-- append to the packaging phase. -->
+                        <goals>
+                            <goal>single</goal> <!-- goals == mojos -->
+                        </goals>
+                        <configuration>
+                            <finalName>${project.artifactId}-${project.version}-Source</finalName>
+                            <descriptor>src/main/assembly/source.xml</descriptor>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
