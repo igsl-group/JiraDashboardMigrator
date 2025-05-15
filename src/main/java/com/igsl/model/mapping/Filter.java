@@ -118,14 +118,14 @@ public class Filter extends JiraObject<Filter> {
 			if (filterId != null) {
 				util.path("/rest/api/latest/filter/{filterId}")
 					.pathTemplate("filterId", filterId)
-					.query("expand", "owner,editPermissions,sharePermissions")
+					.query("expand", "owner,editPermissions,sharePermissions,jql")
 					.query("overrideSharePermissions", true)	// Override permission
 					.method(HttpMethod.GET)
 					.pagination(new SinglePage<Filter>(Filter.class, null));
 			} else {
 				util.path("/rest/api/latest/filter/search")
 					.method(HttpMethod.GET)
-					.query("expand", "owner,editPermissions,sharePermissions")
+					.query("expand", "owner,editPermissions,sharePermissions,jql")
 					.query("overrideSharePermissions", true)	// Override permission
 					.pagination(new Paged<Filter>(Filter.class).maxResults(100));
 			}

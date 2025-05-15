@@ -33,7 +33,8 @@ public class CLI {
 		LIST_DASHBOARD(LISTDASHBOARD_OPTION),
 		GRANT_ROLE(GRANT_OPTION),
 		REVOKE_ROLE(REVOKE_OPTION),
-		RESET_FILTER(RESETFILTER_OPTION);
+		RESET_FILTER(RESETFILTER_OPTION),
+		RESET_FILTER_PERMISSION(RESETFILTERPERMISSION_OPTION);
 		private Option option;
 		CLIOptions(Option option) {
 			this.option = option;
@@ -65,6 +66,24 @@ public class CLI {
 			.option("dom")
 			.longOpt("dumpObjectMapping")
 			.build();
+	
+	public static final Option RESETFILTERPERMISSION_OPTION = Option.builder()
+			.desc("Reset filter permission")
+			.option("xfp")
+			.longOpt("resetFilterPermission")
+			.required()
+			.build();
+	public static final Option FILTER_DIR_OPTION = Option.builder()
+			.desc("Filter files directory")
+			.option("fd")
+			.longOpt("filterdir")
+			.required()
+			.hasArg()
+			.build();
+	public static final Options RESET_FILTER_PERMISSION_OPTIONS = new Options()
+			.addOption(CONFIG_OPTION)
+			.addOption(FILTER_DIR_OPTION)
+			.addOption(RESETFILTERPERMISSION_OPTION);
 	
 	public static final Option RESETFILTER_OPTION = Option.builder()
 			.desc(	"Reset filter name and owner based on Filter.Remapped.json. " + 
@@ -266,11 +285,12 @@ public class CLI {
 			.addOption(USER_OPTION);
 	
 	public static void printHelp() {
-		String command = "java -jar JiraDashboardMigrator-[Version].jar -c [config.json] ";
+		String command = "java -jar JiraDashboardMigrator-[Version].jar";
 		HelpFormatter hf = new HelpFormatter();
-		hf.printHelp(command + " [other options to be executed in sequence]", MAIN_OPTIONS);
-		hf.printHelp(command + " -gr -r [Role names]", GRANT_OPTIONS);
-		hf.printHelp(command + " -rr -r [Role names]", REVOKE_OPTIONS);
+		hf.printHelp(command, MAIN_OPTIONS, true);
+		hf.printHelp(command, RESET_FILTER_PERMISSION_OPTIONS, true);
+		hf.printHelp(command, GRANT_OPTIONS, true);
+		hf.printHelp(command, REVOKE_OPTIONS, true);
 	}
 	
 	public static CommandLine parseCommandLine(String[] args) {
@@ -278,6 +298,11 @@ public class CLI {
 		CommandLine cmd = null;
 		try {
 			return parser.parse(MAIN_OPTIONS, args);
+		} catch (Exception ex) {
+			// Ignore
+		}
+		try {
+			return parser.parse(RESET_FILTER_PERMISSION_OPTIONS, args);
 		} catch (Exception ex) {
 			// Ignore
 		}

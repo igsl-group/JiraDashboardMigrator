@@ -7,6 +7,8 @@ import com.igsl.model.DataCenterPermission;
 import com.igsl.model.mapping.Filter;
 
 public class MapFilterResult {
+	private List<String> messages = new ArrayList<>();
+	private boolean success = false;
 	private Filter original;
 	private Filter target;
 	private Exception exception;
@@ -48,5 +50,17 @@ public class MapFilterResult {
 	}
 	public void setRemovedEditPermissions(List<DataCenterPermission> removedEditPermissions) {
 		this.removedEditPermissions = removedEditPermissions;
+	}
+	public List<String> getMessages() {
+		return messages;
+	}
+	public void setMessages(List<String> messages) {
+		this.messages = messages;
+	}
+	public boolean isSuccess() {
+		return success;
+	}
+	public void setSuccess(boolean success) {
+		this.success = success;
 	}
 }

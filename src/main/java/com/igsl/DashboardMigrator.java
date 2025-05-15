@@ -1,5 +1,6 @@
 package com.igsl;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
@@ -32,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.ws.rs.HttpMethod;
 import javax.ws.rs.client.Client;
@@ -114,6 +116,7 @@ import com.igsl.thread.CreateGadgetResult;
 import com.igsl.thread.EditFilterPermission;
 import com.igsl.thread.MapFilter;
 import com.igsl.thread.MapFilterResult;
+import com.igsl.thread.ResetFilter;
 
 /**
  * Migrate dashboard and filter from Jira Data Center 8.14.1 to Jira Cloud. The
@@ -218,9 +221,18 @@ public class DashboardMigrator {
 		try {
 			ObjectReader reader = OM.readerFor(cls);
 			StringBuilder sb = new StringBuilder();
-			for (String line : Files.readAllLines(Paths.get(fileName), DEFAULT_CHARSET)) {
-				sb.append(line).append(NEWLINE);
+			try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
+				String line = null;
+				do {
+					line = br.readLine();
+					if (line != null) {
+						sb.append(line).append(NEWLINE);
+					}
+				} while (line != null);
 			}
+//			for (String line : Files.readAllLines(Paths.get(fileName), DEFAULT_CHARSET)) {
+//				sb.append(line).append(NEWLINE);
+//			}
 			MappingIterator<T> list = reader.readValues(sb.toString());
 			while (list.hasNext()) {
 				result.add(list.next());
@@ -442,6 +454,91 @@ public class DashboardMigrator {
 		return result;
 	}
 	
+	/**
+	 * Set filter owner and view/edit permission according to Filter dump directory
+	 * @param conf
+	 */
+	private static void resetFilterPermission(
+			Config conf, Path dir) throws Exception {
+		// JSON of Cloud filter
+		List<Filter> filterList = new ArrayList<>();
+		Set<Path> fileList = Files
+				.list(dir)
+				.collect(Collectors.toSet());
+		try {
+			Log.info(LOGGER, "Filter files to be processed: ");
+			for (Path file : fileList) {
+				List<Filter> list = readValuesFromFile(file.toString(), Filter.class);
+				filterList.addAll(list);
+				for (Filter f : list) {
+					Log.info(LOGGER, "Filter: " + f.getName() + " (" + f.getId() + ")");
+				}
+			}
+		} catch (Exception ex) {
+			Log.error(LOGGER, "Failed to read Cloud filter list", ex);
+		}
+		Log.info(LOGGER, "Getting my Account ID");
+		String myAccountId = getUserAccountId(conf, conf.getTargetUser());
+		Log.info(LOGGER, "My Account ID: " + myAccountId);
+		// No data to calculate filter dependency
+		// Dependency-related errors must be manually resolved
+		ExecutorService executorService = Executors.newFixedThreadPool(conf.getThreadCount());
+		Map<Filter, Future<MapFilterResult>> results = new HashMap<>();
+		for (Filter filter : filterList) {
+			ResetFilter resetFilter = new ResetFilter(conf, myAccountId, filter);
+			results.put(filter, executorService.submit(resetFilter));
+		}
+		// Get result from future
+		int successCount = 0;
+		List<String> failedFilters = new ArrayList<>();
+		while (results.size() != 0) {
+			List<Filter> toRemove = new ArrayList<>();
+			for (Map.Entry<Filter, Future<MapFilterResult>> entry : results.entrySet()) {
+				try {
+					Future<MapFilterResult> future = entry.getValue();
+					MapFilterResult r = future.get(conf.getThreadWait(), TimeUnit.MILLISECONDS);
+					if (r != null) {
+						toRemove.add(entry.getKey());
+						List<String> messages = r.getMessages();
+						for (String msg : messages) {
+							Log.info(LOGGER, 
+									r.getOriginal().getName() + " (" + r.getOriginal().getId() + "): " + msg);
+						}
+						if (r.isSuccess()) {
+							successCount++;
+						} else {
+							failedFilters.add(r.getOriginal().getName() + " (" + r.getOriginal().getId() + ")");
+						}
+					}
+				} catch (TimeoutException tex) {
+					// Ignore
+				} catch (Exception ex) {
+					Log.info(LOGGER, 
+							entry.getKey().getName() + " (" + entry.getKey().getId() + ") failed: " + 
+							ex.getMessage());
+					toRemove.add(entry.getKey());
+				}
+			}
+			for (Filter f : toRemove) {
+				results.remove(f);
+			}
+		}
+		Log.info(LOGGER, "Summary: " + successCount + "/" + filterList.size());
+		Log.info(LOGGER, "Failed filter list (" + failedFilters.size() + ": ");
+		for (String failed : failedFilters) {
+			Log.info(LOGGER, failed);
+		}
+		// Wait for shutdown
+		executorService.shutdown();
+		while (!executorService.isTerminated()) {
+			try {
+				executorService.awaitTermination(conf.getThreadWait(), TimeUnit.MILLISECONDS);
+			} catch (InterruptedException iex) {
+				Log.error(LOGGER, "Reset filter permission wait interrupted", iex);
+			}
+		}
+	}
+	
 	private static void mapFiltersV4(
 			Config conf, boolean callApi, boolean overwriteFilter, boolean allValuesMapped) 
 			throws Exception {
@@ -474,6 +571,7 @@ public class DashboardMigrator {
 			if (callApi) {
 				Log.info(LOGGER, "Getting account id");
 				myAccountId = getUserAccountId(conf, conf.getTargetUser());
+				Log.info(LOGGER, "My Account ID: " + myAccountId);
 				Log.info(LOGGER, "Adding filter edit permission");
 				Map<Filter, String> addPermissionResult = setFilterEditPermission(conf, true, myAccountId);
 				for (Map.Entry<Filter, String> entry : addPermissionResult.entrySet()) {
@@ -2002,7 +2100,10 @@ public class DashboardMigrator {
 			// Initialize client pool
 			ClientPool.setMaxPoolSize(conf.getConnectionPoolSize(), conf.getConnectTimeout(), conf.getReadTimeout());
 			// Process options
-			if (cli.hasOption(CLI.GRANT_OPTION)) {
+			if (cli.hasOption(CLI.RESETFILTERPERMISSION_OPTION)) {
+				String dir = cli.getOptionValue(CLI.FILTER_DIR_OPTION);
+				resetFilterPermission(conf, Paths.get(dir));
+			} else if (cli.hasOption(CLI.GRANT_OPTION)) {
 				try (ClientWrapper wrapper = new ClientWrapper(true, conf)) {
 					String[] roles = cli.getOptionValues(CLI.ROLE_OPTION);
 					String accountId = cli.getOptionValue(CLI.USER_OPTION);
