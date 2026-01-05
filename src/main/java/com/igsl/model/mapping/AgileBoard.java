@@ -4,7 +4,6 @@ import java.util.List;
 
 import javax.ws.rs.HttpMethod;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.igsl.config.Config;
 import com.igsl.rest.Paged;
 import com.igsl.rest.RestUtil;

@@ -13,7 +13,7 @@ import java.util.concurrent.TimeoutException;
 
 import javax.ws.rs.HttpMethod;
 
-import org.apache.commons.httpclient.HttpStatus;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 

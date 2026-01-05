@@ -27,31 +27,29 @@
 			
 			or use Maven build configuration to run install:install-file.
 		-->
+
+        <repository>
+            <id>atlassian-public</id>
+            <url>https://maven.artifacts.atlassian.com</url>
+            <!--
+            https://maven.atlassian.com/repository/public</url>
+            -->
+        </repository>
+
         <repository>
             <id>LocalRepository</id>
-            <url>file://${project.basedir}/LocalRepository</url>
+            <url>file://${project.basedir}/localRepository</url>
         </repository>
+
         <repository>
             <snapshots>
                 <enabled>false</enabled>
             </snapshots>
             <id>central</id>
             <name>Maven Repository Switchboard</name>
-            <url>http://repo1.maven.org/maven2</url>
+            <url>https://repo1.maven.org/maven2</url>
         </repository>
-        <repository>
-            <id>atlassian-public</id>
-            <url>https://maven.atlassian.com/repository/public</url>
-            <snapshots>
-                <enabled>true</enabled>
-                <updatePolicy>never</updatePolicy>
-                <checksumPolicy>warn</checksumPolicy>
-            </snapshots>
-            <releases>
-                <enabled>true</enabled>
-                <checksumPolicy>warn</checksumPolicy>
-            </releases>
-        </repository>
+        <!--
         <repository>
             <id>atlassian-plugin-sdk</id>
             <url>file://${env.ATLAS_HOME}/repository</url>
@@ -63,6 +61,7 @@
                 <checksumPolicy>warn</checksumPolicy>
             </releases>
         </repository>
+        -->
     </repositories>
 
     <dependencies>
@@ -91,11 +90,13 @@
             <version>3.5.2</version>
         </dependency>
 
+        <!--
         <dependency>
             <groupId>com.atlassian.fugue</groupId>
             <artifactId>fugue</artifactId>
             <version>2.6.0</version>
         </dependency>
+        -->
 
         <dependency>
             <groupId>commons-lang</groupId>
@@ -109,48 +110,78 @@
             <version>v20151216</version>
         </dependency>
 
+        <!--
         <dependency>
             <groupId>com.atlassian</groupId>
             <artifactId>atlassian-logging</artifactId>
             <version>2.15</version>
         </dependency>
+        -->
 
+        <!--
         <dependency>
             <groupId>com.atlassian.applinks</groupId>
             <artifactId>applinks-plugin</artifactId>
             <version>5.4.5</version>
         </dependency>
+        -->
 
+        <!--
+            11.3.1 of jira-api is the latest stable version found.
+            1000.30.0 references jira-components 1000.30.0, which does not exist in Atlassian's maven. Only 1000.29.0 exists.
+            1000.29.0 references tenant-context-api 0.1.2, which does not exist in Atlassian's maven. Only 0.1.0 exists.
+            
+            11.3.1 still references commmons-httpclient, which got renamed twice to httpclient5 with breaking changes.
+        -->
+        <dependency>
+            <groupId>com.atlassian.jira</groupId>
+            <artifactId>jira-api</artifactId>
+            <version>11.3.1</version>
+            <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>commons-httpclient</groupId>
+                    <artifactId>commons-httpclient</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>5.6</version>
+        </dependency>
+        <!--
         <dependency>
             <groupId>com.atlassian.jira</groupId>
             <artifactId>jira-api</artifactId>
             <version>8.22.6</version>
             <exclusions>
-                <!-- To disable slf4j and use log4j2 instead -->
                 <exclusion>
                     <groupId>org.slf4j</groupId>
                     <artifactId>slf4j-api</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
+        -->
 
-        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-core -->
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
+            <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.18.1</version>
+            <version>3.0.3</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
+            <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.18.1</version>
+            <version>3.0.3</version>
         </dependency>
-
         <dependency>
-            <groupId>jta</groupId>
-            <artifactId>jta</artifactId>
-            <version>1.0.1b</version>
+            <groupId>jakarta.transaction</groupId>
+            <artifactId>jakarta.transaction-api</artifactId>
+            <version>2.0.1</version>
         </dependency>
 
         <dependency>
@@ -281,6 +312,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
+                <version>3.4.0</version>
                 <executions>
                     <execution>
                         <id>copy-config</id>
@@ -323,6 +355,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
+                <version>3.5.0</version>
                 <configuration>
                     <excludes>
                         <exclude>*.json</exclude>
@@ -345,6 +378,7 @@
             </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.8.0</version>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
                 </configuration>
@@ -357,7 +391,9 @@
                         </goals>
                         <configuration>
                             <finalName>${project.artifactId}-${project.version}</finalName>
-                            <descriptor>src/main/assembly/zip.xml</descriptor>
+                            <descriptors>
+                                <descriptor>src/main/assembly/zip.xml</descriptor>
+                            </descriptors>
                         </configuration>
                     </execution>
                     <execution>
@@ -368,7 +404,9 @@
                         </goals>
                         <configuration>
                             <finalName>${project.artifactId}-${project.version}-Source</finalName>
-                            <descriptor>src/main/assembly/source.xml</descriptor>
+                            <descriptors>
+                                <descriptor>src/main/assembly/source.xml</descriptor>
+                            </descriptors>
                         </configuration>
                     </execution>
                 </executions>
@@ -378,9 +416,12 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>25</maven.compiler.release>
+        <!--
         <java.version>1.8</java.version>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+        -->
     </properties>
 
 </project>
