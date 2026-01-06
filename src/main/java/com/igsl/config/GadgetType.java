@@ -15,11 +15,13 @@ import java.util.regex.Matcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.fasterxml.jackson.core.JsonParser.Feature;
-import com.fasterxml.jackson.databind.MappingIterator;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import tools.jackson.core.json.JsonReadFeature;
+import tools.jackson.databind.MappingIterator;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
+
 import com.igsl.Log;
 
 public class GadgetType {
@@ -42,9 +44,10 @@ public class GadgetType {
 	private String configType;
 	private List<GadgetConfigMapping> config = new ArrayList<>();
 
-	private static final ObjectMapper OM = new ObjectMapper()
-			.configure(Feature.ALLOW_COMMENTS, true)
-			.enable(SerializationFeature.INDENT_OUTPUT);
+	private static final JsonMapper OM = JsonMapper.builder()
+			.configure(JsonReadFeature.ALLOW_JAVA_COMMENTS, true)
+			.enable(SerializationFeature.INDENT_OUTPUT)
+			.build();
 	
 	static {
 		LIST = new ArrayList<>();

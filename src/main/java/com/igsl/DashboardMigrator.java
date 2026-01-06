@@ -68,17 +68,18 @@ import com.atlassian.query.operand.MultiValueOperand;
 import com.atlassian.query.operand.Operand;
 import com.atlassian.query.operand.SingleValueOperand;
 import com.atlassian.query.operator.Operator;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonParser.Feature;
-import com.fasterxml.jackson.core.util.DefaultIndenter;
-import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.MappingIterator;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.module.SimpleModule;
+
+import tools.jackson.core.json.JsonReadFeature;
+import tools.jackson.core.util.DefaultIndenter;
+import tools.jackson.core.util.DefaultPrettyPrinter;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.MappingIterator;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
+import tools.jackson.databind.ObjectWriter;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.module.SimpleModule;
 import com.igsl.CLI.CLIOptions;
 import com.igsl.config.Config;
 import com.igsl.model.CloudDashboard;
@@ -90,7 +91,6 @@ import com.igsl.model.mapping.CustomField;
 import com.igsl.model.mapping.Dashboard;
 import com.igsl.model.mapping.Filter;
 import com.igsl.model.mapping.JiraObject;
-import com.igsl.model.mapping.JiraObjectDeserializer;
 import com.igsl.model.mapping.Mapping;
 import com.igsl.model.mapping.MappingType;
 import com.igsl.model.mapping.Project;
@@ -133,17 +133,15 @@ public class DashboardMigrator {
 	private static final String NEWLINE = "\r\n";
 	private static final Logger LOGGER = LogManager.getLogger(DashboardMigrator.class);
 	
-	private static final ObjectMapper OM = new ObjectMapper()
+	private static final JsonMapper OM = JsonMapper.builder()
 			.enable(SerializationFeature.INDENT_OUTPUT)
 			// Allow comments
-			.configure(Feature.ALLOW_COMMENTS, true)	
+			.configure(JsonReadFeature.ALLOW_JAVA_COMMENTS, true)	
 			// Sort map by key
 			.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
 			// Allow attributes missing in POJO
 			.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) 
-			// Add custom deserializer for JiraObject
-			.registerModule(new SimpleModule()
-					.addDeserializer(JiraObject.class, new JiraObjectDeserializer()));
+			.build();
 	
 	public static SqlSessionFactory setupMyBatis(Config conf) throws Exception {
 		PooledDataSource ds = new PooledDataSource();
@@ -201,7 +199,7 @@ public class DashboardMigrator {
 		return result;
 	}
 
-	public static <T> T readFile(String fileName, Class<? extends T> cls) throws IOException, JsonParseException {
+	public static <T> T readFile(String fileName, Class<? extends T> cls) throws IOException {
 		ObjectReader reader = OM.readerFor(cls);
 		StringBuilder sb = new StringBuilder();
 		Log.info(LOGGER, "Loading file: [" + fileName + "] as [" + cls.getCanonicalName() + "]");
@@ -212,7 +210,7 @@ public class DashboardMigrator {
 	}
 
 	public static <T> List<T> readValuesFromFile(String fileName, Class<? extends T> cls) 
-			throws IOException, JsonParseException {
+			throws IOException {
 		List<T> result = new ArrayList<>();
 		try {
 			ObjectReader reader = OM.readerFor(cls);
@@ -247,15 +245,9 @@ public class DashboardMigrator {
 		try (FileWriter fw = new FileWriter(fileName)) {
 			ObjectWriter writer = null;
 			if (jacksonView != null) {
-				writer = OM
-					.writerWithView(jacksonView)
-					.with(new DefaultPrettyPrinter()
-							.withObjectIndenter(new DefaultIndenter()
-									.withLinefeed(NEWLINE)));
+				writer = OM.writerWithView(jacksonView);
 			} else {
-				writer = OM.writer(new DefaultPrettyPrinter()
-									.withObjectIndenter(new DefaultIndenter()
-										.withLinefeed(NEWLINE)));
+				writer = OM.writer();
 			}
 			String s = writer.writeValueAsString(content);
 			fw.write(s);

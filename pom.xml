@@ -172,6 +172,11 @@
             <version>4.0.0</version>
         </dependency>
         <dependency>
+            <groupId>org.glassfish.jersey.inject</groupId>
+            <artifactId>jersey-hk2</artifactId>
+            <version>4.0.0</version>
+        </dependency>
+        <dependency>
             <groupId>tools.jackson.jakarta.rs</groupId>
             <artifactId>jackson-jakarta-rs-json-provider</artifactId>
             <version>3.0.3</version>
