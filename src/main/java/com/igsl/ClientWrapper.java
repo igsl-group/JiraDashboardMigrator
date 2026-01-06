@@ -2,20 +2,19 @@ package com.igsl;
 
 import java.io.IOException;
 
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.ClientBuilder;
 
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
-import com.fasterxml.jackson.jaxrs.json.JacksonJsonProvider;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.jakarta.rs.json.JacksonJsonProvider;
 import com.igsl.config.Config;
 
 public class ClientWrapper implements AutoCloseable {
 
-	private static final JacksonJsonProvider JACKSON_JSON_PROVIDER = new JacksonJaxbJsonProvider()
+	private static final JacksonJsonProvider JACKSON_JSON_PROVIDER = new JacksonJsonProvider()
 			.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 			.configure(SerializationFeature.INDENT_OUTPUT, true);
 

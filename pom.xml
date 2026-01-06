@@ -27,20 +27,6 @@
 			
 			or use Maven build configuration to run install:install-file.
 		-->
-
-        <repository>
-            <id>atlassian-public</id>
-            <url>https://maven.artifacts.atlassian.com</url>
-            <!--
-            https://maven.atlassian.com/repository/public</url>
-            -->
-        </repository>
-
-        <repository>
-            <id>LocalRepository</id>
-            <url>file://${project.basedir}/localRepository</url>
-        </repository>
-
         <repository>
             <snapshots>
                 <enabled>false</enabled>
@@ -49,19 +35,15 @@
             <name>Maven Repository Switchboard</name>
             <url>https://repo1.maven.org/maven2</url>
         </repository>
-        <!--
         <repository>
-            <id>atlassian-plugin-sdk</id>
-            <url>file://${env.ATLAS_HOME}/repository</url>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-            <releases>
-                <enabled>true</enabled>
-                <checksumPolicy>warn</checksumPolicy>
-            </releases>
+            <id>atlassian-public</id>
+            <url>https://maven.artifacts.atlassian.com</url>
         </repository>
-        -->
+
+        <repository>
+            <id>LocalRepository</id>
+            <url>file://${project.basedir}/localRepository</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -187,12 +169,12 @@
         <dependency>
             <groupId>org.glassfish.jersey.core</groupId>
             <artifactId>jersey-client</artifactId>
-            <version>4.0.4</version>
+            <version>4.0.0</version>
         </dependency>
         <dependency>
-            <groupId>org.glassfish.jersey.media</groupId>
-            <artifactId>jersey-media-json-jackson</artifactId>
-            <version>4.0.4</version>
+            <groupId>tools.jackson.jakarta.rs</groupId>
+            <artifactId>jackson-jakarta-rs-json-provider</artifactId>
+            <version>3.0.3</version>
         </dependency>
         <dependency>
             <groupId>javax.activation</groupId>

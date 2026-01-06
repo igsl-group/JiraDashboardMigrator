@@ -4,11 +4,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.ws.rs.core.Response;
+import jakarta.ws.rs.core.Response;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 public class Paged<T> extends Pagination<T> {
 
@@ -135,8 +134,7 @@ public class Paged<T> extends Pagination<T> {
 	}
 
 	@Override
-	public void setResponse(Response response, ObjectMapper om) 
-			throws JsonProcessingException, IllegalArgumentException, IOException {
+	public void setResponse(Response response, ObjectMapper om) throws IOException {
 		this.response = response;
 		// Parse response
 		String jsonString = this.response.readEntity(String.class);		

@@ -63,7 +63,7 @@ public class CSV {
 			.setDelimiter(",")
 			.setQuoteMode(QuoteMode.ALL)
 			.setHeader()
-			.build();
+			.get();
 	}
 	
 	public static CSVFormat getCSVWriteFormat(Collection<String> headers) {
@@ -72,7 +72,7 @@ public class CSV {
 			.setDelimiter(",")
 			.setQuoteMode(QuoteMode.ALL)
 			.setHeader(headers.toArray(new String[0]))
-			.build();
+			.get();
 	}
 	
 	public static void printRecord(CSVPrinter printer, Collection<?> args) throws IOException {

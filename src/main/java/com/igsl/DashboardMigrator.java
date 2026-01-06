@@ -1,11 +1,8 @@
 package com.igsl;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -34,12 +31,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import javax.ws.rs.HttpMethod;
-import javax.ws.rs.client.Client;
-import javax.ws.rs.core.GenericType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
 
 import org.antlr.runtime.ANTLRStringStream;
 import org.antlr.runtime.CharStream;
@@ -82,7 +73,6 @@ import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
@@ -117,6 +107,12 @@ import com.igsl.thread.EditFilterPermission;
 import com.igsl.thread.MapFilter;
 import com.igsl.thread.MapFilterResult;
 import com.igsl.thread.ResetFilter;
+
+import jakarta.ws.rs.HttpMethod;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.core.GenericType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.Response.Status;
 
 /**
  * Migrate dashboard and filter from Jira Data Center 8.14.1 to Jira Cloud. The
@@ -1418,7 +1414,7 @@ public class DashboardMigrator {
 		CSVFormat format = CSVFormat.Builder.create()
 				.setHeader()
 				.setSkipHeaderRecord(false)
-				.build();
+				.get();
 		try (FileReader fr = new FileReader(csvFile); 
 			CSVParser parser = CSVParser.parse(fr, format)) {
 			List<String> colNames = parser.getHeaderNames();
